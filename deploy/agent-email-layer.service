@@ -1,0 +1,22 @@
+[Unit]
+Description=BuiltByEcho Agent Email Layer API
+After=network-online.target postgresql.service redis-server.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=agent-email
+Group=agent-email
+WorkingDirectory=/opt/agent-email-layer
+EnvironmentFile=/etc/agent-email-layer/env
+ExecStart=/usr/local/bin/node /opt/agent-email-layer/dist/src/server.js
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/var/lib/agent-email-layer
+
+[Install]
+WantedBy=multi-user.target

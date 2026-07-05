@@ -1,0 +1,34 @@
+{
+  "name": "@builtbyecho/agent-email-layer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "VPS-hosted agent email control plane: inboxes, threads, policies, approvals, audit logs, and provider adapters.",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "migrate": "tsx src/migrate.ts",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "check": "npm run build && npm test"
+  },
+  "dependencies": {
+    "@fastify/cors": "^11.1.0",
+    "@fastify/formbody": "^8.0.2",
+    "bullmq": "^5.65.1",
+    "fastify": "^5.6.2",
+    "ioredis": "^5.8.2",
+    "nanoid": "^5.1.6",
+    "pg": "^8.16.3",
+    "zod": "^4.2.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.2",
+    "@types/pg": "^8.15.6",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

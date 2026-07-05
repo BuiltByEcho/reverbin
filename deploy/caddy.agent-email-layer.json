@@ -1,0 +1,10 @@
+{
+  "match": [{ "host": ["email.builtbyecho.xyz"] }],
+  "handle": [
+    {
+      "handler": "reverse_proxy",
+      "upstreams": [{ "dial": "127.0.0.1:8797" }]
+    }
+  ],
+  "terminal": true
+}
