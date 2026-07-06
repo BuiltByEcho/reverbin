@@ -44,3 +44,13 @@ test('webhook worker service is documented for queued delivery mode', () => {
   assert.match(service, /ExecStart=\/usr\/local\/bin\/node \/opt\/agent-email-layer\/dist\/src\/webhook-worker\.js/);
   assert.match(env, /WEBHOOK_DELIVERY_MODE=sync/);
 });
+
+test('operator docs describe app-level dashboard token auth', () => {
+  const env = read('.env.example');
+  const readme = read('README.md');
+
+  assert.match(env, /DASHBOARD_TOKEN=/);
+  assert.match(readme, /DASHBOARD_TOKEN/);
+  assert.match(readme, /\/dashboard\/login/);
+  assert.match(readme, /Authorization: Bearer/);
+});

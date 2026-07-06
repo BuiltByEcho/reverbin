@@ -8,6 +8,7 @@ import { defaultPolicy, evaluatePolicy, type Policy } from './policy.js';
 import { getEmailProvider } from './providers.js';
 import { fetchResendReceivedEmail, normalizeResendReceivedEmail, verifySvixSignature } from './resend.js';
 import { buildWebhookDeliveryHeaders, buildWebhookEventPayload, shouldDeliverWebhookEvent, type WebhookEventType } from './webhooks.js';
+import { clearDashboardCookie, dashboardCookie, dashboardTokenFromEnv, isDashboardRequestAuthorized } from './dashboard-auth.js';
 import { buildWebhookDeliveryJob, redisConnectionOptions, WEBHOOK_DELIVERY_QUEUE, webhookDeliveryMode } from './webhook-delivery.js';
 import { arrayify, id, normalizeEmail } from './util.js';
 
@@ -27,6 +28,28 @@ function getWebhookQueue() {
   if (!redisUrl) throw new Error('REDIS_URL is required when WEBHOOK_DELIVERY_MODE=queue');
   webhookQueue = new Queue(WEBHOOK_DELIVERY_QUEUE, { connection: redisConnectionOptions(redisUrl) });
   return webhookQueue;
+}
+
+function requireDashboardAuth(req: FastifyRequest, reply: FastifyReply, done: () => void) {
+  const token = dashboardTokenFromEnv();
+  if (isDashboardRequestAuthorized({ authorization: req.headers.authorization, cookie: req.headers.cookie }, token)) {
+    return done();
+  }
+  const acceptsHtml = String(req.headers.accept ?? '').includes('text/html');
+  if (acceptsHtml) {
+    reply.redirect('/dashboard/login');
+    return;
+  }
+  reply.code(401).send({ error: 'dashboard_auth_required' });
+}
+
+function dashboardLoginHtml(error = '') {
+  const errorHtml = error ? `<p style="color:#fca5a5">${error}</p>` : '';
+  return `<!doctype html><html><head><title>Reverbin Dashboard Login</title><style>body{font-family:Inter,system-ui,sans-serif;margin:32px;background:#09090b;color:#f4f4f5}.card{border:1px solid #27272a;border-radius:14px;padding:18px;max-width:520px;background:#111113}input,button{font:inherit;padding:10px;border-radius:8px;border:1px solid #3f3f46;background:#18181b;color:#f4f4f5}button{background:#2563eb;border-color:#2563eb;cursor:pointer}</style></head><body><div class="card"><h1>Reverbin Dashboard</h1><p>Enter the dashboard token to view operational inbox, webhook, and audit status.</p>${errorHtml}<form method="post" action="/dashboard/login"><input type="password" name="token" autocomplete="current-password" placeholder="Dashboard token" autofocus required /> <button type="submit">Open dashboard</button></form></div></body></html>`;
+}
+
+function dashboardCookieIsSecure() {
+  return (process.env.PUBLIC_BASE_URL ?? '').startsWith('https://');
 }
 
 function requireApiKey(req: FastifyRequest, reply: FastifyReply, done: () => void) {
@@ -255,7 +278,28 @@ app.get('/readyz', async (req, reply) => {
   }
 });
 
-app.get('/dashboard', async (_req, reply) => {
+app.get('/dashboard/login', async (_req, reply) => {
+  reply.type('text/html').send(dashboardLoginHtml());
+});
+
+app.post('/dashboard/login', async (req, reply) => {
+  const body = req.body as { token?: string } | undefined;
+  const configuredToken = dashboardTokenFromEnv();
+  const candidate = body?.token ?? '';
+  if (!configuredToken || isDashboardRequestAuthorized({ authorization: `Bearer ${candidate}` }, configuredToken)) {
+    reply.header('set-cookie', dashboardCookie(candidate, { secure: dashboardCookieIsSecure() }));
+    reply.redirect('/dashboard');
+    return;
+  }
+  reply.code(401).type('text/html').send(dashboardLoginHtml('Invalid dashboard token.'));
+});
+
+app.get('/dashboard/logout', async (_req, reply) => {
+  reply.header('set-cookie', clearDashboardCookie());
+  reply.redirect('/dashboard/login');
+});
+
+app.get('/dashboard', { preHandler: requireDashboardAuth }, async (_req, reply) => {
   const [inboxes, messages, deliveries, audits] = await Promise.all([
     query<any>('SELECT id, email_address, display_name, status, created_at FROM inboxes ORDER BY created_at DESC LIMIT 20'),
     query<any>('SELECT id, inbox_id, thread_id, direction, from_email, subject, created_at FROM messages ORDER BY created_at DESC LIMIT 20'),

@@ -39,6 +39,12 @@ curl http://127.0.0.1:8797/health
 
 Authenticated API calls require `Authorization: Bearer $ECHO_EMAIL_API_KEY` unless `ECHO_EMAIL_API_KEY` is unset.
 
+The operational dashboard is app-token protected:
+
+- Browser login: `GET /dashboard/login`, then enter `DASHBOARD_TOKEN`.
+- Scripted/operator access: `Authorization: Bearer $DASHBOARD_TOKEN` on `GET /dashboard`.
+- If `DASHBOARD_TOKEN` is unset, dashboard auth falls back to `ECHO_EMAIL_API_KEY`.
+
 ## MVP demo flow
 
 1. `POST /v1/inboxes` creates an agent inbox with frictionless default policy.
