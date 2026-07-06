@@ -167,7 +167,7 @@ x-echo-email-signature: sha256=<hmac_hex_digest>
 ## TypeScript SDK quickstart
 
 ```ts
-import { ReverbinClient } from '@builtbyecho/agent-email-layer';
+import { ReverbinClient } from '@builtbyecho/reverbin';
 
 const reverbin = new ReverbinClient({
   baseUrl: process.env.REVERBIN_BASE_URL,

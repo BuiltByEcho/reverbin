@@ -1,14 +1,16 @@
-# Agent Email Layer
+# Reverbin
 
-VPS-hosted control plane for seamless programmable inboxes for autonomous agents.
+Communication infrastructure for autonomous agents: real inboxes, signed webhooks, threaded conversations, delivery logs, and policy guardrails on production email rails.
 
-This is Option B groundwork: we own the API, Postgres schema, threading, friction-light policies, audit logs, webhook surface, and provider adapter boundary while using an external provider for actual email delivery.
+Live site: https://reverbin.com
+API base URL: https://api.reverbin.com
 
 ## What is included now
 
 - Fastify TypeScript API
+- Public Reverbin landing page and app-token protected operational dashboard
 - Postgres schema/migrations
-- Redis-ready worker queue foundation
+- Redis/BullMQ webhook worker
 - Agent inbox CRUD
 - Inbound provider webhook normalization endpoint
 - Thread/message storage
@@ -16,11 +18,11 @@ This is Option B groundwork: we own the API, Postgres schema, threading, frictio
 - Frictionless default sends/replies with risk flags retained for audit
 - Optional approval queue for explicitly configured high-risk policies
 - Agent webhook subscriptions and delivery logs
-- Mock outbound provider for safe VPS bootstrapping
+- Mock outbound provider for safe local bootstrapping
 - Resend inbound/outbound adapter hooks
 - Audit logs
-- Basic operational HTML dashboard
 - systemd-ready deploy files
+- Brand direction and SVG drafts in [`brand/`](brand/)
 
 ## Local setup
 
@@ -37,7 +39,11 @@ Health:
 curl http://127.0.0.1:8797/health
 ```
 
-Authenticated API calls require `Authorization: Bearer $ECHO_EMAIL_API_KEY` unless `ECHO_EMAIL_API_KEY` is unset.
+Authenticated API calls require:
+
+```txt
+Authorization: Bearer $ECHO_EMAIL_API_KEY
+```
 
 The operational dashboard is app-token protected:
 
@@ -45,10 +51,10 @@ The operational dashboard is app-token protected:
 - Scripted/operator access: `Authorization: Bearer $DASHBOARD_TOKEN` on `GET /dashboard`.
 - If `DASHBOARD_TOKEN` is unset, dashboard auth falls back to `ECHO_EMAIL_API_KEY`.
 
-## MVP demo flow
+## Five-minute agent flow
 
-1. `POST /v1/inboxes` creates an agent inbox with frictionless default policy.
-2. `POST /internal/provider/inbound` or Resend inbound webhook receives provider JSON.
+1. `POST /v1/inboxes` creates an agent inbox with a frictionless default policy.
+2. `POST /internal/provider/inbound` or the Resend inbound webhook receives provider JSON.
 3. Reverbin stores the thread/message and emits `email.received` to subscribed webhooks.
 4. `GET /v1/inboxes/:id/threads` shows stored threads.
 5. `POST /v1/threads/:id/reply` sends immediately unless the inbox policy explicitly blocks or requires approval.
@@ -61,15 +67,21 @@ The operational dashboard is app-token protected:
 - Agent example: [`examples/hermes-agent.ts`](examples/hermes-agent.ts)
 
 ```ts
-import { ReverbinClient } from '@builtbyecho/agent-email-layer';
+import { ReverbinClient } from '@builtbyecho/reverbin';
 
-const reverbin = new ReverbinClient({ apiKey: process.env.REVERBIN_API_KEY });
-const inbox = await reverbin.inboxes.create({ email_address: 'agent@agents.reverbin.com' });
+const reverbin = new ReverbinClient({
+  baseUrl: process.env.REVERBIN_BASE_URL,
+  apiKey: process.env.REVERBIN_API_KEY,
+});
+
+const inbox = await reverbin.inboxes.create({
+  email_address: 'agent@agents.reverbin.com',
+});
 ```
 
 ## VPS deploy shape
 
-Runtime paths:
+Current live runtime paths retain the original service name for continuity:
 
 ```txt
 /opt/agent-email-layer
@@ -78,10 +90,11 @@ Runtime paths:
 /var/lib/agent-email-layer/attachments
 ```
 
-Service:
+Services:
 
 ```txt
 agent-email-layer.service
+agent-email-layer-webhook-worker.service
 ```
 
 Default listener is `127.0.0.1:8797` for Caddy reverse proxy.

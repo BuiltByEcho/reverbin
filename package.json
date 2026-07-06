@@ -1,9 +1,9 @@
 {
-  "name": "@builtbyecho/agent-email-layer",
+  "name": "@builtbyecho/reverbin",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "VPS-hosted agent email control plane: inboxes, threads, friction-light policies, audit logs, webhooks, and provider adapters.",
+  "description": "Communication infrastructure for autonomous agents: real inboxes, signed webhooks, threaded conversations, and delivery logs.",
   "main": "./dist/src/client.js",
   "types": "./dist/src/client.d.ts",
   "exports": {

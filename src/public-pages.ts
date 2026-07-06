@@ -213,5 +213,5 @@ export function renderLandingPage() {
 }
 
 export function renderDocsRedirectPage() {
-  return `<!doctype html><html><head><title>Reverbin API docs</title><meta http-equiv="refresh" content="0; url=https://github.com/BuiltByEcho/agent-email-layer/blob/main/docs/API.md"></head><body><p>Reverbin API docs live at <a href="https://github.com/BuiltByEcho/agent-email-layer/blob/main/docs/API.md">docs/API.md</a>.</p></body></html>`;
+  return `<!doctype html><html><head><title>Reverbin API docs</title><meta http-equiv="refresh" content="0; url=https://github.com/BuiltByEcho/reverbin/blob/main/docs/API.md"></head><body><p>Reverbin API docs live at <a href="https://github.com/BuiltByEcho/reverbin/blob/main/docs/API.md">docs/API.md</a>.</p></body></html>`;
 }
