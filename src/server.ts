@@ -9,6 +9,7 @@ import { getEmailProvider } from './providers.js';
 import { fetchResendReceivedEmail, normalizeResendReceivedEmail, verifySvixSignature } from './resend.js';
 import { buildWebhookDeliveryHeaders, buildWebhookEventPayload, shouldDeliverWebhookEvent, type WebhookEventType } from './webhooks.js';
 import { clearDashboardCookie, dashboardCookie, dashboardTokenFromEnv, isDashboardRequestAuthorized } from './dashboard-auth.js';
+import { renderDocsRedirectPage, renderLandingPage } from './public-pages.js';
 import { buildWebhookDeliveryJob, redisConnectionOptions, WEBHOOK_DELIVERY_QUEUE, webhookDeliveryMode } from './webhook-delivery.js';
 import { arrayify, id, normalizeEmail } from './util.js';
 
@@ -276,6 +277,14 @@ app.get('/readyz', async (req, reply) => {
     reply.code(503);
     return { ok: false, db: 'error' };
   }
+});
+
+app.get('/', async (_req, reply) => {
+  reply.type('text/html').send(renderLandingPage());
+});
+
+app.get('/docs', async (_req, reply) => {
+  reply.type('text/html').send(renderDocsRedirectPage());
 });
 
 app.get('/dashboard/login', async (_req, reply) => {

@@ -1,5 +1,5 @@
 {
-  "match": [{ "host": ["email.builtbyecho.xyz"] }],
+  "match": [{ "host": ["api.reverbin.com", "app.reverbin.com", "reverbin.com", "www.reverbin.com"] }],
   "handle": [
     {
       "handler": "reverse_proxy",
