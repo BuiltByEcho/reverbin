@@ -2,11 +2,13 @@ import Fastify, { type FastifyReply, type FastifyRequest } from 'fastify';
 import cors from '@fastify/cors';
 import formbody from '@fastify/formbody';
 import { z } from 'zod';
+import { Queue } from 'bullmq';
 import { pool, query, tx } from './db.js';
 import { defaultPolicy, evaluatePolicy, type Policy } from './policy.js';
 import { getEmailProvider } from './providers.js';
 import { fetchResendReceivedEmail, normalizeResendReceivedEmail, verifySvixSignature } from './resend.js';
 import { buildWebhookDeliveryHeaders, buildWebhookEventPayload, shouldDeliverWebhookEvent, type WebhookEventType } from './webhooks.js';
+import { buildWebhookDeliveryJob, redisConnectionOptions, WEBHOOK_DELIVERY_QUEUE, webhookDeliveryMode } from './webhook-delivery.js';
 import { arrayify, id, normalizeEmail } from './util.js';
 
 const TENANT_ID = process.env.DEFAULT_TENANT_ID ?? 'ten_default';
@@ -17,6 +19,15 @@ const HOST = process.env.HOST ?? '127.0.0.1';
 const app = Fastify({ logger: true });
 await app.register(cors, { origin: true });
 await app.register(formbody);
+
+let webhookQueue: Queue | null = null;
+function getWebhookQueue() {
+  if (webhookQueue) return webhookQueue;
+  const redisUrl = process.env.REDIS_URL;
+  if (!redisUrl) throw new Error('REDIS_URL is required when WEBHOOK_DELIVERY_MODE=queue');
+  webhookQueue = new Queue(WEBHOOK_DELIVERY_QUEUE, { connection: redisConnectionOptions(redisUrl) });
+  return webhookQueue;
+}
 
 function requireApiKey(req: FastifyRequest, reply: FastifyReply, done: () => void) {
   const configured = process.env.ECHO_EMAIL_API_KEY;
@@ -63,6 +74,19 @@ async function publishWebhookEvent(eventType: WebhookEventType, data: Record<str
        VALUES ($1,$2,$3,$4,$5::jsonb,'pending')`,
       [deliveryId, TENANT_ID, endpoint.id, eventType, payloadJson],
     );
+
+    if (webhookDeliveryMode() === 'queue') {
+      const job = buildWebhookDeliveryJob({
+        id: deliveryId,
+        endpoint_id: endpoint.id,
+        url: endpoint.url,
+        secret: endpoint.secret,
+        event_type: eventType,
+        payload_json: payload,
+      });
+      await getWebhookQueue().add(job.name, job.data, job.options);
+      return;
+    }
 
     try {
       const response = await fetch(endpoint.url, {

@@ -48,6 +48,19 @@ Authenticated API calls require `Authorization: Bearer $ECHO_EMAIL_API_KEY` unle
 5. `POST /v1/threads/:id/reply` sends immediately unless the inbox policy explicitly blocks or requires approval.
 6. Successful sends emit `email.sent` to subscribed webhooks and write audit/message rows.
 
+## API docs and SDK
+
+- API reference: [`docs/API.md`](docs/API.md)
+- TypeScript client: `ReverbinClient` exported from this package after `npm run build`
+- Agent example: [`examples/hermes-agent.ts`](examples/hermes-agent.ts)
+
+```ts
+import { ReverbinClient } from '@builtbyecho/agent-email-layer';
+
+const reverbin = new ReverbinClient({ apiKey: process.env.REVERBIN_API_KEY });
+const inbox = await reverbin.inboxes.create({ email_address: 'agent@agents.reverbin.com' });
+```
+
 ## VPS deploy shape
 
 Runtime paths:

@@ -4,10 +4,23 @@
   "private": true,
   "type": "module",
   "description": "VPS-hosted agent email control plane: inboxes, threads, friction-light policies, audit logs, webhooks, and provider adapters.",
+  "main": "./dist/src/client.js",
+  "types": "./dist/src/client.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/src/client.d.ts",
+      "import": "./dist/src/client.js"
+    },
+    "./client": {
+      "types": "./dist/src/client.d.ts",
+      "import": "./dist/src/client.js"
+    }
+  },
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc -p tsconfig.json",
-    "start": "node dist/server.js",
+    "start": "node dist/src/server.js",
+    "worker:webhooks": "node dist/src/webhook-worker.js",
     "migrate": "tsx src/migrate.ts",
     "test": "node --import tsx --test tests/*.test.ts",
     "check": "npm run build && npm test"
