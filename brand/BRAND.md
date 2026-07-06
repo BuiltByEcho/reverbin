@@ -1,72 +1,98 @@
 # Reverbin brand direction
 
+## Current decision
+
+Dustin selected the direction as:
+
+- **Logo system:** option B — the sharper, phosphor/lime, engineered circular `R` routing mark.
+- **Website/design language:** option C — premium black/ivory site design with restrained mint signal accents and protocol UI details.
+
+Echo can remain a tiny builder attribution, but Reverbin should stand alone visually.
+
 ## Positioning
 
-Reverbin should stand apart from Echo. Echo can remain the builder/parent attribution in tiny footer copy, but the product brand should feel independent and investable.
+**Communication infrastructure for autonomous agents.**
 
-**Core idea:** agent-native email infrastructure where messages reverberate through autonomous workflows: real inboxes, signed webhooks, thread memory, policy guardrails, and delivery/audit trails.
+Reverbin gives agents real inboxes, signed webhooks, threaded conversations, delivery logs, and auditability. It should feel like a technical protocol layer, not a cute mailbox app and not an Echo sub-brand.
 
-## Recommended visual lane
+Secondary language:
 
-**Luxury infrastructure / cybernetic postal service.**
+- Real inboxes. Signed webhooks. Threaded conversations.
+- Email becomes an agent protocol.
+- Routed messages, not mailbox babysitting.
 
-Use the Reverbin name as the asset: resonance, signal afterglow, routed conversation, and persistent communication memory. Avoid generic email-app branding.
+## Visual lane
+
+**Premium technical infrastructure / autonomous communication relay.**
+
+Keep the sophistication of the original premium black layout, but avoid copper/bronze/luxury-metal cues. The product should read as technical, precise, and protocol-native without falling into AI-blue/purple neon.
 
 ## Logo concept
 
-A geometric serif-adjacent **R** built from:
+A circular engineered **R** built from:
 
-- reverberating signal arcs
-- a message-routing stroke
-- copper-on-black contrast
-- enough simplification to survive favicon size
+- reverberation rings
+- routed signal paths
+- node endpoints
+- a readable `R` monogram that survives favicon size
 
-The mark should not become:
+The mark should feel like a relay/protocol symbol, not a decorative seal.
 
-- a Telegram paper plane
-- a cute envelope
-- a robot/agent mascot
-- an Echo-branded ripple
-- a generic AI-gradient blob
+Avoid:
+
+- copper, bronze, orange-metal palettes
+- AI blue/purple gradients
+- Telegram paper-plane shapes
+- normal envelope/mailbox clichés
+- robot/agent mascots
+- Echo-branded ripple language
+- generic SaaS bento/card clutter
 
 ## Palette
 
 | Token | Hex | Role |
 | --- | --- | --- |
-| Sable black | `#0E0F10` | primary background |
-| Graphite | `#1A1C1E` | panels / dark surfaces |
-| Warm ivory | `#F6F3EF` | primary text / light surfaces |
-| Oxidized copper | `#B8734A` | logo/accent |
-| Copper gradient high | `#E0A27F` | highlights only |
-| Signal green | `#D7E6C5` | live/routing accent |
-| Deep sage | `#58624F` | muted support color |
+| Black glass | `#0A0A0A` | primary background |
+| Charcoal | `#121416` | main surfaces |
+| Graphite | `#1A1D20` | panels / technical cards |
+| Off-white | `#F4F4F2` | primary text / wordmark |
+| Desaturated mint | `#BDE6D3` | secondary signal / lines |
+| Signal lime | `#C6FF6E` | tiny live/routing accent only |
+| Soft line | `rgba(244,244,242,.14)` | borders / dividers |
 
 ## Typography direction
 
-- Wordmark: high-contrast editorial serif, custom-lettered or close to Canela / Editorial New / PP Editorial Old style.
-- UI/body: precise neutral sans such as Geist, Inter, or Söhne-like substitute.
-- Technical accents: restrained mono for endpoint/event labels only.
+- Wordmark / hero: refined serif, editorial but not fashion-heavy.
+- Product UI/body: precise neutral sans such as Geist or Inter.
+- Protocol details: Geist Mono / SFMono for endpoints, event names, relay labels.
 
 ## Product surface direction
 
-Homepage should feel like:
+Homepage should include:
 
-- matte black editorial hero
-- large serif headline: `Agent-native email infrastructure.`
-- copper mark and minimal nav
-- tactile ivory/copper brand material moments
-- dark product UI strip showing conversations, inboxes, webhooks
-- no fake stats, no generic SaaS bento wall, no Echo colors
+- black/ivory/mint color system
+- circular `R` routing mark in nav and relay visual
+- serif headline: `Communication infrastructure for autonomous agents.`
+- supporting copy around real inboxes, signed webhooks, threaded conversations, delivery logs
+- black-box relay visual, not a generic dashboard screenshot
+- protocol UI strip with inboxes, webhooks, threads, signal flow
+- no fake metrics, no copper, no Echo colors, no generic AI gradients
 
-## Generated reference boards
+## Generated references
 
-- Premium logo system: https://v3b.fal.media/files/b/0aa13543/Bbzx492sdAE5aFTVKh1DK_5KtQeizf.png
-- Landing hero direction: https://v3b.fal.media/files/b/0aa1354d/oS2um4SiEHo6DHrwP6Gw3_yhhAzxvO.png
-- Earlier strongest moodboard: https://v3b.fal.media/files/b/0aa1353a/tpzWW1QZjrk9VCi-m9EdQ_e4z4aYgD.png
+Selected synthesis:
 
-## First deterministic assets
+- Final B-logo/C-site synthesis: https://v3b.fal.media/files/b/0aa13800/dyUCPcWk7QJwB-oCBxKzl_f75URaiN.png
+
+Chosen source directions:
+
+- Option B logo direction: https://v3b.fal.media/files/b/0aa135d6/nP5fVxbQP3kBFbL91EzH8_FtBzZkul.png
+- Option C website direction: https://v3b.fal.media/files/b/0aa135dc/svIyPRdKLDPEY27obCLPt_HNWBdYxw.png
+
+## Deterministic assets
 
 - `brand/reverbin-mark.svg`
 - `brand/reverbin-logo-lockup.svg`
+- live landing page renderer: `src/public-pages.ts`
 
-These are direction-setting SVG drafts, not final production identity. The production mark should be hand-tuned for optical balance and then exported as SVG/favicon/social assets.
+The SVGs are production-direction drafts; final logo export should still get a human optical pass for small sizes.
