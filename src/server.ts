@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { pool, query, tx } from './db.js';
 import { defaultPolicy, evaluatePolicy, type Policy } from './policy.js';
 import { getEmailProvider } from './providers.js';
+import { fetchResendReceivedEmail, normalizeResendReceivedEmail, verifySvixSignature } from './resend.js';
 import { arrayify, id, normalizeEmail } from './util.js';
 
 const TENANT_ID = process.env.DEFAULT_TENANT_ID ?? 'ten_default';
@@ -125,6 +126,37 @@ const ReplySchema = z.object({
   html: z.string().nullable().optional(),
   attachments: z.array(z.unknown()).optional(),
 });
+
+type InboundEmail = z.infer<typeof InboundSchema>;
+
+async function storeInboundEmail(body: InboundEmail) {
+  const inboxResult = body.inbox_id
+    ? await query<any>('SELECT * FROM inboxes WHERE id = $1', [body.inbox_id])
+    : await query<any>('SELECT * FROM inboxes WHERE email_address = $1', [normalizeEmail(body.email_address ?? body.to[0].email)]);
+  if (inboxResult.rowCount === 0) return null;
+  const inbox = inboxResult.rows[0];
+  const threadId = id('thr');
+  const messageId = id('msg');
+  await tx(async (client) => {
+    await client.query(
+      `INSERT INTO provider_events (id, provider, event_type, payload_json) VALUES ($1,$2,'email.received',$3::jsonb)`,
+      [id('pevt'), body.provider, JSON.stringify(body)],
+    );
+    await client.query(
+      `INSERT INTO threads (id, tenant_id, inbox_id, subject, last_message_at) VALUES ($1,$2,$3,$4,now())`,
+      [threadId, TENANT_ID, inbox.id, body.subject],
+    );
+    await client.query(
+      `INSERT INTO messages (id, tenant_id, inbox_id, thread_id, provider_message_id, direction, from_email, from_name, to_json, cc_json, bcc_json, subject, text_body, html_body, raw_mime_storage_key, headers_json, received_at)
+       VALUES ($1,$2,$3,$4,$5,'inbound',$6,$7,$8::jsonb,$9::jsonb,$10::jsonb,$11,$12,$13,$14,$15::jsonb,now())`,
+      [messageId, TENANT_ID, inbox.id, threadId, body.provider_message_id ?? null, normalizeEmail(body.from.email), body.from.name ?? null,
+        JSON.stringify(body.to), JSON.stringify(body.cc ?? []), JSON.stringify(body.bcc ?? []), body.subject, body.text,
+        body.html ?? null, body.raw_mime_storage_key ?? null, JSON.stringify(body.headers ?? {})],
+    );
+  });
+  await audit('email.received', 'message', messageId, { inbox_id: inbox.id, thread_id: threadId, from: body.from.email });
+  return { inbox_id: inbox.id, thread_id: threadId, message_id: messageId, event: 'email.received' };
+}
 
 app.get('/health', async () => ({
   ok: true,
@@ -252,7 +284,7 @@ app.register(async (privateRoutes) => {
 
     const provider = getEmailProvider();
     const sendResult = await provider.sendEmail({
-      from: process.env.RESEND_FROM_EMAIL || process.env.DEFAULT_FROM_EMAIL || inbox.email_address,
+      from: process.env.RESEND_FROM_EMAIL || inbox.email_address || process.env.DEFAULT_FROM_EMAIL,
       to: recipients,
       subject: body.subject ?? `Re: ${thread.subject}`,
       text: body.text,
@@ -282,7 +314,7 @@ app.register(async (privateRoutes) => {
     const inbox = inboxResult.rows[0];
     const provider = getEmailProvider();
     const providerResult = await provider.sendEmail({
-      from: process.env.RESEND_FROM_EMAIL || process.env.DEFAULT_FROM_EMAIL || inbox.email_address,
+      from: process.env.RESEND_FROM_EMAIL || inbox.email_address || process.env.DEFAULT_FROM_EMAIL,
       to: approval.proposed_to_json,
       subject: approval.subject,
       text: approval.body_text,
@@ -316,37 +348,48 @@ app.register(async (privateRoutes) => {
   });
 });
 
+app.register(async (resendRoutes) => {
+  resendRoutes.removeContentTypeParser('application/json');
+  resendRoutes.addContentTypeParser('application/json', { parseAs: 'string' }, (_req, body, done) => {
+    done(null, body);
+  });
+
+  resendRoutes.post('/internal/provider/resend/inbound', async (req, reply) => {
+    const webhookSecret = process.env.RESEND_WEBHOOK_SECRET;
+    if (!webhookSecret) return reply.code(503).send({ error: 'resend webhook secret not configured' });
+
+    const rawBody = typeof req.body === 'string' ? req.body : JSON.stringify(req.body ?? {});
+    const headers = req.headers as Record<string, string | string[] | undefined>;
+    if (!verifySvixSignature(rawBody, headers, webhookSecret)) {
+      return reply.code(401).send({ error: 'invalid resend webhook signature' });
+    }
+
+    const event = JSON.parse(rawBody);
+    let details;
+    const emailId = event?.data?.email_id ?? event?.data?.id;
+    if (process.env.RESEND_API_KEY && emailId) {
+      try {
+        details = await fetchResendReceivedEmail(String(emailId), process.env.RESEND_API_KEY);
+      } catch (error) {
+        req.log.warn({ error, email_id: emailId }, 'failed to fetch Resend received email body; storing webhook metadata only');
+      }
+    }
+
+    const body = InboundSchema.parse(normalizeResendReceivedEmail(event, details));
+    const result = await storeInboundEmail(body);
+    if (!result) return reply.code(404).send({ error: 'target inbox not found' });
+    reply.code(202).send({ ...result, provider: 'resend' });
+  });
+});
+
 app.register(async (internalRoutes) => {
   internalRoutes.addHook('preHandler', requireWebhookSecret);
 
   internalRoutes.post('/internal/provider/inbound', async (req, reply) => {
     const body = InboundSchema.parse(req.body);
-    const inboxResult = body.inbox_id
-      ? await query<any>('SELECT * FROM inboxes WHERE id = $1', [body.inbox_id])
-      : await query<any>('SELECT * FROM inboxes WHERE email_address = $1', [normalizeEmail(body.email_address ?? body.to[0].email)]);
-    if (inboxResult.rowCount === 0) return reply.code(404).send({ error: 'target inbox not found' });
-    const inbox = inboxResult.rows[0];
-    const threadId = id('thr');
-    const messageId = id('msg');
-    await tx(async (client) => {
-      await client.query(
-        `INSERT INTO provider_events (id, provider, event_type, payload_json) VALUES ($1,$2,'email.received',$3::jsonb)`,
-        [id('pevt'), body.provider, JSON.stringify(body)],
-      );
-      await client.query(
-        `INSERT INTO threads (id, tenant_id, inbox_id, subject, last_message_at) VALUES ($1,$2,$3,$4,now())`,
-        [threadId, TENANT_ID, inbox.id, body.subject],
-      );
-      await client.query(
-        `INSERT INTO messages (id, tenant_id, inbox_id, thread_id, provider_message_id, direction, from_email, from_name, to_json, cc_json, bcc_json, subject, text_body, html_body, raw_mime_storage_key, headers_json, received_at)
-         VALUES ($1,$2,$3,$4,$5,'inbound',$6,$7,$8::jsonb,$9::jsonb,$10::jsonb,$11,$12,$13,$14,$15::jsonb,now())`,
-        [messageId, TENANT_ID, inbox.id, threadId, body.provider_message_id ?? null, normalizeEmail(body.from.email), body.from.name ?? null,
-          JSON.stringify(body.to), JSON.stringify(body.cc ?? []), JSON.stringify(body.bcc ?? []), body.subject, body.text,
-          body.html ?? null, body.raw_mime_storage_key ?? null, JSON.stringify(body.headers ?? {})],
-      );
-    });
-    await audit('email.received', 'message', messageId, { inbox_id: inbox.id, thread_id: threadId, from: body.from.email });
-    reply.code(202).send({ inbox_id: inbox.id, thread_id: threadId, message_id: messageId, event: 'email.received' });
+    const result = await storeInboundEmail(body);
+    if (!result) return reply.code(404).send({ error: 'target inbox not found' });
+    reply.code(202).send(result);
   });
 });
 
