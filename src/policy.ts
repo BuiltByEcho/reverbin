@@ -32,8 +32,8 @@ export type PolicyDecision = {
 
 export const defaultPolicy: Policy = {
   reply_only: false,
-  require_approval_for_new_recipients: true,
-  require_approval_for_external_domains: true,
+  require_approval_for_new_recipients: false,
+  require_approval_for_external_domains: false,
   max_outbound_per_hour: 10,
   max_outbound_per_day: 50,
   allowed_domains: [],
@@ -41,7 +41,7 @@ export const defaultPolicy: Policy = {
   allowed_recipients: [],
   blocked_recipients: [],
   allow_attachments: false,
-  allow_links: false,
+  allow_links: true,
   risk_threshold: 'medium',
 };
 
@@ -91,12 +91,13 @@ export function evaluatePolicy(policy: Policy, input: PolicyInput): PolicyDecisi
   if (promptInjectionPattern.test(body)) risk.add('possible_prompt_injection');
 
   const hardBlocks = ['reply_only', 'hourly_rate_limit', 'daily_rate_limit', 'blocked_recipient', 'blocked_domain', 'recipient_not_allowed', 'domain_not_allowed'];
-  const reasonList = [...reasons];
+  const reasonList = Array.from(reasons);
+  const riskList = Array.from(risk);
   const decision = reasonList.some((reason) => hardBlocks.includes(reason))
     ? 'block'
-    : reasonList.length > 0 || risk.size > 0
+    : reasonList.length > 0
       ? 'require_approval'
       : 'allow';
 
-  return { decision, reasons: reasonList, risk_flags: [...risk] };
+  return { decision, reasons: reasonList, risk_flags: riskList };
 }

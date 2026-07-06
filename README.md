@@ -1,8 +1,8 @@
 # Agent Email Layer
 
-VPS-hosted control plane for safe programmable inboxes for autonomous agents.
+VPS-hosted control plane for seamless programmable inboxes for autonomous agents.
 
-This is Option B groundwork: we own the API, Postgres schema, threading, policies, approvals, audit logs, webhook surface, and provider adapter boundary while using an external provider for actual email delivery.
+This is Option B groundwork: we own the API, Postgres schema, threading, friction-light policies, audit logs, webhook surface, and provider adapter boundary while using an external provider for actual email delivery.
 
 ## What is included now
 
@@ -13,12 +13,13 @@ This is Option B groundwork: we own the API, Postgres schema, threading, policie
 - Inbound provider webhook normalization endpoint
 - Thread/message storage
 - Deterministic policy engine
-- First-contact/link/attachment/rate-limit checks
-- Approval queue
+- Frictionless default sends/replies with risk flags retained for audit
+- Optional approval queue for explicitly configured high-risk policies
+- Agent webhook subscriptions and delivery logs
 - Mock outbound provider for safe VPS bootstrapping
-- Resend outbound adapter hook for later
+- Resend inbound/outbound adapter hooks
 - Audit logs
-- Basic HTML dashboard
+- Basic operational HTML dashboard
 - systemd-ready deploy files
 
 ## Local setup
@@ -40,12 +41,12 @@ Authenticated API calls require `Authorization: Bearer $ECHO_EMAIL_API_KEY` unle
 
 ## MVP demo flow
 
-1. `POST /v1/inboxes` creates an agent inbox.
-2. `POST /internal/provider/inbound` simulates/receives provider inbound JSON.
-3. `GET /v1/inboxes/:id/threads` shows stored threads.
-4. `POST /v1/threads/:id/reply` runs policy checks.
-5. First-time recipient/link/attachment/rate-limit can create `approval.required`.
-6. `POST /v1/approvals/:id/approve` sends via configured provider and writes audit/message rows.
+1. `POST /v1/inboxes` creates an agent inbox with frictionless default policy.
+2. `POST /internal/provider/inbound` or Resend inbound webhook receives provider JSON.
+3. Reverbin stores the thread/message and emits `email.received` to subscribed webhooks.
+4. `GET /v1/inboxes/:id/threads` shows stored threads.
+5. `POST /v1/threads/:id/reply` sends immediately unless the inbox policy explicitly blocks or requires approval.
+6. Successful sends emit `email.sent` to subscribed webhooks and write audit/message rows.
 
 ## VPS deploy shape
 
@@ -68,9 +69,9 @@ Default listener is `127.0.0.1:8797` for Caddy reverse proxy.
 
 ## Safety defaults
 
-- mock outbound provider first
-- reply-only policy supported
-- first-contact approval supported
+- Resend provider by default after DNS/domain verification
+- reply-only policy supported as an opt-in constraint
+- first-contact approvals supported only when explicitly enabled
 - no raw secrets in repo/docs
 - low send limits by default
 - audit everything

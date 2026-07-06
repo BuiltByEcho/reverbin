@@ -6,6 +6,7 @@ import { pool, query, tx } from './db.js';
 import { defaultPolicy, evaluatePolicy, type Policy } from './policy.js';
 import { getEmailProvider } from './providers.js';
 import { fetchResendReceivedEmail, normalizeResendReceivedEmail, verifySvixSignature } from './resend.js';
+import { buildWebhookDeliveryHeaders, buildWebhookEventPayload, shouldDeliverWebhookEvent, type WebhookEventType } from './webhooks.js';
 import { arrayify, id, normalizeEmail } from './util.js';
 
 const TENANT_ID = process.env.DEFAULT_TENANT_ID ?? 'ten_default';
@@ -45,6 +46,44 @@ async function audit(action: string, targetType: string, targetId: string, metad
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)`,
     [id('aud'), TENANT_ID, actorType, actorId ?? null, action, targetType, targetId, JSON.stringify(metadata)],
   );
+}
+
+async function publishWebhookEvent(eventType: WebhookEventType, data: Record<string, unknown>) {
+  const endpoints = await query<WebhookEndpointRow>(
+    `SELECT id, url, secret, events_json, status FROM webhook_endpoints WHERE tenant_id = $1 AND status = 'active'`,
+    [TENANT_ID],
+  );
+  const payload = buildWebhookEventPayload(eventType, data);
+  const payloadJson = JSON.stringify(payload);
+
+  await Promise.all(endpoints.rows.filter((endpoint) => shouldDeliverWebhookEvent(endpoint, eventType)).map(async (endpoint) => {
+    const deliveryId = id('whd');
+    await query(
+      `INSERT INTO webhook_deliveries (id, tenant_id, endpoint_id, event_type, payload_json, status)
+       VALUES ($1,$2,$3,$4,$5::jsonb,'pending')`,
+      [deliveryId, TENANT_ID, endpoint.id, eventType, payloadJson],
+    );
+
+    try {
+      const response = await fetch(endpoint.url, {
+        method: 'POST',
+        headers: buildWebhookDeliveryHeaders({ eventType, deliveryId, payload: payloadJson, secret: endpoint.secret }),
+        body: payloadJson,
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      await query(
+        `UPDATE webhook_deliveries SET status = 'delivered', attempts = attempts + 1, delivered_at = now(), last_error = NULL WHERE id = $1`,
+        [deliveryId],
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'unknown webhook delivery error';
+      await query(
+        `UPDATE webhook_deliveries SET status = 'failed', attempts = attempts + 1, last_error = $2 WHERE id = $1`,
+        [deliveryId, message.slice(0, 500)],
+      );
+      app.log.warn({ delivery_id: deliveryId, endpoint_id: endpoint.id, event_type: eventType, error: message }, 'webhook delivery failed');
+    }
+  }));
 }
 
 async function getPolicy(inboxId: string): Promise<Policy> {
@@ -127,6 +166,20 @@ const ReplySchema = z.object({
   attachments: z.array(z.unknown()).optional(),
 });
 
+const WebhookEndpointSchema = z.object({
+  url: z.string().url(),
+  events: z.array(z.string().min(1)).default(['*']),
+  secret: z.string().min(8).optional(),
+});
+
+type WebhookEndpointRow = {
+  id: string;
+  url: string;
+  secret: string | null;
+  events_json: unknown;
+  status: string;
+};
+
 type InboundEmail = z.infer<typeof InboundSchema>;
 
 async function storeInboundEmail(body: InboundEmail) {
@@ -155,6 +208,7 @@ async function storeInboundEmail(body: InboundEmail) {
     );
   });
   await audit('email.received', 'message', messageId, { inbox_id: inbox.id, thread_id: threadId, from: body.from.email });
+  await publishWebhookEvent('email.received', { inbox_id: inbox.id, thread_id: threadId, message_id: messageId, from: normalizeEmail(body.from.email), subject: body.subject });
   return { inbox_id: inbox.id, thread_id: threadId, message_id: messageId, event: 'email.received' };
 }
 
@@ -178,12 +232,13 @@ app.get('/readyz', async (req, reply) => {
 });
 
 app.get('/dashboard', async (_req, reply) => {
-  const [inboxes, approvals, audits] = await Promise.all([
+  const [inboxes, messages, deliveries, audits] = await Promise.all([
     query<any>('SELECT id, email_address, display_name, status, created_at FROM inboxes ORDER BY created_at DESC LIMIT 20'),
-    query<any>('SELECT id, inbox_id, subject, status, risk_flags_json, created_at FROM approval_requests ORDER BY created_at DESC LIMIT 20'),
+    query<any>('SELECT id, inbox_id, thread_id, direction, from_email, subject, created_at FROM messages ORDER BY created_at DESC LIMIT 20'),
+    query<any>('SELECT id, endpoint_id, event_type, status, attempts, created_at, delivered_at FROM webhook_deliveries ORDER BY created_at DESC LIMIT 20'),
     query<any>('SELECT action, target_type, target_id, created_at FROM audit_logs ORDER BY created_at DESC LIMIT 30'),
   ]);
-  const html = `<!doctype html><html><head><title>Agent Email Layer</title><style>body{font-family:Inter,system-ui,sans-serif;margin:32px;background:#09090b;color:#f4f4f5}a{color:#93c5fd}.card{border:1px solid #27272a;border-radius:14px;padding:18px;margin:14px 0;background:#111113}code{background:#18181b;padding:2px 5px;border-radius:6px}li{margin:6px 0}</style></head><body><h1>Agent Email Layer</h1><p>VPS-hosted control plane for safe programmable agent inboxes.</p><div class="card"><h2>Inboxes</h2><ul>${inboxes.rows.map((row) => `<li><code>${row.email_address}</code> — ${row.status} — ${row.id}</li>`).join('')}</ul></div><div class="card"><h2>Approvals</h2><ul>${approvals.rows.map((row) => `<li><code>${row.status}</code> ${row.subject} — ${row.id} — risks: ${JSON.stringify(row.risk_flags_json)}</li>`).join('')}</ul></div><div class="card"><h2>Audit</h2><ul>${audits.rows.map((row) => `<li>${row.created_at.toISOString?.() ?? row.created_at}: <code>${row.action}</code> ${row.target_type}/${row.target_id}</li>`).join('')}</ul></div></body></html>`;
+  const html = `<!doctype html><html><head><title>Agent Email Layer</title><style>body{font-family:Inter,system-ui,sans-serif;margin:32px;background:#09090b;color:#f4f4f5}a{color:#93c5fd}.card{border:1px solid #27272a;border-radius:14px;padding:18px;margin:14px 0;background:#111113}code{background:#18181b;padding:2px 5px;border-radius:6px}li{margin:6px 0}</style></head><body><h1>Agent Email Layer</h1><p>Seamless programmable inbox control plane for autonomous agents.</p><div class="card"><h2>Inboxes</h2><ul>${inboxes.rows.map((row) => `<li><code>${row.email_address}</code> — ${row.status} — ${row.id}</li>`).join('')}</ul></div><div class="card"><h2>Recent Messages</h2><ul>${messages.rows.map((row) => `<li><code>${row.direction}</code> ${row.subject} — ${row.from_email} — ${row.id}</li>`).join('')}</ul></div><div class="card"><h2>Webhook Deliveries</h2><ul>${deliveries.rows.map((row) => `<li><code>${row.status}</code> ${row.event_type} — attempts: ${row.attempts} — ${row.id}</li>`).join('')}</ul></div><div class="card"><h2>Audit</h2><ul>${audits.rows.map((row) => `<li>${row.created_at.toISOString?.() ?? row.created_at}: <code>${row.action}</code> ${row.target_type}/${row.target_id}</li>`).join('')}</ul></div></body></html>`;
   reply.type('text/html').send(html);
 });
 
@@ -279,6 +334,7 @@ app.register(async (privateRoutes) => {
           body.text, body.html ?? null, JSON.stringify(decision.risk_flags), JSON.stringify(decision.reasons)],
       );
       await audit('approval.required', 'approval', approvalId, { thread_id: thread.id, decision });
+      await publishWebhookEvent('approval.required', { approval_id: approvalId, inbox_id: inbox.id, thread_id: thread.id, to: recipients, subject: body.subject ?? `Re: ${thread.subject}`, risk_flags: decision.risk_flags, reasons: decision.reasons });
       return reply.code(202).send({ approval_id: approvalId, status: 'pending', ...decision });
     }
 
@@ -297,6 +353,7 @@ app.register(async (privateRoutes) => {
       [messageId, TENANT_ID, inbox.id, thread.id, sendResult.provider_message_id, inbox.email_address, JSON.stringify(recipients), body.subject ?? `Re: ${thread.subject}`, body.text, body.html ?? null, JSON.stringify(decision.risk_flags)],
     );
     await audit('email.sent', 'message', messageId, { provider_result: sendResult });
+    await publishWebhookEvent('email.sent', { inbox_id: inbox.id, thread_id: thread.id, message_id: messageId, to: recipients, subject: body.subject ?? `Re: ${thread.subject}`, risk_flags: decision.risk_flags });
     return { message_id: messageId, provider_result: sendResult };
   });
 
@@ -332,6 +389,7 @@ app.register(async (privateRoutes) => {
         ['sent', JSON.stringify(providerResult), approval.id]);
     });
     await audit('approval.approved_and_sent', 'approval', approval.id, { message_id: messageId, provider_result: providerResult }, 'human');
+    await publishWebhookEvent('email.sent', { approval_id: approval.id, inbox_id: inbox.id, thread_id: approval.thread_id, message_id: messageId, to: approval.proposed_to_json, subject: approval.subject, risk_flags: approval.risk_flags_json });
     return { approval_id: approval.id, message_id: messageId, provider_result: providerResult };
   });
 
@@ -339,7 +397,30 @@ app.register(async (privateRoutes) => {
     const result = await query('UPDATE approval_requests SET status = $1, decided_at = now() WHERE id = $2 AND status = $3 RETURNING *', ['rejected', req.params.id, 'pending']);
     if (result.rowCount === 0) return reply.code(404).send({ error: 'pending approval not found' });
     await audit('approval.rejected', 'approval', req.params.id, {}, 'human');
+    await publishWebhookEvent('approval.rejected', { approval_id: req.params.id });
     return result.rows[0];
+  });
+
+  privateRoutes.get('/v1/webhooks', async () => {
+    const result = await query('SELECT id, url, events_json, status, created_at FROM webhook_endpoints ORDER BY created_at DESC');
+    return { data: result.rows };
+  });
+
+  privateRoutes.post('/v1/webhooks', async (req, reply) => {
+    const body = WebhookEndpointSchema.parse(req.body);
+    const webhookId = id('wh');
+    await query(
+      `INSERT INTO webhook_endpoints (id, tenant_id, url, secret, events_json)
+       VALUES ($1,$2,$3,$4,$5::jsonb)`,
+      [webhookId, TENANT_ID, body.url, body.secret ?? null, JSON.stringify(body.events)],
+    );
+    await audit('webhook.created', 'webhook', webhookId, { url: body.url, events: body.events }, 'api');
+    reply.code(201).send({ id: webhookId, url: body.url, events: body.events, status: 'active' });
+  });
+
+  privateRoutes.get('/v1/webhook-deliveries', async () => {
+    const result = await query('SELECT id, endpoint_id, event_type, payload_json, status, attempts, last_error, created_at, delivered_at FROM webhook_deliveries ORDER BY created_at DESC LIMIT 100');
+    return { data: result.rows };
   });
 
   privateRoutes.get('/v1/audit-logs', async () => {
