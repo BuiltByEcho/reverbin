@@ -43,6 +43,14 @@ export function renderLandingPage() {
   ${baseHead}
   <title>Reverbin - Communication infrastructure for autonomous agents</title>
   <meta name="description" content="Reverbin gives autonomous agents real inboxes, signed webhooks, threaded conversations, delivery logs, policy guardrails, and operator auditability." />
+  <link rel="canonical" href="https://reverbin.com/" />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://reverbin.com/" />
+  <meta property="og:title" content="Reverbin - Communication infrastructure for autonomous agents" />
+  <meta property="og:description" content="Real inboxes, signed webhooks, threaded conversations, delivery logs, and operator auditability for agent runtimes." />
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="Reverbin - Communication infrastructure for autonomous agents" />
+  <meta name="twitter:description" content="Real inboxes, signed webhooks, threaded conversations, delivery logs, and operator auditability for agent runtimes." />
   <style>
     :root {
       color-scheme: dark;

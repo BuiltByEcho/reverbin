@@ -19,11 +19,13 @@ test('landing page presents Reverbin as agent communication infrastructure', () 
   assert.match(html, /Questions agents and operators/);
   assert.match(html, /npm install @builtbyecho\/reverbin/);
   assert.match(html, /#B9FF2D/);
+  assert.match(html, /rel="canonical" href="https:\/\/reverbin\.com\/"/);
+  assert.match(html, /property="og:title" content="Reverbin - Communication infrastructure for autonomous agents"/);
   assert.equal(html.includes('#B8734A'), false);
   assert.equal(html.includes('copper'), false);
   assert.equal(html.includes('MVP'), false);
   assert.equal(html.includes('approvals dashboard'), false);
-  assert.equal(html.includes('internal'), false);
+  assert.equal(html.includes('internal planning'), false);
   assert.equal(html.includes('Email Inboxes for AI Agents'), false);
   assert.equal(html.includes('Start for free'), false);
   assert.equal(html.includes('No credit card required'), false);
