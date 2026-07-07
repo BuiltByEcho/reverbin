@@ -4,7 +4,7 @@
 
 Dustin selected the direction as:
 
-- **Logo system:** option B — the sharper, phosphor/lime, engineered circular `R` routing mark.
+- **Logo system:** the Option 2 production translation of the July 6 reference image — a wide `R`, lime inner message path, signal nodes, echo rings, and lowercase `reverbin` wordmark.
 - **Website/design language:** option C — premium black/ivory site design with restrained mint signal accents and protocol UI details.
 
 Echo can remain a tiny builder attribution, but Reverbin should stand alone visually.
@@ -29,12 +29,13 @@ Keep the sophistication of the original premium black layout, but avoid copper/b
 
 ## Logo concept
 
-A circular engineered **R** built from:
+A wide engineered **R** built from:
 
 - reverberation rings
-- routed signal paths
+- a lime routed message path through the bowl
 - node endpoints
 - a readable `R` monogram that survives favicon size
+- a lowercase technology wordmark
 
 The mark should feel like a relay/protocol symbol, not a decorative seal.
 
@@ -57,12 +58,13 @@ Avoid:
 | Graphite | `#1A1D20` | panels / technical cards |
 | Off-white | `#F4F4F2` | primary text / wordmark |
 | Desaturated mint | `#BDE6D3` | secondary signal / lines |
-| Signal lime | `#C6FF6E` | tiny live/routing accent only |
+| Signal lime | `#B9FF2D` | live/routing accent and wordmark dot |
 | Soft line | `rgba(244,244,242,.14)` | borders / dividers |
 
 ## Typography direction
 
-- Wordmark / hero: refined serif, editorial but not fashion-heavy.
+- Wordmark: lowercase modern sans, light/precise, with a lime signal accent.
+- Hero and section display: condensed technical sans, large and deliberate, avoiding generic AI-landing-page serif styling.
 - Product UI/body: precise neutral sans such as Geist or Inter.
 - Protocol details: Geist Mono / SFMono for endpoints, event names, relay labels.
 
@@ -72,7 +74,7 @@ Homepage should include:
 
 - black/ivory/mint color system
 - circular `R` routing mark in nav and relay visual
-- serif headline: `Communication infrastructure for autonomous agents.`
+- condensed technical headline: `Communication infrastructure for autonomous agents.`
 - supporting copy around real inboxes, signed webhooks, threaded conversations, delivery logs
 - black-box relay visual, not a generic dashboard screenshot
 - protocol UI strip with inboxes, webhooks, threads, signal flow

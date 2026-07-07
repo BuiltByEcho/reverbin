@@ -9,7 +9,7 @@ import { getEmailProvider } from './providers.js';
 import { fetchResendReceivedEmail, normalizeResendReceivedEmail, verifySvixSignature } from './resend.js';
 import { buildWebhookDeliveryHeaders, buildWebhookEventPayload, shouldDeliverWebhookEvent, type WebhookEventType } from './webhooks.js';
 import { clearDashboardCookie, dashboardCookie, dashboardTokenFromEnv, isDashboardRequestAuthorized } from './dashboard-auth.js';
-import { renderDocsRedirectPage, renderLandingPage } from './public-pages.js';
+import { renderDashboardLoginPage, renderDashboardPage, renderDashboardUnavailablePage, renderDocsRedirectPage, renderLandingPage } from './public-pages.js';
 import { buildWebhookDeliveryJob, redisConnectionOptions, WEBHOOK_DELIVERY_QUEUE, webhookDeliveryMode } from './webhook-delivery.js';
 import { arrayify, id, normalizeEmail } from './util.js';
 
@@ -42,11 +42,6 @@ function requireDashboardAuth(req: FastifyRequest, reply: FastifyReply, done: ()
     return;
   }
   reply.code(401).send({ error: 'dashboard_auth_required' });
-}
-
-function dashboardLoginHtml(error = '') {
-  const errorHtml = error ? `<p style="color:#fca5a5">${error}</p>` : '';
-  return `<!doctype html><html><head><title>Reverbin Dashboard Login</title><style>body{font-family:Inter,system-ui,sans-serif;margin:32px;background:#09090b;color:#f4f4f5}.card{border:1px solid #27272a;border-radius:14px;padding:18px;max-width:520px;background:#111113}input,button{font:inherit;padding:10px;border-radius:8px;border:1px solid #3f3f46;background:#18181b;color:#f4f4f5}button{background:#2563eb;border-color:#2563eb;cursor:pointer}</style></head><body><div class="card"><h1>Reverbin Dashboard</h1><p>Enter the dashboard token to view operational inbox, webhook, and audit status.</p>${errorHtml}<form method="post" action="/dashboard/login"><input type="password" name="token" autocomplete="current-password" placeholder="Dashboard token" autofocus required /> <button type="submit">Open dashboard</button></form></div></body></html>`;
 }
 
 function dashboardCookieIsSecure() {
@@ -288,7 +283,7 @@ app.get('/docs', async (_req, reply) => {
 });
 
 app.get('/dashboard/login', async (_req, reply) => {
-  reply.type('text/html').send(dashboardLoginHtml());
+  reply.type('text/html').send(renderDashboardLoginPage());
 });
 
 app.post('/dashboard/login', async (req, reply) => {
@@ -300,7 +295,7 @@ app.post('/dashboard/login', async (req, reply) => {
     reply.redirect('/dashboard');
     return;
   }
-  reply.code(401).type('text/html').send(dashboardLoginHtml('Invalid dashboard token.'));
+  reply.code(401).type('text/html').send(renderDashboardLoginPage('Invalid dashboard token.'));
 });
 
 app.get('/dashboard/logout', async (_req, reply) => {
@@ -309,14 +304,24 @@ app.get('/dashboard/logout', async (_req, reply) => {
 });
 
 app.get('/dashboard', { preHandler: requireDashboardAuth }, async (_req, reply) => {
-  const [inboxes, messages, deliveries, audits] = await Promise.all([
-    query<any>('SELECT id, email_address, display_name, status, created_at FROM inboxes ORDER BY created_at DESC LIMIT 20'),
-    query<any>('SELECT id, inbox_id, thread_id, direction, from_email, subject, created_at FROM messages ORDER BY created_at DESC LIMIT 20'),
-    query<any>('SELECT id, endpoint_id, event_type, status, attempts, created_at, delivered_at FROM webhook_deliveries ORDER BY created_at DESC LIMIT 20'),
-    query<any>('SELECT action, target_type, target_id, created_at FROM audit_logs ORDER BY created_at DESC LIMIT 30'),
-  ]);
-  const html = `<!doctype html><html><head><title>Agent Email Layer</title><style>body{font-family:Inter,system-ui,sans-serif;margin:32px;background:#09090b;color:#f4f4f5}a{color:#93c5fd}.card{border:1px solid #27272a;border-radius:14px;padding:18px;margin:14px 0;background:#111113}code{background:#18181b;padding:2px 5px;border-radius:6px}li{margin:6px 0}</style></head><body><h1>Agent Email Layer</h1><p>Seamless programmable inbox control plane for autonomous agents.</p><div class="card"><h2>Inboxes</h2><ul>${inboxes.rows.map((row) => `<li><code>${row.email_address}</code> — ${row.status} — ${row.id}</li>`).join('')}</ul></div><div class="card"><h2>Recent Messages</h2><ul>${messages.rows.map((row) => `<li><code>${row.direction}</code> ${row.subject} — ${row.from_email} — ${row.id}</li>`).join('')}</ul></div><div class="card"><h2>Webhook Deliveries</h2><ul>${deliveries.rows.map((row) => `<li><code>${row.status}</code> ${row.event_type} — attempts: ${row.attempts} — ${row.id}</li>`).join('')}</ul></div><div class="card"><h2>Audit</h2><ul>${audits.rows.map((row) => `<li>${row.created_at.toISOString?.() ?? row.created_at}: <code>${row.action}</code> ${row.target_type}/${row.target_id}</li>`).join('')}</ul></div></body></html>`;
-  reply.type('text/html').send(html);
+  try {
+    const [inboxes, messages, deliveries, audits] = await Promise.all([
+      query<any>('SELECT id, email_address, display_name, status, created_at FROM inboxes ORDER BY created_at DESC LIMIT 20'),
+      query<any>('SELECT id, inbox_id, thread_id, direction, from_email, subject, created_at FROM messages ORDER BY created_at DESC LIMIT 20'),
+      query<any>('SELECT id, endpoint_id, event_type, status, attempts, created_at, delivered_at FROM webhook_deliveries ORDER BY created_at DESC LIMIT 20'),
+      query<any>('SELECT action, target_type, target_id, created_at FROM audit_logs ORDER BY created_at DESC LIMIT 30'),
+    ]);
+    reply.type('text/html').send(renderDashboardPage({
+      inboxes: inboxes.rows,
+      messages: messages.rows,
+      deliveries: deliveries.rows,
+      audits: audits.rows,
+    }));
+  } catch (error) {
+    _req.log.error(error, 'dashboard database query failed');
+    const message = error instanceof Error ? error.message : 'dashboard unavailable';
+    reply.code(503).type('text/html').send(renderDashboardUnavailablePage(message));
+  }
 });
 
 app.register(async (privateRoutes) => {

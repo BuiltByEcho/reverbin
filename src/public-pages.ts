@@ -1,41 +1,1563 @@
-const reverbinMarkSvg = `<svg class="brand-mark" viewBox="0 0 96 96" aria-hidden="true">
-  <circle cx="48" cy="48" r="42" fill="#070808" stroke="rgba(244,244,242,.34)" stroke-width="1.5"/>
-  <path d="M48 10a38 38 0 0 1 34 21" fill="none" stroke="#C6FF6E" stroke-width="2.5" stroke-linecap="round"/>
-  <path d="M86 49a38 38 0 0 1-18 32" fill="none" stroke="rgba(189,230,211,.72)" stroke-width="2" stroke-linecap="round"/>
-  <path d="M29 83A38 38 0 0 1 13 40" fill="none" stroke="rgba(244,244,242,.48)" stroke-width="2" stroke-linecap="round"/>
-  <path d="M26 26h25c13 0 22 8 22 20s-9 20-22 20H26" fill="none" stroke="#F4F4F2" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M27 72V26" stroke="#F4F4F2" stroke-width="7" stroke-linecap="round"/>
-  <path d="M48 66l22 21" stroke="#F4F4F2" stroke-width="7" stroke-linecap="round"/>
-  <path d="M31 45h19c5 0 8 2 8 6s-3 6-8 6H31" fill="none" stroke="#C6FF6E" stroke-width="2.5" stroke-linecap="round" opacity=".9"/>
-  <circle cx="73" cy="31" r="3.2" fill="#C6FF6E"/>
-  <circle cx="70" cy="87" r="2.6" fill="#BDE6D3"/>
-</svg>`;
+const REQUEST_ACCESS_HREF = 'mailto:hello@builtbyecho.com?subject=Reverbin%20access';
+
+const faviconSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="72" fill="#050606"/><path d="M148 383V129H292C364 129 410 169 410 231C410 292 365 330 292 330H148" fill="none" stroke="#F4F4F2" stroke-width="52" stroke-linecap="round" stroke-linejoin="round"/><path d="M286 330L394 432" fill="none" stroke="#F4F4F2" stroke-width="52" stroke-linecap="round"/><path d="M190 228H289C327 228 351 245 351 271C351 297 327 313 289 313H190" fill="none" stroke="#B9FF2D" stroke-width="32" stroke-linecap="round"/><circle cx="394" cy="432" r="16" fill="#B9FF2D"/></svg>`;
+const faviconHref = `data:image/svg+xml,${encodeURIComponent(faviconSvg)}`;
+
+function reverbinMarkSvg(className = 'brand-mark') {
+  return `<svg class="${className}" viewBox="0 0 512 512" aria-hidden="true">
+    <rect width="512" height="512" rx="72" fill="#050606"/>
+    <path d="M106 263C106 180 174 112 258 112C340 112 405 174 413 253" fill="none" stroke="#B9FF2D" stroke-opacity=".82" stroke-width="12" stroke-linecap="round"/>
+    <path d="M410 280C396 354 334 403 258 403C177 403 112 344 106 267" fill="none" stroke="#B9FF2D" stroke-opacity=".42" stroke-width="12" stroke-linecap="round"/>
+    <path d="M82 206C67 226 59 251 59 278C59 305 68 331 84 351" fill="none" stroke="#F4F4F2" stroke-opacity=".24" stroke-width="14" stroke-linecap="round"/>
+    <path d="M113 222C102 239 96 258 96 278C96 299 102 319 114 336" fill="none" stroke="#BDE6D3" stroke-opacity=".46" stroke-width="13" stroke-linecap="round"/>
+    <path d="M148 383V129H292C364 129 410 169 410 231C410 292 365 330 292 330H148" fill="none" stroke="#F4F4F2" stroke-width="42" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M286 330L394 432" fill="none" stroke="#F4F4F2" stroke-width="42" stroke-linecap="round"/>
+    <path d="M190 228H289C327 228 351 245 351 271C351 297 327 313 289 313H190" fill="none" stroke="#B9FF2D" stroke-width="26" stroke-linecap="round"/>
+    <circle cx="383" cy="264" r="16" fill="#B9FF2D" stroke="#050606" stroke-width="5"/>
+    <circle cx="394" cy="432" r="16" fill="#B9FF2D" stroke="#050606" stroke-width="5"/>
+  </svg>`;
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+const baseHead = `
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" href="${faviconHref}" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&family=Geist+Mono:wght@400;500;600;700&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+`;
 
 export function renderLandingPage() {
   return `<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Reverbin — Communication infrastructure for autonomous agents</title>
-  <meta name="description" content="Reverbin gives autonomous agents real inboxes, signed webhooks, threaded conversations, and delivery logs on production email infrastructure." />
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  ${baseHead}
+  <title>Reverbin - Communication infrastructure for autonomous agents</title>
+  <meta name="description" content="Reverbin gives autonomous agents real inboxes, signed webhooks, threaded conversations, delivery logs, policy guardrails, and operator auditability." />
   <style>
     :root {
       color-scheme: dark;
       --black: #0A0A0A;
+      --ink: #060707;
       --charcoal: #121416;
       --graphite: #1A1D20;
+      --surface: rgba(244,244,242,.045);
+      --surface-strong: rgba(244,244,242,.075);
       --ivory: #F4F4F2;
-      --muted: rgba(244,244,242,.68);
-      --soft: rgba(244,244,242,.42);
+      --muted: rgba(244,244,242,.72);
+      --soft: rgba(244,244,242,.48);
+      --faint: rgba(244,244,242,.24);
       --line: rgba(244,244,242,.14);
-      --line-strong: rgba(244,244,242,.26);
+      --line-strong: rgba(244,244,242,.28);
       --mint: #BDE6D3;
-      --signal: #C6FF6E;
-      --shadow: 0 0 0 1px rgba(244,244,242,.08), 0 34px 140px rgba(0,0,0,.66);
+      --signal: #B9FF2D;
+      --warning: #FFD166;
+      --radius: 8px;
+      --shadow: 0 26px 80px rgba(0,0,0,.46);
+      --page-gutter: clamp(32px, 4.4vw, 84px);
+      --display-font: 'IBM Plex Sans Condensed', 'Space Grotesk', 'Geist', Inter, ui-sans-serif, system-ui, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; background: var(--black); }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ivory);
+      font-family: 'Geist', Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background:
+        linear-gradient(180deg, #070808 0%, #0A0A0A 42%, #050606 100%),
+        linear-gradient(90deg, rgba(189,230,211,.05), transparent 38%, rgba(185,255,45,.04));
+      overflow-x: hidden;
+    }
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background-image:
+        linear-gradient(rgba(244,244,242,.026) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(244,244,242,.026) 1px, transparent 1px);
+      background-size: 48px 48px;
+      opacity: .78;
+      mask-image: linear-gradient(to bottom, black 0%, transparent 78%);
+    }
+    body::after {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background: repeating-linear-gradient(0deg, rgba(255,255,255,.018), rgba(255,255,255,.018) 1px, transparent 1px, transparent 4px);
+      opacity: .18;
+    }
+    a { color: inherit; text-decoration: none; }
+    button, input { font: inherit; }
+    .page-shell {
+      position: relative;
+      width: 100%;
+      max-width: none;
+      margin: 0;
+      padding: 24px var(--page-gutter) 72px;
+    }
+    .site-header {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      min-height: 72px;
+      margin: -24px calc(-1 * var(--page-gutter)) 0;
+      padding: 18px var(--page-gutter);
+      background: rgba(10,10,10,.76);
+      border-bottom: 1px solid rgba(244,244,242,.08);
+      backdrop-filter: blur(18px);
+    }
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      min-width: max-content;
+      font-family: 'Geist', Inter, ui-sans-serif, system-ui, sans-serif;
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: .015em;
+      line-height: 1;
+    }
+    .brand-mark {
+      width: 40px;
+      height: 40px;
+      flex: 0 0 auto;
+      filter: drop-shadow(0 0 22px rgba(185,255,45,.2));
+    }
+    .hero-mark {
+      width: 112px;
+      height: 112px;
+      filter: drop-shadow(0 26px 52px rgba(0,0,0,.48));
+    }
+    .navlinks {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+    .navlinks a:not(.button) {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 600;
+      padding: 10px 8px;
+    }
+    .navlinks a:not(.button):hover { color: var(--ivory); }
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-height: 42px;
+      min-width: 42px;
+      padding: 0 15px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: rgba(255,255,255,.025);
+      color: var(--ivory);
+      font-size: 14px;
+      font-weight: 700;
+      line-height: 1;
+      transition: background .18s ease, border-color .18s ease, transform .18s ease;
+    }
+    .button:hover {
+      border-color: var(--line-strong);
+      background: rgba(255,255,255,.065);
+      transform: translateY(-1px);
+    }
+    .button.primary {
+      background: var(--ivory);
+      color: #050606;
+      border-color: var(--ivory);
+      box-shadow: 0 18px 46px rgba(244,244,242,.08);
+    }
+    .button.secondary {
+      color: var(--signal);
+      border-color: rgba(185,255,45,.32);
+      background: rgba(185,255,45,.055);
+    }
+    .button svg { width: 16px; height: 16px; }
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(560px, .82fr) minmax(560px, 1.18fr);
+      align-items: center;
+      gap: clamp(58px, 6vw, 124px);
+      min-height: calc(100vh - 72px);
+      padding: clamp(76px, 8vh, 118px) 0 68px;
+      border-bottom: 1px solid rgba(244,244,242,.1);
+    }
+    .hero-copy { max-width: 880px; }
+    .hero-copy,
+    .relay-board {
+      min-width: 0;
+    }
+    h1 {
+      margin: 0;
+      font-family: var(--display-font);
+      font-size: clamp(66px, 4.9vw, 98px);
+      line-height: .88;
+      font-weight: 700;
+      letter-spacing: 0;
+      max-width: 920px;
+      text-wrap: balance;
+      overflow-wrap: normal;
+      word-break: normal;
+    }
+    h1 .line {
+      display: block;
+      white-space: nowrap;
+    }
+    .lede {
+      max-width: 720px;
+      margin: 30px 0 0;
+      color: rgba(244,244,242,.78);
+      font-size: clamp(18px, 1.15vw, 22px);
+      line-height: 1.58;
+    }
+    .hero-actions {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin: 34px 0 0;
+    }
+    .hero-proof {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 38px;
+      max-width: 820px;
+    }
+    .proof-item {
+      min-height: 98px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: linear-gradient(180deg, rgba(244,244,242,.052), rgba(244,244,242,.018));
+      padding: 14px;
+    }
+    .proof-item b {
+      display: block;
+      margin-bottom: 7px;
+      font-size: 16px;
+    }
+    .proof-item span {
+      display: block;
+      color: var(--soft);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+    .relay-board {
+      position: relative;
+      min-height: clamp(560px, 58vh, 760px);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.055), rgba(255,255,255,.02)),
+        linear-gradient(135deg, rgba(189,230,211,.045), transparent 44%, rgba(185,255,45,.055));
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .relay-board::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(185,255,45,.12) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(185,255,45,.1) 1px, transparent 1px);
+      background-size: 36px 36px;
+      opacity: .12;
+    }
+    .relay-topline {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 18px;
+      border-bottom: 1px solid rgba(244,244,242,.1);
+      color: var(--soft);
+      font-family: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 11px;
+      text-transform: uppercase;
+    }
+    .relay-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      color: var(--mint);
+    }
+    .relay-status::before,
+    .signal-dot {
+      content: "";
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--signal);
+      box-shadow: 0 0 14px rgba(185,255,45,.8);
+    }
+    .relay-core {
+      position: relative;
+      z-index: 1;
+      height: clamp(360px, 40vh, 500px);
+      margin: 20px;
+      border: 1px solid rgba(244,244,242,.12);
+      border-radius: var(--radius);
+      background: linear-gradient(155deg, #171A1D, #070808 58%, #101314);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 24px 58px rgba(0,0,0,.38);
+      overflow: hidden;
+    }
+    .relay-core svg.network {
+      position: absolute;
+      inset: 24px;
+      width: calc(100% - 48px);
+      height: calc(100% - 48px);
+      opacity: .72;
+    }
+    .relay-core .hero-mark {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+    }
+    .event-stream {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      gap: 8px;
+      margin: 0 20px 20px;
+    }
+    .event-row {
+      display: grid;
+      grid-template-columns: 126px minmax(0, 1fr) auto;
+      gap: 12px;
+      align-items: center;
+      min-height: 42px;
+      padding: 0 12px;
+      border: 1px solid rgba(244,244,242,.1);
+      border-radius: var(--radius);
+      background: rgba(10,10,10,.42);
+      color: rgba(244,244,242,.76);
+      font-size: 13px;
+    }
+    .event-row code {
+      color: var(--mint);
+      font-size: 12px;
+      background: transparent;
+      border: 0;
+      padding: 0;
+    }
+    .event-row span:nth-child(2) {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .live-inbox-card {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 44px;
+      gap: 16px;
+      align-items: center;
+      margin: 0 20px 20px;
+      padding: 16px;
+      border: 1px solid rgba(185,255,45,.22);
+      border-radius: var(--radius);
+      background: linear-gradient(135deg, rgba(185,255,45,.08), rgba(7,8,8,.82) 58%, rgba(189,230,211,.055));
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.07);
+    }
+    .live-inbox-card div {
+      display: grid;
+      gap: 6px;
+      min-width: 0;
+    }
+    .live-inbox-card span:first-child {
+      color: var(--signal);
+      font-family: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+    .live-inbox-card code {
+      color: var(--ivory);
+      font-size: 14px;
+      background: transparent;
+      border: 0;
+      padding: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .live-inbox-card span:last-child {
+      color: var(--soft);
+      font-size: 13px;
+      line-height: 1.4;
+    }
+    .live-inbox-card svg {
+      width: 44px;
+      height: 44px;
+      padding: 10px;
+      border: 1px solid rgba(244,244,242,.14);
+      border-radius: var(--radius);
+      color: var(--signal);
+      background: rgba(10,10,10,.56);
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 24px;
+      padding: 0 8px;
+      border: 1px solid rgba(185,255,45,.25);
+      border-radius: var(--radius);
+      color: var(--signal);
+      font-family: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 11px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .section {
+      padding: clamp(80px, 8vw, 132px) 0;
+      border-bottom: 1px solid rgba(244,244,242,.1);
+    }
+    .section-head {
+      display: grid;
+      grid-template-columns: minmax(0, .9fr) minmax(280px, .68fr);
+      gap: 38px;
+      align-items: end;
+      margin-bottom: 28px;
+    }
+    .section-label {
+      display: block;
+      margin: 0 0 14px;
+      color: var(--signal);
+      font-family: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+    h2 {
+      margin: 0;
+      font-family: var(--display-font);
+      font-size: clamp(48px, 4vw, 78px);
+      line-height: .94;
+      font-weight: 700;
+      letter-spacing: 0;
+      text-wrap: balance;
+    }
+    .section-head p,
+    .section-intro {
+      color: var(--muted);
+      font-size: 17px;
+      line-height: 1.65;
+      margin: 0;
+    }
+    .audience-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .audience-panel,
+    .flow-step,
+    .resource-panel,
+    .guardrail,
+    .dashboard-preview {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: linear-gradient(180deg, rgba(244,244,242,.05), rgba(244,244,242,.018));
+    }
+    .audience-panel {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      min-height: 316px;
+      padding: 22px;
+    }
+    .audience-panel h3,
+    .resource-panel h3,
+    .guardrail h3 {
+      margin: 0 0 12px;
+      font-size: 22px;
+      line-height: 1.15;
+    }
+    .audience-panel p,
+    .resource-panel p,
+    .guardrail p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+    .feature-list {
+      display: grid;
+      gap: 10px;
+      align-self: end;
+      margin-top: 24px;
+      padding: 0;
+      list-style: none;
+    }
+    .feature-list li {
+      display: grid;
+      grid-template-columns: 12px minmax(0, 1fr);
+      gap: 10px;
+      color: rgba(244,244,242,.78);
+      line-height: 1.45;
+      font-size: 14px;
+    }
+    .feature-list li::before {
+      content: "";
+      width: 7px;
+      height: 7px;
+      margin-top: 8px;
+      border-radius: 50%;
+      background: var(--signal);
+      box-shadow: 0 0 12px rgba(185,255,45,.64);
+    }
+    .capability-matrix {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 0;
+      margin-top: 14px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      overflow: hidden;
+      background: rgba(244,244,242,.018);
+    }
+    .capability-cell {
+      min-height: 184px;
+      padding: 18px;
+      border-right: 1px solid rgba(244,244,242,.1);
+      background: linear-gradient(180deg, rgba(244,244,242,.038), rgba(244,244,242,.012));
+    }
+    .capability-cell:last-child { border-right: 0; }
+    .capability-cell span,
+    .use-case span,
+    .faq-item span {
+      display: block;
+      margin-bottom: 28px;
+      color: var(--signal);
+      font-family: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+    .capability-cell h3,
+    .use-case h3,
+    .faq-item h3 {
+      margin: 0 0 10px;
+      font-size: 22px;
+      line-height: 1.15;
+    }
+    .capability-cell p,
+    .use-case p,
+    .faq-item p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.58;
+    }
+    .flow-grid {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .flow-step {
+      min-height: 198px;
+      padding: 16px;
+    }
+    .step-number {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      margin-bottom: 18px;
+      border: 1px solid rgba(185,255,45,.32);
+      border-radius: var(--radius);
+      color: var(--signal);
+      font-family: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .flow-step h3 {
+      margin: 0 0 8px;
+      font-size: 17px;
+      line-height: 1.2;
+    }
+    .flow-step p {
+      margin: 0;
+      color: var(--soft);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .code-stack {
+      display: grid;
+      grid-template-columns: minmax(0, .84fr) minmax(0, 1fr);
+      gap: 12px;
+      margin-top: 18px;
+    }
+    .terminal {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #070808;
+      overflow: hidden;
+      box-shadow: var(--shadow);
+    }
+    .terminal-bar {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      min-height: 38px;
+      padding: 0 12px;
+      border-bottom: 1px solid rgba(244,244,242,.09);
+      color: var(--soft);
+      font-family: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 11px;
+      text-transform: uppercase;
+    }
+    .snippet-tabs {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .snippet-tabs span {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 0 8px;
+      border: 1px solid rgba(244,244,242,.1);
+      border-radius: var(--radius);
+      color: var(--soft);
+      background: rgba(244,244,242,.02);
+    }
+    .snippet-tabs span:first-child {
+      color: var(--signal);
+      border-color: rgba(185,255,45,.28);
+      background: rgba(185,255,45,.045);
+    }
+    pre {
+      margin: 0;
+      padding: 16px;
+      overflow: auto;
+      color: rgba(244,244,242,.84);
+      font-family: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+      line-height: 1.65;
+      tab-size: 2;
+    }
+    pre .key { color: var(--signal); }
+    pre .muted { color: var(--soft); }
+    .production-strip {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 0;
+      margin-top: 18px;
+      border: 1px solid rgba(189,230,211,.16);
+      border-radius: var(--radius);
+      overflow: hidden;
+      background: linear-gradient(90deg, rgba(189,230,211,.055), rgba(244,244,242,.018));
+    }
+    .production-stat {
+      min-height: 178px;
+      padding: 18px;
+      border-right: 1px solid rgba(244,244,242,.1);
+    }
+    .production-stat:last-child { border-right: 0; }
+    .production-stat span {
+      display: block;
+      margin-bottom: 18px;
+      color: var(--signal);
+      font-family: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 11px;
+      font-weight: 800;
+    }
+    .production-stat b {
+      display: block;
+      margin-bottom: 10px;
+      font-size: 18px;
+      line-height: 1.2;
+    }
+    .production-stat p {
+      margin: 0;
+      color: var(--soft);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .resource-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .resource-panel {
+      min-height: 210px;
+      padding: 20px;
+    }
+    .resource-panel code,
+    .mini-code {
+      display: inline-flex;
+      max-width: 100%;
+      margin-bottom: 18px;
+      padding: 7px 8px;
+      border: 1px solid rgba(189,230,211,.18);
+      border-radius: var(--radius);
+      color: var(--mint);
+      background: rgba(189,230,211,.045);
+      font-family: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .ops-grid {
+      display: grid;
+      grid-template-columns: minmax(0, .84fr) minmax(0, 1fr);
+      gap: 12px;
+      align-items: stretch;
+    }
+    .dashboard-preview {
+      min-height: 418px;
+      overflow: hidden;
+    }
+    .dash-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      min-height: 58px;
+      padding: 0 16px;
+      border-bottom: 1px solid rgba(244,244,242,.1);
+    }
+    .dash-header b { font-size: 15px; }
+    .dash-tabs {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .dash-tabs span {
+      padding: 7px 9px;
+      border: 1px solid rgba(244,244,242,.1);
+      border-radius: var(--radius);
+      color: var(--soft);
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .dash-tabs span:first-child {
+      color: var(--signal);
+      border-color: rgba(185,255,45,.28);
+      background: rgba(185,255,45,.045);
+    }
+    .dash-table {
+      display: grid;
+      padding: 8px 16px 16px;
+    }
+    .dash-row {
+      display: grid;
+      grid-template-columns: 1.2fr .82fr .72fr;
+      gap: 12px;
+      min-height: 48px;
+      align-items: center;
+      border-bottom: 1px solid rgba(244,244,242,.08);
+      color: rgba(244,244,242,.76);
+      font-size: 13px;
+    }
+    .dash-row.header {
+      min-height: 38px;
+      color: var(--soft);
+      font-family: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 11px;
+      text-transform: uppercase;
+    }
+    .status-live {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      color: var(--mint);
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .status-live::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--signal);
+      box-shadow: 0 0 10px rgba(185,255,45,.8);
+    }
+    .ops-copy {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: linear-gradient(180deg, rgba(189,230,211,.055), rgba(244,244,242,.018));
+      padding: 24px;
+    }
+    .ops-copy h3 {
+      margin: 0 0 14px;
+      font-family: var(--display-font);
+      font-size: 34px;
+      line-height: 1;
+      font-weight: 700;
+    }
+    .ops-copy p {
+      margin: 0 0 18px;
+      color: var(--muted);
+      line-height: 1.65;
+    }
+    .ops-list {
+      display: grid;
+      gap: 8px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+    .ops-list li {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 42px;
+      padding: 0 12px;
+      border: 1px solid rgba(244,244,242,.1);
+      border-radius: var(--radius);
+      color: rgba(244,244,242,.76);
+      font-size: 13px;
+    }
+    .guardrail-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .guardrail {
+      min-height: 210px;
+      padding: 20px;
+    }
+    .guardrail-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 38px;
+      height: 38px;
+      margin-bottom: 18px;
+      border: 1px solid rgba(185,255,45,.26);
+      border-radius: var(--radius);
+      color: var(--signal);
+      background: rgba(185,255,45,.04);
+    }
+    .guardrail-icon svg {
+      width: 20px;
+      height: 20px;
+      stroke-width: 1.8;
+    }
+    .use-case-grid,
+    .faq-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .use-case,
+    .faq-item {
+      min-height: 236px;
+      padding: 20px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: linear-gradient(180deg, rgba(244,244,242,.05), rgba(244,244,242,.018));
+    }
+    .faq-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .faq-item {
+      min-height: 192px;
+    }
+    .final-cta {
+      display: grid;
+      grid-template-columns: minmax(0, .75fr) minmax(360px, .72fr);
+      align-items: center;
+      gap: 28px;
+      margin-top: 72px;
+      padding: 30px;
+      border: 1px solid rgba(185,255,45,.18);
+      border-radius: var(--radius);
+      background:
+        linear-gradient(90deg, rgba(185,255,45,.095), rgba(189,230,211,.035) 42%, rgba(244,244,242,.025)),
+        #0B0C0C;
+    }
+    .final-cta h2 {
+      font-size: 38px;
+    }
+    .final-cta p {
+      margin: 10px 0 0;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+    .final-cta .hero-actions {
+      margin: 22px 0 0;
+    }
+    .install-card {
+      border: 1px solid rgba(244,244,242,.14);
+      border-radius: var(--radius);
+      background: #070808;
+      overflow: hidden;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 24px 68px rgba(0,0,0,.38);
+    }
+    .install-card pre {
+      min-height: 176px;
+      color: rgba(244,244,242,.86);
+    }
+    .footer {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-top: 34px;
+      color: rgba(244,244,242,.38);
+      font-size: 13px;
+    }
+    .mobile-only { display: none; }
+    @media (max-width: 1080px) {
+      .hero {
+        grid-template-columns: 1fr;
+        min-height: auto;
+        padding-top: 70px;
+      }
+      .relay-board { min-height: 500px; }
+      .flow-grid,
+      .capability-matrix,
+      .production-strip,
+      .use-case-grid,
+      .guardrail-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .capability-cell:nth-child(2n),
+      .production-stat:nth-child(2n) {
+        border-right: 0;
+      }
+      .capability-cell:nth-child(-n + 2),
+      .production-stat:nth-child(-n + 2) {
+        border-bottom: 1px solid rgba(244,244,242,.1);
+      }
+      .resource-grid { grid-template-columns: 1fr; }
+      .ops-grid,
+      .code-stack,
+      .faq-grid,
+      .section-head {
+        grid-template-columns: 1fr;
+      }
+    }
+    @media (max-width: 760px) {
+      .page-shell { padding: 18px 18px 56px; }
+      .site-header {
+        position: relative;
+        align-items: flex-start;
+        flex-direction: column;
+        margin: -18px 0 0;
+        padding: 18px 0;
+      }
+      .navlinks {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 8px;
+        justify-content: stretch;
+        width: 100%;
+      }
+      .navlinks a:not(.button) { display: none; }
+      .navlinks .button {
+        width: 100%;
+        flex: none;
+        min-width: 0;
+        padding: 0 12px;
+      }
+      .hero {
+        gap: 34px;
+        padding: 52px 0 50px;
+      }
+      h1 {
+        font-size: clamp(32px, 9vw, 38px);
+        line-height: 1.02;
+      }
+      h1 .line {
+        white-space: normal;
+      }
+      .lede {
+        font-size: 17px;
+        line-height: 1.58;
+      }
+      .hero-proof,
+      .audience-grid,
+      .flow-grid,
+      .capability-matrix,
+      .production-strip,
+      .use-case-grid,
+      .guardrail-grid {
+        grid-template-columns: 1fr;
+      }
+      .capability-cell,
+      .production-stat {
+        border-right: 0;
+        border-bottom: 1px solid rgba(244,244,242,.1);
+      }
+      .capability-cell:last-child,
+      .production-stat:last-child {
+        border-bottom: 0;
+      }
+      .relay-board {
+        min-height: 456px;
+      }
+      .relay-core {
+        height: 256px;
+        margin: 12px;
+      }
+      .relay-topline {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+      .event-stream {
+        margin: 0 12px 12px;
+      }
+      .live-inbox-card {
+        grid-template-columns: 1fr;
+        margin: 0 12px 12px;
+      }
+      .event-row {
+        grid-template-columns: 1fr auto;
+      }
+      .event-row span:nth-child(2) {
+        grid-column: 1 / -1;
+        grid-row: 2;
+        padding-bottom: 8px;
+      }
+      .section {
+        padding: 54px 0;
+      }
+      pre {
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+      }
+      h2 {
+        font-size: 34px;
+      }
+      .dash-row {
+        grid-template-columns: 1fr;
+        gap: 3px;
+        padding: 10px 0;
+      }
+      .dash-row.header { display: none; }
+      .final-cta {
+        grid-template-columns: 1fr;
+        padding: 22px;
+      }
+      .final-cta h2 {
+        font-size: 32px;
+      }
+      .mobile-only { display: inline; }
+    }
+    @media (max-width: 420px) {
+      h1 { font-size: clamp(30px, 8.7vw, 34px); }
+      .brand-mark { width: 36px; height: 36px; }
+      .button { font-size: 13px; }
+      .hero-actions .button { width: 100%; }
+      .relay-core .hero-mark {
+        width: 86px;
+        height: 86px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page-shell">
+    <header class="site-header">
+      <a class="brand" href="/" aria-label="Reverbin home">${reverbinMarkSvg()}<span>reverbin</span></a>
+      <nav class="navlinks" aria-label="Primary navigation">
+        <a href="#product">Product</a>
+        <a href="#flow">Agent flow</a>
+        <a href="#developers">Developers</a>
+        <a href="#operations">Operations</a>
+        <a href="#use-cases">Use cases</a>
+        <a class="button secondary" href="/dashboard/login">Dashboard</a>
+        <a class="button primary" href="${REQUEST_ACCESS_HREF}">Request access</a>
+      </nav>
+    </header>
+
+    <section class="hero" aria-labelledby="hero-heading">
+      <div class="hero-copy">
+        <h1 id="hero-heading"><span class="line">Communication</span><span class="line">infrastructure</span><span class="line">for autonomous</span><span class="line">agents.</span></h1>
+        <p class="lede">Reverbin gives agent runtimes real inboxes, signed webhooks, threaded conversations, delivery logs, policy guardrails, and a human-operable control plane on production email rails.</p>
+        <div class="hero-actions">
+          <a class="button primary" href="${REQUEST_ACCESS_HREF}">
+            Request access
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h13m-5-5 5 5-5 5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </a>
+          <a class="button" href="/docs">Read API docs</a>
+        </div>
+        <div class="hero-proof" aria-label="Reverbin platform primitives">
+          <div class="proof-item"><b>Real inboxes</b><span>Addressable mailboxes for agents, not aliases glued to a chat demo.</span></div>
+          <div class="proof-item"><b>Signed events</b><span>Webhook payloads include event names, delivery IDs, and HMAC signatures.</span></div>
+          <div class="proof-item"><b>Thread memory</b><span>Inbound and outbound messages stay attached to durable conversation state.</span></div>
+        </div>
+      </div>
+
+      <aside class="relay-board" aria-label="Reverbin relay visual">
+        <div class="relay-topline">
+          <span>agents.reverbin.com / message relay</span>
+          <span class="relay-status">online</span>
+        </div>
+        <div class="relay-core">
+          <svg class="network" viewBox="0 0 520 300" fill="none" aria-hidden="true">
+            <path d="M16 58h112l54 50h92l68-72h162" stroke="rgba(189,230,211,.45)" stroke-width="1.4"/>
+            <path d="M20 150h160l36-34h86l40 34h158" stroke="rgba(185,255,45,.8)" stroke-width="1.4"/>
+            <path d="M28 244h126l62-58h82l58 58h132" stroke="rgba(189,230,211,.38)" stroke-width="1.4"/>
+            <path d="M126 18v60m0 100v84M406 18v80m0 92v78" stroke="rgba(244,244,242,.12)" stroke-width="1"/>
+            <circle cx="16" cy="58" r="4" fill="#BDE6D3"/><circle cx="128" cy="58" r="4" fill="#B9FF2D"/><circle cx="274" cy="108" r="4" fill="#BDE6D3"/><circle cx="504" cy="36" r="4" fill="#B9FF2D"/>
+            <circle cx="20" cy="150" r="4" fill="#B9FF2D"/><circle cx="216" cy="116" r="4" fill="#BDE6D3"/><circle cx="342" cy="150" r="4" fill="#B9FF2D"/><circle cx="500" cy="150" r="4" fill="#BDE6D3"/>
+            <circle cx="28" cy="244" r="4" fill="#BDE6D3"/><circle cx="216" cy="186" r="4" fill="#B9FF2D"/><circle cx="356" cy="244" r="4" fill="#BDE6D3"/><circle cx="488" cy="244" r="4" fill="#B9FF2D"/>
+          </svg>
+          ${reverbinMarkSvg('hero-mark')}
+        </div>
+        <div class="event-stream" aria-label="Example event stream">
+          <div class="event-row"><code>email.received</code><span>support@agents.reverbin.com received a provider message</span><span class="pill">signed</span></div>
+          <div class="event-row"><code>thread.created</code><span>thr_01H0AZ routed to the agent runtime</span><span class="pill">stored</span></div>
+          <div class="event-row"><code>email.sent</code><span>reply delivered with risk flags retained for audit</span><span class="pill">logged</span></div>
+        </div>
+        <div class="live-inbox-card" aria-label="Live inbox proof">
+          <div>
+            <span>Live inbox</span>
+            <code>agent@agents.reverbin.com</code>
+            <span>Inbound mail lands as a stored thread and signed webhook event.</span>
+          </div>
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M4 6h16v12H4z" stroke="currentColor" stroke-linejoin="round"/>
+            <path d="m4 7 8 6 8-6" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+      </aside>
+    </section>
+
+    <section class="section" id="product" aria-labelledby="product-heading">
+      <div class="section-head">
+        <div>
+          <span class="section-label">Product surface</span>
+          <h2 id="product-heading">A message control plane for agents and the humans responsible for them.</h2>
+        </div>
+        <p>Agents need a stable communication substrate. Operators need traceability, policy, and a place to inspect what happened when an agent touched real email.</p>
+      </div>
+      <div class="audience-grid">
+        <article class="audience-panel">
+          <div>
+            <h3>For agent runtimes</h3>
+            <p>Reverbin exposes inboxes, messages, threads, replies, and webhook subscriptions as API primitives that can be owned by an agent workflow.</p>
+          </div>
+          <ul class="feature-list">
+            <li>Create agent-specific inboxes on verified email infrastructure.</li>
+            <li>Receive normalized inbound provider events through signed webhooks.</li>
+            <li>Reply in context without rebuilding thread storage and provider glue.</li>
+          </ul>
+        </article>
+        <article class="audience-panel">
+          <div>
+            <h3>For human operators</h3>
+            <p>The same system keeps policy decisions, webhook deliveries, approval records, and audit logs inspectable when agents operate in production.</p>
+          </div>
+          <ul class="feature-list">
+            <li>Use dashboard views for inbox status, messages, delivery rows, and audit trails.</li>
+            <li>Keep frictionless sends by default while retaining risk flags for review.</li>
+            <li>Turn on explicit approval workflows for higher-risk policies when needed.</li>
+          </ul>
+        </article>
+      </div>
+      <div class="capability-matrix" aria-label="Reverbin capability matrix">
+        <article class="capability-cell">
+          <span>Inboxes</span>
+          <h3>API-owned inboxes</h3>
+          <p>Create agent-specific addresses and inspect them from the same operational surface.</p>
+        </article>
+        <article class="capability-cell">
+          <span>Threads</span>
+          <h3>Durable conversations</h3>
+          <p>Inbound and outbound messages stay attached to stored threads instead of a prompt transcript.</p>
+        </article>
+        <article class="capability-cell">
+          <span>Events</span>
+          <h3>Signed runtime events</h3>
+          <p>Webhook payloads carry event names, delivery IDs, and HMAC signatures for agent services.</p>
+        </article>
+        <article class="capability-cell">
+          <span>Policy</span>
+          <h3>Operator guardrails</h3>
+          <p>Optional approvals, risk flags, and audit rows sit next to the message record.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" id="flow" aria-labelledby="flow-heading">
+      <div class="section-head">
+        <div>
+          <span class="section-label">Five-minute agent flow</span>
+          <h2 id="flow-heading">Wire an inbox, subscribe the runtime, and let the agent answer in thread.</h2>
+        </div>
+        <p>The API shape is intentionally small: create the address, receive the event, fetch context, respond, and audit every step.</p>
+      </div>
+      <div class="flow-grid">
+        <article class="flow-step"><span class="step-number">01</span><h3>Create inbox</h3><p>Provision a mailbox for the agent identity or workflow surface.</p></article>
+        <article class="flow-step"><span class="step-number">02</span><h3>Subscribe webhook</h3><p>Register endpoint secrets for <code>email.received</code> and <code>email.sent</code>.</p></article>
+        <article class="flow-step"><span class="step-number">03</span><h3>Receive mail</h3><p>Provider payloads normalize into stored threads and message rows.</p></article>
+        <article class="flow-step"><span class="step-number">04</span><h3>Fetch thread</h3><p>Your runtime reads the conversation before deciding what to do.</p></article>
+        <article class="flow-step"><span class="step-number">05</span><h3>Reply safely</h3><p>Send immediately unless configured policy requires approval or blocks.</p></article>
+      </div>
+      <div class="code-stack">
+        <div class="terminal" aria-label="Create inbox API example">
+          <div class="terminal-bar"><span>Create inbox</span><span>curl</span></div>
+          <pre><span class="muted">curl -X POST https://api.reverbin.com/v1/inboxes \\</span>
+  -H "Authorization: Bearer $REVERBIN_API_KEY" \\
+  -H "content-type: application/json" \\
+  -d '{
+    <span class="key">"email_address"</span>: "agent@agents.reverbin.com",
+    <span class="key">"display_name"</span>: "Support Agent"
+  }'</pre>
+        </div>
+        <div class="terminal" aria-label="Webhook event example">
+          <div class="terminal-bar"><span>Webhook event</span><span>json</span></div>
+          <pre>{
+  <span class="key">"type"</span>: "email.received",
+  <span class="key">"created_at"</span>: "2026-07-06T17:42:02.085Z",
+  <span class="key">"data"</span>: {
+    "inbox_id": "inb_...",
+    "thread_id": "thr_...",
+    "message_id": "msg_...",
+    "from": "sender@example.com",
+    "subject": "Hello"
+          }
+}</pre>
+        </div>
+      </div>
+      <div class="production-strip" aria-label="Production readiness">
+        <article class="production-stat"><span>01</span><b>One API surface</b><p>Inboxes, messages, threads, replies, webhooks, deliveries, and audit rows share the same product boundary.</p></article>
+        <article class="production-stat"><span>02</span><b>Real webhook evidence</b><p>Delivery attempts are inspectable instead of disappearing into a provider dashboard.</p></article>
+        <article class="production-stat"><span>03</span><b>Human-readable state</b><p>Operators can see which inbox received mail, what thread it touched, and what the agent sent.</p></article>
+        <article class="production-stat"><span>04</span><b>Policy when needed</b><p>Default sends stay low-friction while higher-risk workflows can require review.</p></article>
+      </div>
+    </section>
+
+    <section class="section" id="developers" aria-labelledby="developers-heading">
+      <div class="section-head">
+        <div>
+          <span class="section-label">Developer resources</span>
+          <h2 id="developers-heading">The useful pieces are documented, typed, and reachable from the first screen.</h2>
+        </div>
+        <p>Use the API directly or import the TypeScript client. The public docs cover endpoints, webhook signatures, delivery inspection, audit logs, and worker mode.</p>
+      </div>
+      <div class="resource-grid">
+        <article class="resource-panel">
+          <code>POST /v1/inboxes</code>
+          <h3>Programmable inboxes</h3>
+          <p>Create and list agent inboxes with default policies that send normal replies immediately while preserving audit data.</p>
+        </article>
+        <article class="resource-panel">
+          <code>POST /v1/webhooks</code>
+          <h3>Signed event delivery</h3>
+          <p>Deliver provider-normalized events to your runtime with retryable delivery records and HMAC signatures.</p>
+        </article>
+        <article class="resource-panel">
+          <code>ReverbinClient</code>
+          <h3>TypeScript SDK</h3>
+          <p>Use the package client for inbox creation, thread retrieval, and replies from Node-based agent services.</p>
+        </article>
+      </div>
+      <div class="code-stack">
+        <div class="terminal" aria-label="TypeScript SDK example">
+          <div class="terminal-bar"><span class="snippet-tabs"><span>TypeScript</span><span>cURL</span><span>Webhook</span></span><span>agent.ts</span></div>
+          <pre>import { ReverbinClient } from '@builtbyecho/reverbin';
+
+const reverbin = new ReverbinClient({
+  baseUrl: process.env.REVERBIN_BASE_URL,
+  apiKey: process.env.REVERBIN_API_KEY,
+});
+
+const inbox = await reverbin.inboxes.create({
+  email_address: 'support@agents.reverbin.com',
+  display_name: 'Support Agent',
+});</pre>
+        </div>
+        <div class="terminal" aria-label="Reply API example">
+          <div class="terminal-bar"><span>Thread reply</span><span>policy aware</span></div>
+          <pre>await reverbin.threads.reply(thread.id, {
+  text: 'Thanks - I can help with that.',
+});
+
+// If policy allows it:
+// { message_id, provider_result }
+
+// If approval is required:
+// { approval_id, status: 'pending' }</pre>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="operations" aria-labelledby="operations-heading">
+      <div class="section-head">
+        <div>
+          <span class="section-label">Operator view</span>
+          <h2 id="operations-heading">Production email needs an inspection surface, not just API success responses.</h2>
+        </div>
+        <p>The dashboard is app-token protected and focused on operational state: inboxes, messages, webhook deliveries, and audit logs.</p>
+      </div>
+      <div class="ops-grid">
+        <aside class="ops-copy">
+          <h3>Humans can see what the agent did.</h3>
+          <p>Reverbin keeps the operational trail close to the communication layer so incidents are diagnosable without replaying a whole agent run.</p>
+          <ul class="ops-list">
+            <li><span>Dashboard login</span><span class="pill">app token</span></li>
+            <li><span>Webhook delivery rows</span><span class="pill">retryable</span></li>
+            <li><span>Audit actions</span><span class="pill">recorded</span></li>
+            <li><span>Approvals</span><span class="pill">optional</span></li>
+          </ul>
+        </aside>
+        <div class="dashboard-preview" aria-label="Reverbin dashboard preview">
+          <div class="dash-header">
+            <b>Reverbin operations</b>
+            <div class="dash-tabs" aria-label="Dashboard preview tabs">
+              <span>Inboxes</span><span>Messages</span><span>Webhooks</span><span>Audit</span>
+            </div>
+          </div>
+          <div class="dash-table">
+            <div class="dash-row header"><span>Inbox</span><span>Status</span><span>Last event</span></div>
+            <div class="dash-row"><span><code class="mini-code">support@agents.reverbin.com</code></span><span class="status-live">active</span><span>email.received</span></div>
+            <div class="dash-row"><span><code class="mini-code">alerts@agents.reverbin.com</code></span><span class="status-live">active</span><span>email.sent</span></div>
+            <div class="dash-row"><span><code class="mini-code">billing@agents.reverbin.com</code></span><span class="status-live">active</span><span>approval.required</span></div>
+            <div class="dash-row"><span><code class="mini-code">ops@agents.reverbin.com</code></span><span class="status-live">active</span><span>webhook.delivered</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="use-cases" aria-labelledby="use-cases-heading">
+      <div class="section-head">
+        <div>
+          <span class="section-label">Use cases</span>
+          <h2 id="use-cases-heading">Agent email gets useful when it touches real workflows.</h2>
+        </div>
+        <p>Reverbin is for any agent that needs to receive, understand, and answer email while leaving a record a human can trust.</p>
+      </div>
+      <div class="use-case-grid">
+        <article class="use-case"><span>Support</span><h3>Customer-service agents</h3><p>Give a support runtime a durable inbox, signed inbound events, and auditable replies.</p></article>
+        <article class="use-case"><span>Browser agents</span><h3>Account setup and verification</h3><p>Route OTP and onboarding messages to agents without handing them a human mailbox.</p></article>
+        <article class="use-case"><span>Operations</span><h3>Vendor and billing workflows</h3><p>Keep receipts, invoices, and follow-ups attached to threads that humans can inspect later.</p></article>
+        <article class="use-case"><span>Internal tools</span><h3>Escalation handoff</h3><p>Let agents draft or send routine email while policy flags and audit rows stay visible.</p></article>
+      </div>
+    </section>
+
+    <section class="section" id="trust" aria-labelledby="trust-heading">
+      <div class="section-head">
+        <div>
+          <span class="section-label">Guardrails</span>
+          <h2 id="trust-heading">Default friction stays low, but the record stays complete.</h2>
+        </div>
+        <p>Reverbin is built for real mail. Safety decisions are explicit, inspectable, and adjustable by inbox policy instead of hidden in an agent prompt.</p>
+      </div>
+      <div class="guardrail-grid">
+        <article class="guardrail">
+          <span class="guardrail-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3 5 6v5c0 4.6 2.8 8.3 7 10 4.2-1.7 7-5.4 7-10V6l-7-3Z" stroke="currentColor" stroke-linejoin="round"/><path d="m9 12 2 2 4-5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          <h3>Signed webhooks</h3>
+          <p>Every subscribed delivery can be verified from raw JSON and the endpoint secret.</p>
+        </article>
+        <article class="guardrail">
+          <span class="guardrail-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 5h14v5H5zM5 14h14v5H5z" stroke="currentColor" stroke-linejoin="round"/><path d="M8 7.5h.01M8 16.5h.01" stroke="currentColor" stroke-linecap="round"/></svg></span>
+          <h3>Delivery logs</h3>
+          <p>Webhook attempts, failures, and delivered timestamps are retained for debugging.</p>
+        </article>
+        <article class="guardrail">
+          <span class="guardrail-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 7h10M7 12h10M7 17h6" stroke="currentColor" stroke-linecap="round"/><path d="M5 3h14a1 1 0 0 1 1 1v16l-3-2-3 2-3-2-3 2-3-2-3 2V4a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-linejoin="round"/></svg></span>
+          <h3>Audit trails</h3>
+          <p>Policy decisions, sends, approvals, and inbound events stay attached to records.</p>
+        </article>
+        <article class="guardrail">
+          <span class="guardrail-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 12h16M12 4v16" stroke="currentColor" stroke-linecap="round"/><path d="M7 7h10v10H7z" stroke="currentColor" stroke-linejoin="round"/></svg></span>
+          <h3>Policy knobs</h3>
+          <p>Reply-only, attachment, link, domain, recipient, and approval behavior can be configured per inbox.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" id="faq" aria-labelledby="faq-heading">
+      <div class="section-head">
+        <div>
+          <span class="section-label">FAQ</span>
+          <h2 id="faq-heading">Questions agents and operators both ask.</h2>
+        </div>
+        <p>The goal is not another email sending wrapper. Reverbin gives agent systems a communication record that can be integrated, verified, and inspected.</p>
+      </div>
+      <div class="faq-grid">
+        <article class="faq-item"><span>01</span><h3>Is this just outbound email?</h3><p>No. Reverbin stores inbound and outbound messages as threads and emits signed runtime events.</p></article>
+        <article class="faq-item"><span>02</span><h3>Can humans inspect what happened?</h3><p>Yes. The dashboard shows inboxes, stored messages, delivery attempts, and audit actions.</p></article>
+        <article class="faq-item"><span>03</span><h3>Do sends always need approval?</h3><p>No. Low-risk sends can move immediately; approvals are a policy layer for workflows that need review.</p></article>
+        <article class="faq-item"><span>04</span><h3>Where do agents integrate?</h3><p>Agents use the API/SDK, listen for webhooks, fetch thread context, and send replies back through Reverbin.</p></article>
+      </div>
+    </section>
+
+    <section class="final-cta" aria-labelledby="cta-heading">
+      <div>
+        <h2 id="cta-heading">Give your agent a real inbox.</h2>
+        <p>Use Reverbin as the communication layer between production email and autonomous agent workflows.</p>
+        <div class="hero-actions">
+          <a class="button primary" href="${REQUEST_ACCESS_HREF}">Request access</a>
+          <a class="button" href="/docs">View API docs</a>
+        </div>
+      </div>
+      <div class="install-card" aria-label="Install Reverbin SDK">
+        <div class="terminal-bar"><span>Install SDK</span><span>npm</span></div>
+        <pre>npm install @builtbyecho/reverbin
+
+REVERBIN_API_KEY=...
+REVERBIN_BASE_URL=https://api.reverbin.com</pre>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <span>Built by Echo.</span>
+      <span>Real inboxes · signed webhooks · threaded conversations · delivery logs</span>
+    </footer>
+  </main>
+</body>
+</html>`;
+}
+
+export type DashboardInboxView = {
+  id: string;
+  email_address: string;
+  display_name?: string | null;
+  status: string;
+  created_at: Date | string;
+};
+
+export type DashboardMessageView = {
+  id: string;
+  inbox_id: string;
+  thread_id: string;
+  direction: string;
+  from_email: string | null;
+  subject: string | null;
+  created_at: Date | string;
+};
+
+export type DashboardDeliveryView = {
+  id: string;
+  endpoint_id: string;
+  event_type: string;
+  status: string;
+  attempts: number | string;
+  created_at: Date | string;
+  delivered_at: Date | string | null;
+};
+
+export type DashboardAuditView = {
+  action: string;
+  target_type: string;
+  target_id: string;
+  created_at: Date | string;
+};
+
+export type DashboardPageData = {
+  inboxes: DashboardInboxView[];
+  messages: DashboardMessageView[];
+  deliveries: DashboardDeliveryView[];
+  audits: DashboardAuditView[];
+};
+
+function formatDate(value: Date | string | null | undefined) {
+  if (!value) return 'pending';
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return escapeHtml(String(value));
+  return date.toISOString().replace('T', ' ').replace('.000Z', 'Z');
+}
+
+function emptyRow(message: string, columns = 4) {
+  return `<tr class="empty-row"><td colspan="${columns}">${escapeHtml(message)}</td></tr>`;
+}
+
+function statusPill(status: string) {
+  const normalized = status.toLowerCase();
+  const tone = normalized.includes('fail') || normalized.includes('error') ? 'danger' : normalized.includes('pending') ? 'pending' : 'live';
+  return `<span class="status-pill ${tone}">${escapeHtml(status)}</span>`;
+}
+
+function renderDashboardRows(data: DashboardPageData) {
+  const inboxRows = data.inboxes.length
+    ? data.inboxes.map((row) => `<tr>
+        <td><strong>${escapeHtml(row.email_address)}</strong><span>${escapeHtml(row.display_name || row.id)}</span></td>
+        <td>${statusPill(row.status)}</td>
+        <td><code>${escapeHtml(row.id)}</code></td>
+        <td>${formatDate(row.created_at)}</td>
+      </tr>`).join('')
+    : emptyRow('No inboxes yet. Create one through POST /v1/inboxes.', 4);
+
+  const messageRows = data.messages.length
+    ? data.messages.map((row) => `<tr>
+        <td><span class="mono">${escapeHtml(row.direction)}</span></td>
+        <td><strong>${escapeHtml(row.subject || '(no subject)')}</strong><span>${escapeHtml(row.from_email || 'unknown sender')}</span></td>
+        <td><code>${escapeHtml(row.thread_id)}</code></td>
+        <td>${formatDate(row.created_at)}</td>
+      </tr>`).join('')
+    : emptyRow('No messages stored yet. Inbound provider events will appear here.', 4);
+
+  const deliveryRows = data.deliveries.length
+    ? data.deliveries.map((row) => `<tr>
+        <td><strong>${escapeHtml(row.event_type)}</strong><span>${escapeHtml(row.endpoint_id)}</span></td>
+        <td>${statusPill(row.status)}</td>
+        <td>${escapeHtml(String(row.attempts))}</td>
+        <td>${formatDate(row.delivered_at ?? row.created_at)}</td>
+      </tr>`).join('')
+    : emptyRow('No webhook deliveries yet. Signed delivery attempts will appear here.', 4);
+
+  const auditRows = data.audits.length
+    ? data.audits.map((row) => `<tr>
+        <td><strong>${escapeHtml(row.action)}</strong></td>
+        <td>${escapeHtml(row.target_type)}</td>
+        <td><code>${escapeHtml(row.target_id)}</code></td>
+        <td>${formatDate(row.created_at)}</td>
+      </tr>`).join('')
+    : emptyRow('No audit activity yet. Inbound, send, policy, and approval events will appear here.', 4);
+
+  return { inboxRows, messageRows, deliveryRows, auditRows };
+}
+
+export function renderDashboardPage(data: DashboardPageData) {
+  const rows = renderDashboardRows(data);
+  const totals = {
+    inboxes: data.inboxes.length,
+    messages: data.messages.length,
+    deliveries: data.deliveries.length,
+    audits: data.audits.length,
+  };
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+  ${baseHead}
+  <title>Reverbin operations</title>
+  <meta name="description" content="Reverbin operational dashboard for inboxes, messages, webhook deliveries, and audit logs." />
+  <style>
+    :root {
+      color-scheme: dark;
+      --black: #0A0A0A;
+      --ivory: #F4F4F2;
+      --muted: rgba(244,244,242,.72);
+      --soft: rgba(244,244,242,.48);
+      --line: rgba(244,244,242,.14);
+      --line-strong: rgba(244,244,242,.28);
+      --signal: #B9FF2D;
+      --mint: #BDE6D3;
+      --danger: #FCA5A5;
+      --pending: #FFD166;
+      --radius: 8px;
     }
     * { box-sizing: border-box; }
     html { background: var(--black); }
@@ -45,173 +1567,653 @@ export function renderLandingPage() {
       color: var(--ivory);
       font-family: 'Geist', Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       background:
-        radial-gradient(circle at 72% 12%, rgba(198,255,110,.10), transparent 24rem),
-        radial-gradient(circle at 24% -10%, rgba(189,230,211,.09), transparent 30rem),
-        linear-gradient(180deg, #060707 0%, #0A0A0A 48%, #050505 100%);
-      overflow-x: hidden;
+        linear-gradient(180deg, #070808 0%, #0A0A0A 54%, #050606 100%),
+        linear-gradient(90deg, rgba(189,230,211,.05), transparent 48%, rgba(185,255,45,.035));
     }
     body::before {
       content: "";
       position: fixed;
       inset: 0;
       pointer-events: none;
-      opacity: .74;
       background-image:
-        linear-gradient(rgba(244,244,242,.025) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(244,244,242,.025) 1px, transparent 1px);
-      background-size: 52px 52px;
-      mask-image: linear-gradient(to bottom, rgba(0,0,0,.9), transparent 70%);
+        linear-gradient(rgba(244,244,242,.026) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(244,244,242,.026) 1px, transparent 1px);
+      background-size: 48px 48px;
+      opacity: .54;
+      mask-image: linear-gradient(to bottom, black 0%, transparent 76%);
     }
-    body::after {
+    a { color: inherit; text-decoration: none; }
+    .shell {
+      position: relative;
+      width: min(1248px, calc(100% - 36px));
+      margin: 0 auto;
+      padding: 22px 0 64px;
+    }
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      min-height: 64px;
+      border-bottom: 1px solid rgba(244,244,242,.1);
+    }
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      font-family: 'Geist', Inter, ui-sans-serif, system-ui, sans-serif;
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: .015em;
+    }
+    .brand-mark { width: 40px; height: 40px; }
+    .top-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 40px;
+      padding: 0 14px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: rgba(255,255,255,.025);
+      color: var(--ivory);
+      font-size: 13px;
+      font-weight: 800;
+    }
+    .button.primary {
+      border-color: var(--ivory);
+      background: var(--ivory);
+      color: #050606;
+    }
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, .9fr) minmax(0, 1fr);
+      gap: 34px;
+      align-items: end;
+      padding: 58px 0 26px;
+    }
+    h1 {
+      margin: 0;
+      font-family: 'Space Grotesk', 'Geist', Inter, ui-sans-serif, system-ui, sans-serif;
+      font-size: 58px;
+      line-height: 1.02;
+      font-weight: 400;
+      letter-spacing: 0;
+    }
+    .hero p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 17px;
+      line-height: 1.65;
+    }
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin: 18px 0 28px;
+    }
+    .metric,
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: linear-gradient(180deg, rgba(244,244,242,.052), rgba(244,244,242,.018));
+    }
+    .metric {
+      padding: 16px;
+      min-height: 94px;
+    }
+    .metric span {
+      display: block;
+      color: var(--soft);
+      font-family: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+    .metric b {
+      display: block;
+      margin-top: 10px;
+      font-size: 30px;
+      line-height: 1;
+    }
+    .dashboard-grid {
+      display: grid;
+      gap: 12px;
+    }
+    .panel {
+      overflow: hidden;
+    }
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 56px;
+      padding: 0 16px;
+      border-bottom: 1px solid rgba(244,244,242,.1);
+    }
+    .panel-head h2 {
+      margin: 0;
+      font-size: 17px;
+      line-height: 1.2;
+    }
+    .panel-head span {
+      color: var(--soft);
+      font-family: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+    .table-wrap {
+      overflow-x: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 760px;
+    }
+    th,
+    td {
+      padding: 13px 16px;
+      border-bottom: 1px solid rgba(244,244,242,.08);
+      text-align: left;
+      vertical-align: middle;
+      color: rgba(244,244,242,.78);
+      font-size: 13px;
+    }
+    th {
+      color: var(--soft);
+      font-family: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+    td strong {
+      display: block;
+      color: var(--ivory);
+      font-size: 14px;
+      line-height: 1.35;
+    }
+    td span {
+      display: block;
+      margin-top: 4px;
+      color: var(--soft);
+      line-height: 1.35;
+    }
+    code,
+    .mono {
+      color: var(--mint);
+      font-family: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+    }
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 26px;
+      padding: 0 8px;
+      border: 1px solid rgba(185,255,45,.28);
+      border-radius: var(--radius);
+      color: var(--signal);
+      background: rgba(185,255,45,.045);
+      font-family: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 11px;
+      font-weight: 800;
+    }
+    .status-pill.danger {
+      border-color: rgba(252,165,165,.32);
+      color: var(--danger);
+      background: rgba(252,165,165,.045);
+    }
+    .status-pill.pending {
+      border-color: rgba(255,209,102,.34);
+      color: var(--pending);
+      background: rgba(255,209,102,.045);
+    }
+    .empty-row td {
+      color: var(--soft);
+      font-style: italic;
+    }
+    .footer {
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-top: 28px;
+      color: rgba(244,244,242,.38);
+      font-size: 13px;
+    }
+    @media (max-width: 840px) {
+      .topbar,
+      .hero {
+        align-items: flex-start;
+        flex-direction: column;
+        display: flex;
+      }
+      h1 { font-size: 40px; }
+      .metric-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .button { flex: 1 1 auto; }
+      .top-actions { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="Reverbin home">${reverbinMarkSvg()}<span>reverbin</span></a>
+      <nav class="top-actions" aria-label="Dashboard navigation">
+        <a class="button" href="/docs">API docs</a>
+        <a class="button" href="/dashboard/logout">Log out</a>
+        <a class="button primary" href="/">Public site</a>
+      </nav>
+    </header>
+
+    <section class="hero">
+      <h1>Reverbin operations</h1>
+      <p>Inspect production communication state across agent inboxes, recent messages, signed webhook deliveries, and audit activity.</p>
+    </section>
+
+    <section class="metric-grid" aria-label="Dashboard totals">
+      <div class="metric"><span>Inboxes</span><b>${totals.inboxes}</b></div>
+      <div class="metric"><span>Messages</span><b>${totals.messages}</b></div>
+      <div class="metric"><span>Deliveries</span><b>${totals.deliveries}</b></div>
+      <div class="metric"><span>Audit rows</span><b>${totals.audits}</b></div>
+    </section>
+
+    <section class="dashboard-grid">
+      <article class="panel">
+        <div class="panel-head"><h2>Inboxes</h2><span>Latest 20</span></div>
+        <div class="table-wrap"><table><thead><tr><th>Email</th><th>Status</th><th>ID</th><th>Created</th></tr></thead><tbody>${rows.inboxRows}</tbody></table></div>
+      </article>
+      <article class="panel">
+        <div class="panel-head"><h2>Recent messages</h2><span>Latest 20</span></div>
+        <div class="table-wrap"><table><thead><tr><th>Direction</th><th>Subject</th><th>Thread</th><th>Created</th></tr></thead><tbody>${rows.messageRows}</tbody></table></div>
+      </article>
+      <article class="panel">
+        <div class="panel-head"><h2>Webhook deliveries</h2><span>Latest 20</span></div>
+        <div class="table-wrap"><table><thead><tr><th>Event</th><th>Status</th><th>Attempts</th><th>Delivered</th></tr></thead><tbody>${rows.deliveryRows}</tbody></table></div>
+      </article>
+      <article class="panel">
+        <div class="panel-head"><h2>Audit trail</h2><span>Latest 30</span></div>
+        <div class="table-wrap"><table><thead><tr><th>Action</th><th>Target type</th><th>Target ID</th><th>Created</th></tr></thead><tbody>${rows.auditRows}</tbody></table></div>
+      </article>
+    </section>
+
+    <footer class="footer">
+      <span>Built by Echo.</span>
+      <span>App-token protected operational dashboard</span>
+    </footer>
+  </main>
+</body>
+</html>`;
+}
+
+export function renderDashboardUnavailablePage(_reason = '') {
+  return `<!doctype html>
+<html lang="en">
+<head>
+  ${baseHead}
+  <title>Reverbin operations unavailable</title>
+  <meta name="description" content="The Reverbin operational dashboard is temporarily unavailable." />
+  <style>
+    :root {
+      color-scheme: dark;
+      --black: #0A0A0A;
+      --ivory: #F4F4F2;
+      --muted: rgba(244,244,242,.72);
+      --line: rgba(244,244,242,.14);
+      --line-strong: rgba(244,244,242,.28);
+      --signal: #B9FF2D;
+      --mint: #BDE6D3;
+      --radius: 8px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      color: var(--ivory);
+      font-family: 'Geist', Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background:
+        linear-gradient(180deg, #070808 0%, #0A0A0A 100%),
+        linear-gradient(90deg, rgba(189,230,211,.05), transparent 48%, rgba(185,255,45,.035));
+    }
+    body::before {
       content: "";
       position: fixed;
       inset: 0;
       pointer-events: none;
-      background: repeating-linear-gradient(0deg, rgba(255,255,255,.018), rgba(255,255,255,.018) 1px, transparent 1px, transparent 4px);
-      opacity: .22;
-      mix-blend-mode: screen;
+      background-image:
+        linear-gradient(rgba(244,244,242,.026) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(244,244,242,.026) 1px, transparent 1px);
+      background-size: 48px 48px;
+      opacity: .52;
     }
     a { color: inherit; text-decoration: none; }
-    main { position: relative; max-width: 1210px; margin: 0 auto; padding: 34px 24px 64px; }
-    nav { display:flex; align-items:center; justify-content:space-between; gap:18px; margin-bottom: 76px; }
-    .brand { display:flex; align-items:center; gap:12px; font-size: 20px; font-family: Georgia, 'Times New Roman', serif; letter-spacing: -.045em; }
-    .brand-mark { width: 38px; height: 38px; filter: drop-shadow(0 0 28px rgba(198,255,110,.18)); }
-    .navlinks { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
-    .button { display:inline-flex; align-items:center; justify-content:center; min-height: 42px; padding: 0 16px; border:1px solid var(--line); border-radius:999px; background: rgba(255,255,255,.025); color: var(--ivory); font-size:14px; font-weight:500; transition: border-color .18s ease, background .18s ease, transform .18s ease; }
-    .button:hover { border-color: var(--line-strong); background: rgba(255,255,255,.06); transform: translateY(-1px); }
-    .primary { background: var(--ivory); color: #050505; border-color: var(--ivory); box-shadow: 0 16px 48px rgba(244,244,242,.10); }
-    .signal-button { border-color: rgba(198,255,110,.34); color: var(--signal); background: rgba(198,255,110,.055); }
-    .hero { display:grid; grid-template-columns:minmax(0,1fr) minmax(390px,.95fr); gap:48px; align-items:center; }
-    .eyebrow { display:inline-flex; gap:9px; align-items:center; color:var(--mint); border:1px solid rgba(189,230,211,.28); background:rgba(189,230,211,.055); border-radius:999px; padding:8px 12px; font-family:'Geist Mono', ui-monospace, monospace; font-size:12px; letter-spacing:.02em; }
-    .dot { width:7px; height:7px; border-radius:999px; background:var(--signal); box-shadow:0 0 18px var(--signal); }
-    h1 { margin:24px 0 22px; max-width:760px; font-family: Georgia, 'Times New Roman', serif; font-size: clamp(52px, 7vw, 90px); line-height:.94; letter-spacing:-.075em; font-weight:400; text-wrap: balance; }
-    .lede { max-width: 680px; color: rgba(244,244,242,.75); font-size: 19px; line-height:1.65; margin:0 0 28px; }
-    .hero-actions { display:flex; gap:12px; flex-wrap:wrap; margin-bottom: 28px; }
-    .proof-row { display:grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap:10px; max-width:700px; }
-    .proof { border:1px solid var(--line); background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.018)); border-radius:16px; padding:13px 14px; }
-    .proof strong { display:block; font-size:17px; letter-spacing:-.03em; margin-bottom:3px; }
-    .proof span { color:var(--soft); font-size:12px; }
-    .relay { position:relative; min-height: 500px; border:1px solid var(--line); border-radius:32px; background: radial-gradient(circle at 52% 36%, rgba(198,255,110,.12), transparent 18rem), linear-gradient(180deg, rgba(255,255,255,.052), rgba(255,255,255,.018)); box-shadow: var(--shadow); overflow:hidden; }
-    .relay::before { content:""; position:absolute; inset:0; background-image: linear-gradient(90deg, rgba(198,255,110,.13) 1px, transparent 1px), linear-gradient(rgba(198,255,110,.11) 1px, transparent 1px); background-size: 44px 44px; opacity:.16; mask-image: radial-gradient(circle at 58% 46%, black, transparent 72%); }
-    .relay-box { position:absolute; inset:96px 54px auto; height:250px; border:1px solid rgba(244,244,242,.13); border-radius:28px; background:linear-gradient(145deg, #181B1D, #070808 58%, #111416); box-shadow: 0 40px 110px rgba(0,0,0,.65), inset 0 1px rgba(255,255,255,.08); transform: perspective(900px) rotateX(56deg) rotateZ(-18deg); }
-    .relay-box .box-mark { position:absolute; width:130px; height:130px; left:50%; top:50%; transform:translate(-50%,-50%) rotateZ(18deg) rotateX(-56deg); opacity:.95; }
-    .port { position:absolute; right:54px; bottom:62px; width:54px; height:54px; border-radius:999px; border:2px solid rgba(244,244,242,.42); box-shadow:0 0 0 8px rgba(189,230,211,.035), 0 0 32px rgba(198,255,110,.16); }
-    .port::after { content:""; position:absolute; inset:15px; border-radius:999px; background:var(--mint); box-shadow:0 0 22px var(--mint); }
-    .relay-labels { position:absolute; left:42px; bottom:44px; display:grid; gap:9px; font-family:'Geist Mono', monospace; font-size:11px; color:var(--soft); letter-spacing:.16em; text-transform:uppercase; }
-    .relay-labels span::after { content:""; display:inline-block; width:6px; height:6px; border-radius:999px; background:var(--signal); margin-left:9px; box-shadow:0 0 13px var(--signal); }
-    .trace { position:absolute; height:1px; background:linear-gradient(90deg, transparent, rgba(198,255,110,.65), transparent); opacity:.58; }
-    .trace.t1 { width:64%; left:2%; top:32%; } .trace.t2 { width:82%; right:-18%; top:56%; } .trace.t3 { width:54%; left:14%; bottom:22%; }
-    .relay-network { position:absolute; inset:28px; width:calc(100% - 56px); height:calc(100% - 56px); opacity:.44; }
-    .relay-network path { stroke:rgba(189,230,211,.34); stroke-width:1; }
-    .relay-network circle { fill:var(--signal); filter:drop-shadow(0 0 8px rgba(198,255,110,.6)); }
-    .status-strip { display:grid; grid-template-columns: repeat(4, minmax(0,1fr)); border:1px solid var(--line); border-radius:24px; margin:56px 0 16px; overflow:hidden; background:rgba(255,255,255,.02); }
-    .status { padding:18px; border-right:1px solid var(--line); }
-    .status:last-child { border-right:0; }
-    .status b { display:block; font-size:14px; margin-bottom:5px; } .status span { color:var(--soft); font-size:13px; }
-    .section-head { display:flex; align-items:end; justify-content:space-between; gap:24px; margin:54px 0 18px; }
-    .section-head h2 { font-family: Georgia, 'Times New Roman', serif; font-size:42px; font-weight:400; line-height:1; letter-spacing:-.055em; margin:0; }
-    .section-head p { color:var(--muted); max-width:530px; margin:0; line-height:1.55; }
-    .protocol { display:grid; grid-template-columns: 1.1fr 1fr 1fr 1.25fr; gap:10px; margin-top:16px; }
-    .panel { min-height:170px; border:1px solid var(--line); border-radius:20px; background:linear-gradient(180deg, rgba(255,255,255,.045), rgba(255,255,255,.018)); padding:16px; overflow:hidden; }
-    .panel h3 { margin:0 0 14px; color:var(--soft); font-family:'Geist Mono', monospace; font-size:11px; letter-spacing:.16em; text-transform:uppercase; font-weight:500; }
-    .row { display:flex; align-items:center; justify-content:space-between; gap:10px; border-top:1px solid rgba(244,244,242,.07); padding:9px 0; color:rgba(244,244,242,.76); font-size:13px; }
-    .row:first-of-type { border-top:0; }
-    .live { display:inline-flex; align-items:center; gap:5px; color:var(--mint); font-family:'Geist Mono', monospace; font-size:10px; }
-    .live::before { content:""; width:5px; height:5px; border-radius:999px; background:var(--signal); box-shadow:0 0 10px var(--signal); }
-    .flow { position:relative; min-height:112px; }
-    .flow svg { width:100%; height:100%; position:absolute; inset:0; }
-    code, .tag { font-family:'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; border:1px solid rgba(244,244,242,.11); background:rgba(255,255,255,.04); border-radius:999px; padding:5px 8px; color:var(--mint); font-size:12px; }
-    .band { margin-top:18px; border:1px solid var(--line); border-radius:28px; padding:26px; background:linear-gradient(135deg, rgba(198,255,110,.08), rgba(255,255,255,.022) 44%, rgba(189,230,211,.06)); display:flex; align-items:center; justify-content:space-between; gap:20px; }
-    .band h2 { margin:0; font-family:Georgia, 'Times New Roman', serif; font-weight:400; letter-spacing:-.05em; font-size:32px; }
-    .band p { margin:7px 0 0; color:var(--muted); }
-    footer { display:flex; justify-content:space-between; flex-wrap:wrap; gap:16px; color:#71717a; margin-top:38px; font-size:13px; }
-    @media (max-width: 940px) {
-      main { padding:24px 18px 48px; }
-      nav { margin-bottom:52px; align-items:flex-start; flex-direction:column; }
-      .hero, .proof-row, .status-strip, .protocol { grid-template-columns:1fr; }
-      .relay { min-height:420px; }
-      .relay-box { inset:86px 38px auto; }
-      .status { border-right:0; border-bottom:1px solid var(--line); }
-      .status:last-child { border-bottom:0; }
-      .section-head, .band { align-items:flex-start; flex-direction:column; }
-      h1 { font-size: clamp(46px, 15vw, 70px); }
+    .card {
+      position: relative;
+      width: min(720px, 100%);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: linear-gradient(180deg, rgba(244,244,242,.052), rgba(244,244,242,.018));
+      padding: 26px;
+    }
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 42px;
+      font-family: 'Geist', Inter, ui-sans-serif, system-ui, sans-serif;
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: .015em;
+    }
+    .brand-mark { width: 40px; height: 40px; }
+    h1 {
+      margin: 0;
+      font-family: 'Space Grotesk', 'Geist', Inter, ui-sans-serif, system-ui, sans-serif;
+      font-size: 48px;
+      line-height: 1.04;
+      font-weight: 400;
+      letter-spacing: 0;
+    }
+    p {
+      color: var(--muted);
+      line-height: 1.65;
+      margin: 16px 0 0;
+      font-size: 16px;
+    }
+    .checks {
+      display: grid;
+      gap: 10px;
+      margin-top: 24px;
+    }
+    .check {
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      min-height: 44px;
+      align-items: center;
+      border: 1px solid rgba(244,244,242,.1);
+      border-radius: var(--radius);
+      padding: 0 12px;
+      color: rgba(244,244,242,.78);
+    }
+    .check span:last-child {
+      color: var(--signal);
+      font-family: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+      font-weight: 800;
+    }
+    .actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 24px;
+    }
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 42px;
+      padding: 0 14px;
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius);
+      color: var(--ivory);
+      font-size: 14px;
+      font-weight: 800;
+    }
+    .button.primary {
+      background: var(--ivory);
+      border-color: var(--ivory);
+      color: #050606;
+    }
+    @media (max-width: 560px) {
+      .card { padding: 20px; }
+      h1 { font-size: 36px; }
+    }
+  </style>
+</head>
+<body>
+  <section class="card">
+    <a class="brand" href="/" aria-label="Reverbin home">${reverbinMarkSvg()}<span>reverbin</span></a>
+    <h1>Operations temporarily unavailable.</h1>
+    <p>The dashboard could not read the operational database. Public pages and API health may still be available, but inbox, message, webhook, and audit tables need Postgres readiness before they can render.</p>
+    <div class="checks" aria-label="Suggested readiness checks">
+      <div class="check"><span>Postgres readiness</span><span>/readyz</span></div>
+      <div class="check"><span>API process</span><span>/health</span></div>
+      <div class="check"><span>Dashboard authentication</span><span>app token</span></div>
+    </div>
+    <div class="actions">
+      <a class="button primary" href="/dashboard">Retry dashboard</a>
+      <a class="button" href="/readyz">Check /readyz</a>
+      <a class="button" href="/">Public site</a>
+    </div>
+  </section>
+</body>
+</html>`;
+}
+
+export function renderDashboardLoginPage(error = '') {
+  const errorHtml = error ? `<p class="error">${escapeHtml(error)}</p>` : '';
+  return `<!doctype html>
+<html lang="en">
+<head>
+  ${baseHead}
+  <title>Reverbin Dashboard Login</title>
+  <meta name="description" content="Sign in to the Reverbin operational dashboard." />
+  <style>
+    :root {
+      color-scheme: dark;
+      --black: #0A0A0A;
+      --ivory: #F4F4F2;
+      --muted: rgba(244,244,242,.72);
+      --line: rgba(244,244,242,.14);
+      --line-strong: rgba(244,244,242,.28);
+      --signal: #B9FF2D;
+      --mint: #BDE6D3;
+      --radius: 8px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ivory);
+      font-family: 'Geist', Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background:
+        linear-gradient(180deg, #070808 0%, #0A0A0A 100%),
+        linear-gradient(90deg, rgba(189,230,211,.05), transparent 48%, rgba(185,255,45,.035));
+    }
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background-image:
+        linear-gradient(rgba(244,244,242,.026) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(244,244,242,.026) 1px, transparent 1px);
+      background-size: 48px 48px;
+      opacity: .55;
+    }
+    main {
+      position: relative;
+      width: min(1040px, calc(100% - 36px));
+      margin: 0 auto;
+      padding: 34px 0;
+    }
+    a { color: inherit; text-decoration: none; }
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      font-family: 'Geist', Inter, ui-sans-serif, system-ui, sans-serif;
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: .015em;
+    }
+    .brand-mark {
+      width: 40px;
+      height: 40px;
+    }
+    .login-grid {
+      display: grid;
+      grid-template-columns: minmax(0, .82fr) minmax(320px, .6fr);
+      gap: 18px;
+      align-items: stretch;
+      margin-top: 86px;
+    }
+    .copy,
+    .card {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: linear-gradient(180deg, rgba(244,244,242,.052), rgba(244,244,242,.018));
+      padding: 26px;
+    }
+    h1 {
+      margin: 0;
+      font-family: 'Space Grotesk', 'Geist', Inter, ui-sans-serif, system-ui, sans-serif;
+      font-size: 54px;
+      line-height: 1.02;
+      font-weight: 400;
+      letter-spacing: 0;
+    }
+    p {
+      color: var(--muted);
+      line-height: 1.6;
+      margin: 16px 0 0;
+    }
+    form {
+      display: grid;
+      gap: 12px;
+      margin-top: 22px;
+    }
+    label {
+      color: var(--mint);
+      font-family: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+    input {
+      width: 100%;
+      min-height: 46px;
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius);
+      background: #070808;
+      color: var(--ivory);
+      padding: 0 12px;
+      outline: none;
+    }
+    input:focus {
+      border-color: rgba(185,255,45,.72);
+      box-shadow: 0 0 0 3px rgba(185,255,45,.1);
+    }
+    button {
+      min-height: 46px;
+      border: 1px solid var(--ivory);
+      border-radius: var(--radius);
+      background: var(--ivory);
+      color: #050606;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    .error {
+      color: #FCA5A5;
+      margin: 14px 0 0;
+    }
+    .mini-list {
+      display: grid;
+      gap: 10px;
+      padding: 0;
+      margin: 24px 0 0;
+      list-style: none;
+    }
+    .mini-list li {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 38px;
+      align-items: center;
+      border-top: 1px solid rgba(244,244,242,.09);
+      color: rgba(244,244,242,.74);
+      font-size: 14px;
+    }
+    .mini-list span:last-child {
+      color: var(--signal);
+      font-family: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 11px;
+    }
+    @media (max-width: 780px) {
+      main { padding-top: 24px; }
+      .login-grid { grid-template-columns: 1fr; margin-top: 52px; }
+      h1 { font-size: 40px; }
     }
   </style>
 </head>
 <body>
   <main>
-    <nav>
-      <a class="brand" href="/" aria-label="Reverbin home">${reverbinMarkSvg}<span>Reverbin</span></a>
-      <div class="navlinks">
-        <a class="button" href="/docs">API docs</a>
-        <a class="button" href="/dashboard/login">Dashboard</a>
-        <a class="button primary" href="/docs">Start building</a>
+    <a class="brand" href="/" aria-label="Reverbin home">${reverbinMarkSvg()}<span>reverbin</span></a>
+    <section class="login-grid">
+      <div class="copy">
+        <h1>Operational dashboard access.</h1>
+        <p>Use the app token to inspect inboxes, recent messages, webhook deliveries, and audit activity for the Reverbin control plane.</p>
+        <ul class="mini-list">
+          <li><span>Authentication</span><span>app token</span></li>
+          <li><span>Surface</span><span>ops view</span></li>
+          <li><span>Scope</span><span>inboxes + audit</span></li>
+        </ul>
       </div>
-    </nav>
-
-    <section class="hero">
-      <div>
-        <span class="eyebrow"><span class="dot"></span>agents.reverbin.com relay online</span>
-        <h1>Communication infrastructure for autonomous agents.</h1>
-        <p class="lede">Reverbin gives agents real inboxes, signed webhooks, threaded conversations, and delivery logs — a protocol layer for messages that need to be routed, verified, and remembered.</p>
-        <div class="hero-actions">
-          <a class="button primary" href="/docs">Read the API docs</a>
-          <a class="button signal-button" href="/dashboard/login">Open dashboard</a>
-        </div>
-        <div class="proof-row" aria-label="Live Reverbin proof points">
-          <div class="proof"><strong>Real inboxes</strong><span>Inbound routed for agents.reverbin.com</span></div>
-          <div class="proof"><strong>Signed events</strong><span>Webhooks with retryable delivery rows</span></div>
-          <div class="proof"><strong>Thread memory</strong><span>Conversations tracked across agent workflows</span></div>
-        </div>
+      <div class="card">
+        <h2>Sign in</h2>
+        <p>Enter the dashboard token configured for this deployment.</p>
+        ${errorHtml}
+        <form method="post" action="/dashboard/login">
+          <input type="text" name="username" value="reverbin-dashboard" autocomplete="username" hidden />
+          <label for="token">Dashboard token</label>
+          <input id="token" type="password" name="token" autocomplete="current-password" placeholder="Enter token" autofocus required />
+          <button type="submit">Open dashboard</button>
+        </form>
       </div>
-
-      <aside class="relay" aria-label="Reverbin relay visual">
-        <span class="trace t1"></span><span class="trace t2"></span><span class="trace t3"></span>
-        <svg class="relay-network" viewBox="0 0 520 430" fill="none" aria-hidden="true">
-          <path d="M14 86h126l54 42h92l64-68h156"/>
-          <path d="M20 214h144l52-36h94l54 36h142"/>
-          <path d="M32 340h134l68-54h86l58 54h110"/>
-          <path d="M122 20v72m0 126v82m292-238v96m0 98v104" opacity=".7"/>
-          <circle cx="14" cy="86" r="3"/><circle cx="140" cy="86" r="3"/><circle cx="286" cy="128" r="3"/><circle cx="506" cy="60" r="3"/>
-          <circle cx="20" cy="214" r="3"/><circle cx="216" cy="178" r="3"/><circle cx="364" cy="214" r="3"/><circle cx="506" cy="214" r="3"/>
-          <circle cx="32" cy="340" r="3"/><circle cx="234" cy="286" r="3"/><circle cx="378" cy="340" r="3"/><circle cx="488" cy="340" r="3"/>
-        </svg>
-        <div class="relay-box"><div class="box-mark">${reverbinMarkSvg}</div></div>
-        <div class="port"></div>
-        <div class="relay-labels"><span>Relay</span><span>Route</span><span>Record</span></div>
-      </aside>
     </section>
-
-    <section class="status-strip" aria-label="Current Reverbin platform status">
-      <div class="status"><b>API</b><span>Health + ready checks live</span></div>
-      <div class="status"><b>Receiving</b><span>Resend inbound webhook active</span></div>
-      <div class="status"><b>Sending</b><span>Direct replies with audit logs</span></div>
-      <div class="status"><b>Dashboard</b><span>App-token protected ops view</span></div>
-    </section>
-
-    <section class="section-head">
-      <h2>Routed messages, not mailbox babysitting.</h2>
-      <p>Agents get durable communication primitives: inboxes, policies, thread state, webhook delivery, and audit trails. Providers handle deliverability; Reverbin owns the agent-native control plane.</p>
-    </section>
-
-    <section class="protocol" aria-label="Reverbin protocol UI strip">
-      <article class="panel"><h3>Inboxes</h3><div class="row"><span>ops@agents.reverbin.com</span><span class="live">live</span></div><div class="row"><span>alerts@agents.reverbin.com</span><span class="live">live</span></div><div class="row"><span>billing@agents.reverbin.com</span><span class="live">live</span></div></article>
-      <article class="panel"><h3>Webhooks</h3><div class="row"><span>email.received</span><span class="live">signed</span></div><div class="row"><span>email.sent</span><span class="live">signed</span></div><div class="row"><span>thread.created</span><span class="live">signed</span></div></article>
-      <article class="panel"><h3>Threads</h3><div class="row"><span>thread_01H09Z...</span><span>8</span></div><div class="row"><span>thread_01H0A1...</span><span>3</span></div><div class="row"><span>thread_01H0B7...</span><span>2</span></div></article>
-      <article class="panel"><h3>Signal flow</h3><div class="flow"><svg viewBox="0 0 280 112" fill="none"><path d="M8 20h76l36 25h42l34-25h76" stroke="rgba(244,244,242,.44)"/><path d="M8 56h88l28 0h32l28 0h88" stroke="rgba(198,255,110,.72)"/><path d="M8 92h76l36-25h42l34 25h76" stroke="rgba(244,244,242,.44)"/><circle cx="140" cy="56" r="24" stroke="rgba(189,230,211,.28)"/><circle cx="140" cy="56" r="12" fill="#C6FF6E" opacity=".92"/><circle cx="8" cy="20" r="3" fill="#BDE6D3"/><circle cx="8" cy="56" r="3" fill="#C6FF6E"/><circle cx="8" cy="92" r="3" fill="#BDE6D3"/><circle cx="272" cy="20" r="3" fill="#BDE6D3"/><circle cx="272" cy="56" r="3" fill="#C6FF6E"/><circle cx="272" cy="92" r="3" fill="#BDE6D3"/></svg></div></article>
-    </section>
-
-    <section class="band">
-      <div><h2>Email becomes an agent protocol.</h2><p>Start with an inbox, wire signed webhooks, and let the agent handle the conversation.</p></div>
-      <a class="button primary" href="/docs">View API reference</a>
-    </section>
-
-    <footer><span>Built by Echo.</span><span>Real inboxes · signed webhooks · threaded conversations</span></footer>
   </main>
 </body>
 </html>`;
 }
 
 export function renderDocsRedirectPage() {
-  return `<!doctype html><html><head><title>Reverbin API docs</title><meta http-equiv="refresh" content="0; url=https://github.com/BuiltByEcho/reverbin/blob/main/docs/API.md"></head><body><p>Reverbin API docs live at <a href="https://github.com/BuiltByEcho/reverbin/blob/main/docs/API.md">docs/API.md</a>.</p></body></html>`;
+  return `<!doctype html>
+<html lang="en">
+<head>
+  ${baseHead}
+  <title>Reverbin API docs</title>
+  <meta http-equiv="refresh" content="0; url=https://github.com/BuiltByEcho/reverbin/blob/main/docs/API.md">
+  <style>
+    :root { color-scheme: dark; --ivory:#F4F4F2; --muted:rgba(244,244,242,.72); --line:rgba(244,244,242,.14); --signal:#B9FF2D; --radius:8px; }
+    * { box-sizing: border-box; }
+    body { margin:0; min-height:100vh; display:grid; place-items:center; padding:24px; background:#0A0A0A; color:var(--ivory); font-family:'Geist', Inter, system-ui, sans-serif; }
+    .card { width:min(560px,100%); border:1px solid var(--line); border-radius:var(--radius); background:linear-gradient(180deg, rgba(244,244,242,.052), rgba(244,244,242,.018)); padding:24px; }
+    .brand { display:inline-flex; align-items:center; gap:12px; margin-bottom:28px; font-family:'Geist',Inter,ui-sans-serif,system-ui,sans-serif; font-size:20px; font-weight:800; letter-spacing:.015em; color:var(--ivory); text-decoration:none; }
+    .brand-mark { width:40px; height:40px; }
+    h1 { margin:0; font-family:'Space Grotesk','Geist',Inter,ui-sans-serif,system-ui,sans-serif; font-size:42px; line-height:1.05; font-weight:700; letter-spacing:0; }
+    p { color:var(--muted); line-height:1.6; }
+    a { color:var(--signal); }
+  </style>
+</head>
+<body>
+  <section class="card">
+    <a class="brand" href="/" aria-label="Reverbin home">${reverbinMarkSvg()}<span>reverbin</span></a>
+    <h1>Opening API docs.</h1>
+    <p>Reverbin API docs live at <a href="https://github.com/BuiltByEcho/reverbin/blob/main/docs/API.md">docs/API.md</a>. If the redirect does not happen automatically, use that link.</p>
+  </section>
+</body>
+</html>`;
 }

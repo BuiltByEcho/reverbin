@@ -1,16 +1,14 @@
 <svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
   <title id="title">Reverbin mark</title>
-  <desc id="desc">A technical circular R mark with reverberation rings and routed signal nodes.</desc>
-  <rect width="512" height="512" rx="108" fill="#0A0A0A"/>
-  <circle cx="256" cy="256" r="206" fill="#070808" stroke="#F4F4F2" stroke-opacity="0.34" stroke-width="8"/>
-  <path d="M256 50C332 50 398 91 434 152" stroke="#C6FF6E" stroke-width="14" stroke-linecap="round"/>
-  <path d="M462 260C462 329 428 390 376 428" stroke="#BDE6D3" stroke-opacity="0.72" stroke-width="11" stroke-linecap="round"/>
-  <path d="M150 433C84 393 50 322 61 246" stroke="#F4F4F2" stroke-opacity="0.48" stroke-width="11" stroke-linecap="round"/>
-  <path d="M136 137H269C339 137 386 179 386 242C386 306 339 347 269 347H136" stroke="#F4F4F2" stroke-width="38" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M139 381V137" stroke="#F4F4F2" stroke-width="38" stroke-linecap="round"/>
-  <path d="M254 347L371 458" stroke="#F4F4F2" stroke-width="38" stroke-linecap="round"/>
-  <path d="M160 237H262C291 237 309 250 309 270C309 291 291 303 262 303H160" stroke="#C6FF6E" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
-  <circle cx="386" cy="153" r="17" fill="#C6FF6E"/>
-  <circle cx="371" cy="458" r="14" fill="#BDE6D3"/>
-  <circle cx="63" cy="246" r="10" fill="#BDE6D3"/>
+  <desc id="desc">A production-ready lowercase-era Reverbin R mark with a lime message path, echo rings, and signal nodes.</desc>
+  <rect width="512" height="512" rx="72" fill="#050606"/>
+  <path d="M106 263C106 180 174 112 258 112C340 112 405 174 413 253" stroke="#B9FF2D" stroke-opacity="0.82" stroke-width="12" stroke-linecap="round"/>
+  <path d="M410 280C396 354 334 403 258 403C177 403 112 344 106 267" stroke="#B9FF2D" stroke-opacity="0.42" stroke-width="12" stroke-linecap="round"/>
+  <path d="M82 206C67 226 59 251 59 278C59 305 68 331 84 351" stroke="#F4F4F2" stroke-opacity="0.24" stroke-width="14" stroke-linecap="round"/>
+  <path d="M113 222C102 239 96 258 96 278C96 299 102 319 114 336" stroke="#BDE6D3" stroke-opacity="0.46" stroke-width="13" stroke-linecap="round"/>
+  <path d="M148 383V129H292C364 129 410 169 410 231C410 292 365 330 292 330H148" stroke="#F4F4F2" stroke-width="42" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M286 330L394 432" stroke="#F4F4F2" stroke-width="42" stroke-linecap="round"/>
+  <path d="M190 228H289C327 228 351 245 351 271C351 297 327 313 289 313H190" stroke="#B9FF2D" stroke-width="26" stroke-linecap="round"/>
+  <circle cx="383" cy="264" r="16" fill="#B9FF2D" stroke="#050606" stroke-width="5"/>
+  <circle cx="394" cy="432" r="16" fill="#B9FF2D" stroke="#050606" stroke-width="5"/>
 </svg>
