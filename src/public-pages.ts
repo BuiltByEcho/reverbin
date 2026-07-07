@@ -151,11 +151,6 @@ export function renderLandingPage() {
       flex: 0 0 auto;
       filter: drop-shadow(0 0 22px rgba(185,255,45,.2));
     }
-    .hero-mark {
-      width: 112px;
-      height: 112px;
-      filter: drop-shadow(0 26px 52px rgba(0,0,0,.48));
-    }
     .navlinks {
       display: flex;
       align-items: center;
@@ -325,26 +320,100 @@ export function renderLandingPage() {
     .relay-core {
       position: relative;
       z-index: 1;
-      height: clamp(360px, 40vh, 500px);
+      display: grid;
+      align-content: center;
+      min-height: clamp(360px, 40vh, 500px);
       margin: 20px;
+      padding: clamp(18px, 2.7vw, 34px);
       border: 1px solid rgba(244,244,242,.12);
       border-radius: var(--radius);
       background: linear-gradient(155deg, #171A1D, #070808 58%, #101314);
       box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 24px 58px rgba(0,0,0,.38);
       overflow: hidden;
     }
-    .relay-core svg.network {
+    .relay-core::before {
+      content: "";
       position: absolute;
-      inset: 24px;
-      width: calc(100% - 48px);
-      height: calc(100% - 48px);
-      opacity: .72;
+      inset: 24px 22px;
+      border: 1px solid rgba(244,244,242,.08);
+      border-radius: var(--radius);
+      background: radial-gradient(circle at 26% 28%, rgba(185,255,45,.14), transparent 28%), radial-gradient(circle at 78% 64%, rgba(189,230,211,.11), transparent 30%);
+      pointer-events: none;
     }
-    .relay-core .hero-mark {
+    .message-flow {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      align-items: stretch;
+    }
+    .message-flow::before {
+      content: "";
       position: absolute;
-      left: 50%;
+      left: 10%;
+      right: 10%;
       top: 50%;
-      transform: translate(-50%, -50%);
+      height: 1px;
+      background: linear-gradient(90deg, rgba(189,230,211,.16), rgba(185,255,45,.82), rgba(189,230,211,.16));
+      box-shadow: 0 0 26px rgba(185,255,45,.22);
+    }
+    .flow-node {
+      position: relative;
+      display: grid;
+      align-content: start;
+      gap: 10px;
+      min-height: 178px;
+      padding: 16px;
+      border: 1px solid rgba(244,244,242,.13);
+      border-radius: var(--radius);
+      background: rgba(7,8,8,.74);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.07);
+    }
+    .flow-node::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      right: -8px;
+      width: 14px;
+      height: 14px;
+      border-top: 1px solid rgba(185,255,45,.78);
+      border-right: 1px solid rgba(185,255,45,.78);
+      transform: translateY(-50%) rotate(45deg);
+      background: #080909;
+      box-shadow: 0 0 16px rgba(185,255,45,.2);
+    }
+    .flow-node:last-child::after { display: none; }
+    .flow-node b {
+      color: var(--ivory);
+      font-size: 14px;
+      line-height: 1.25;
+    }
+    .flow-node span {
+      color: var(--soft);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+    .flow-node code {
+      justify-self: start;
+      color: var(--signal);
+      background: rgba(185,255,45,.08);
+      border-color: rgba(185,255,45,.2);
+      font-size: 11px;
+    }
+    .node-icon {
+      display: grid;
+      place-items: center;
+      width: 36px;
+      height: 36px;
+      border: 1px solid rgba(244,244,242,.14);
+      border-radius: var(--radius);
+      color: var(--signal);
+      background: rgba(10,10,10,.65);
+    }
+    .node-icon svg {
+      width: 18px;
+      height: 18px;
     }
     .event-stream {
       position: relative;
@@ -1026,8 +1095,19 @@ export function renderLandingPage() {
         min-height: 456px;
       }
       .relay-core {
-        height: 256px;
+        min-height: auto;
         margin: 12px;
+        padding: 14px;
+      }
+      .message-flow {
+        grid-template-columns: 1fr;
+      }
+      .message-flow::before,
+      .flow-node::after {
+        display: none;
+      }
+      .flow-node {
+        min-height: 0;
       }
       .relay-topline {
         align-items: flex-start;
@@ -1078,10 +1158,6 @@ export function renderLandingPage() {
       .brand-mark { width: 36px; height: 36px; }
       .button { font-size: 13px; }
       .hero-actions .button { width: 100%; }
-      .relay-core .hero-mark {
-        width: 86px;
-        height: 86px;
-      }
     }
   </style>
 </head>
@@ -1124,16 +1200,32 @@ export function renderLandingPage() {
           <span class="relay-status">online</span>
         </div>
         <div class="relay-core">
-          <svg class="network" viewBox="0 0 520 300" fill="none" aria-hidden="true" focusable="false">
-            <path d="M16 58h112l54 50h92l68-72h162" stroke="rgba(189,230,211,.45)" stroke-width="1.4"/>
-            <path d="M20 150h160l36-34h86l40 34h158" stroke="rgba(185,255,45,.8)" stroke-width="1.4"/>
-            <path d="M28 244h126l62-58h82l58 58h132" stroke="rgba(189,230,211,.38)" stroke-width="1.4"/>
-            <path d="M126 18v60m0 100v84M406 18v80m0 92v78" stroke="rgba(244,244,242,.12)" stroke-width="1"/>
-            <circle cx="16" cy="58" r="4" fill="#BDE6D3"/><circle cx="128" cy="58" r="4" fill="#B9FF2D"/><circle cx="274" cy="108" r="4" fill="#BDE6D3"/><circle cx="504" cy="36" r="4" fill="#B9FF2D"/>
-            <circle cx="20" cy="150" r="4" fill="#B9FF2D"/><circle cx="216" cy="116" r="4" fill="#BDE6D3"/><circle cx="342" cy="150" r="4" fill="#B9FF2D"/><circle cx="500" cy="150" r="4" fill="#BDE6D3"/>
-            <circle cx="28" cy="244" r="4" fill="#BDE6D3"/><circle cx="216" cy="186" r="4" fill="#B9FF2D"/><circle cx="356" cy="244" r="4" fill="#BDE6D3"/><circle cx="488" cy="244" r="4" fill="#B9FF2D"/>
-          </svg>
-          ${reverbinMarkSvg('hero-mark')}
+          <div class="message-flow" aria-label="How a message moves through Reverbin">
+            <article class="flow-node">
+              <span class="node-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M4 6h16v12H4z" stroke="currentColor" stroke-linejoin="round"/><path d="m4 7 8 6 8-6" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+              <code>inbound mail</code>
+              <b>Provider receives email</b>
+              <span>Mail lands on a verified agent address.</span>
+            </article>
+            <article class="flow-node">
+              <span class="node-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M7 7h10v10H7z" stroke="currentColor"/><path d="M4 10h3m10 0h3M4 14h3m10 0h3M10 4v3m4-3v3m-4 10v3m4-3v3" stroke="currentColor" stroke-linecap="round"/></svg></span>
+              <code>thread store</code>
+              <b>Reverbin stores context</b>
+              <span>Inbound and outbound messages stay attached to durable threads.</span>
+            </article>
+            <article class="flow-node">
+              <span class="node-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M5 12h10" stroke="currentColor" stroke-linecap="round"/><path d="m12 8 4 4-4 4" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M19 5v14" stroke="currentColor" stroke-linecap="round"/></svg></span>
+              <code>signed webhook</code>
+              <b>Runtime gets the event</b>
+              <span>Delivery IDs and HMAC signatures make events verifiable.</span>
+            </article>
+            <article class="flow-node">
+              <span class="node-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M6 7h9a4 4 0 0 1 0 8H9" stroke="currentColor" stroke-linecap="round"/><path d="m9 11-4 4 4 4" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+              <code>agent reply</code>
+              <b>Agent answers in thread</b>
+              <span>Policy, delivery, and audit records travel with the reply.</span>
+            </article>
+          </div>
         </div>
         <div class="event-stream" aria-label="Example event stream">
           <div class="event-row"><code>email.received</code><span>support@agents.reverbin.com received a provider message</span><span class="pill">signed</span></div>

@@ -13,6 +13,11 @@ test('landing page presents Reverbin as agent communication infrastructure', () 
   assert.match(html, /email\.received/);
   assert.match(html, /email\.sent/);
   assert.match(html, /thread\.created/);
+  assert.match(html, /How a message moves through Reverbin/);
+  assert.match(html, /Provider receives email/);
+  assert.match(html, /Reverbin stores context/);
+  assert.match(html, /Runtime gets the event/);
+  assert.match(html, /Agent answers in thread/);
   assert.match(html, /Live inbox/);
   assert.match(html, /API-owned inboxes/);
   assert.match(html, /Use cases/);
@@ -23,6 +28,8 @@ test('landing page presents Reverbin as agent communication infrastructure', () 
   assert.match(html, /property="og:title" content="Reverbin - Communication infrastructure for autonomous agents"/);
   assert.equal(Array.from(html.matchAll(/<svg[^>]*aria-hidden="true"[^>]*>/g)).every((match) => match[0].includes('focusable="false"')), true);
   assert.equal(html.includes('proces...KEY'), false);
+  assert.equal(html.includes('class="network"'), false);
+  assert.equal(html.includes('hero-mark'), false);
   assert.equal(html.includes('#B8734A'), false);
   assert.equal(html.includes('copper'), false);
   assert.equal(html.includes('MVP'), false);
