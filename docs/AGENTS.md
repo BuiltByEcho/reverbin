@@ -78,7 +78,7 @@ Create an inbox:
 
 ```ts
 const inbox = await reverbin.inboxes.create({
-  email_address: 'agent@agents.reverbin.com',
+  email_address: 'dustin@reverbin.com',
   display_name: 'Agent Runtime',
 });
 ```

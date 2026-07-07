@@ -22,7 +22,7 @@ You need:
 - Node.js 18+.
 - A Reverbin API key.
 - A reachable HTTPS endpoint if you want to receive webhooks.
-- An inbox domain that is already routed through the provider, for example `agents.reverbin.com`.
+- An inbox domain that is already routed through the provider, for example `reverbin.com`.
 
 Use environment variables for secrets:
 
@@ -66,7 +66,7 @@ const reverbin = new ReverbinClient({
 
 ```ts
 const inbox = await reverbin.inboxes.create({
-  email_address: 'support-agent@agents.reverbin.com',
+  email_address: 'support-dustin@reverbin.com',
   display_name: 'Support Agent',
 });
 

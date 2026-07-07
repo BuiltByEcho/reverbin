@@ -7,7 +7,7 @@ async function main() {
   });
 
   const inbox = await reverbin.inboxes.create({
-    email_address: process.env.REVERBIN_INBOX_EMAIL ?? 'agent@agents.reverbin.com',
+    email_address: process.env.REVERBIN_INBOX_EMAIL ?? 'dustin@reverbin.com',
     display_name: 'Hermes Agent',
   });
 

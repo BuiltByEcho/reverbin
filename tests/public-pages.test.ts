@@ -7,7 +7,9 @@ test('landing page presents Reverbin as agent communication infrastructure', () 
 
   assert.match(html, /Reverbin/);
   assert.match(html, /Communication infrastructure for autonomous agents/);
-  assert.match(html, /agents\.reverbin\.com/);
+  assert.match(html, /dustin@reverbin\.com/);
+  assert.match(html, /support@reverbin\.com/);
+  assert.equal(html.includes('agents.reverbin.com'), false);
   assert.match(html, /href="\/docs"/);
   assert.match(html, /href="\/dashboard\/login"/);
   assert.match(html, /email\.received/);
@@ -52,7 +54,7 @@ test('favicon renderer exposes the branded lime Reverbin mark', () => {
 test('dashboard page renders branded operational tables with escaped data', () => {
   const html = renderDashboardPage({
     inboxes: [
-      { id: 'inb_1', email_address: 'support@agents.reverbin.com', display_name: 'Support <Agent>', status: 'active', created_at: new Date('2026-07-06T17:42:00Z') },
+      { id: 'inb_1', email_address: 'support@reverbin.com', display_name: 'Support <Agent>', status: 'active', created_at: new Date('2026-07-06T17:42:00Z') },
     ],
     messages: [
       { id: 'msg_1', inbox_id: 'inb_1', thread_id: 'thr_1', direction: 'inbound', from_email: 'sender@example.com', subject: '<hello>', created_at: new Date('2026-07-06T17:43:00Z') },
@@ -66,7 +68,8 @@ test('dashboard page renders branded operational tables with escaped data', () =
   });
 
   assert.match(html, /Reverbin operations/);
-  assert.match(html, /support@agents\.reverbin\.com/);
+  assert.match(html, /support@reverbin\.com/);
+  assert.equal(html.includes('support@agents.reverbin.com'), false);
   assert.match(html, /email\.received/);
   assert.match(html, /Webhook deliveries/);
   assert.match(html, /Audit trail/);

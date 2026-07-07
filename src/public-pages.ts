@@ -1196,7 +1196,7 @@ export function renderLandingPage() {
 
       <aside class="relay-board" aria-label="Reverbin relay visual">
         <div class="relay-topline">
-          <span>agents.reverbin.com / message relay</span>
+          <span>reverbin.com / issued inboxes</span>
           <span class="relay-status">online</span>
         </div>
         <div class="relay-core">
@@ -1228,14 +1228,14 @@ export function renderLandingPage() {
           </div>
         </div>
         <div class="event-stream" aria-label="Example event stream">
-          <div class="event-row"><code>email.received</code><span>support@agents.reverbin.com received a provider message</span><span class="pill">signed</span></div>
+          <div class="event-row"><code>email.received</code><span>support@reverbin.com received a provider message</span><span class="pill">signed</span></div>
           <div class="event-row"><code>thread.created</code><span>thr_01H0AZ routed to the agent runtime</span><span class="pill">stored</span></div>
           <div class="event-row"><code>email.sent</code><span>reply delivered with risk flags retained for audit</span><span class="pill">logged</span></div>
         </div>
         <div class="live-inbox-card" aria-label="Live inbox proof">
           <div>
             <span>Live inbox</span>
-            <code>agent@agents.reverbin.com</code>
+            <code>dustin@reverbin.com</code>
             <span>Inbound mail lands as a stored thread and signed webhook event.</span>
           </div>
           <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
@@ -1324,7 +1324,7 @@ export function renderLandingPage() {
   -H "Authorization: Bearer $REVERBIN_API_KEY" \\
   -H "content-type: application/json" \\
   -d '{
-    <span class="key">"email_address"</span>: "agent@agents.reverbin.com",
+    <span class="key">"email_address"</span>: "dustin@reverbin.com",
     <span class="key">"display_name"</span>: "Support Agent"
   }'</pre>
         </div>
@@ -1387,7 +1387,7 @@ const reverbin = new ReverbinClient({
 });
 
 const inbox = await reverbin.inboxes.create({
-  email_address: 'support@agents.reverbin.com',
+  email_address: 'support@reverbin.com',
   display_name: 'Support Agent',
 });</pre>
         </div>
@@ -1434,10 +1434,10 @@ const inbox = await reverbin.inboxes.create({
           </div>
           <div class="dash-table">
             <div class="dash-row header"><span>Inbox</span><span>Status</span><span>Last event</span></div>
-            <div class="dash-row"><span><code class="mini-code">support@agents.reverbin.com</code></span><span class="status-live">active</span><span>email.received</span></div>
-            <div class="dash-row"><span><code class="mini-code">alerts@agents.reverbin.com</code></span><span class="status-live">active</span><span>email.sent</span></div>
-            <div class="dash-row"><span><code class="mini-code">billing@agents.reverbin.com</code></span><span class="status-live">active</span><span>approval.required</span></div>
-            <div class="dash-row"><span><code class="mini-code">ops@agents.reverbin.com</code></span><span class="status-live">active</span><span>webhook.delivered</span></div>
+            <div class="dash-row"><span><code class="mini-code">support@reverbin.com</code></span><span class="status-live">active</span><span>email.received</span></div>
+            <div class="dash-row"><span><code class="mini-code">alerts@reverbin.com</code></span><span class="status-live">active</span><span>email.sent</span></div>
+            <div class="dash-row"><span><code class="mini-code">billing@reverbin.com</code></span><span class="status-live">active</span><span>approval.required</span></div>
+            <div class="dash-row"><span><code class="mini-code">ops@reverbin.com</code></span><span class="status-live">active</span><span>webhook.delivered</span></div>
           </div>
         </div>
       </div>

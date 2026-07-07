@@ -98,7 +98,7 @@ curl -X POST https://api.reverbin.com/v1/inboxes \
   -H "Authorization: Bearer $REVERBIN_API_KEY" \
   -H "content-type: application/json" \
   -d '{
-    "email_address": "agent@agents.reverbin.com",
+    "email_address": "dustin@reverbin.com",
     "display_name": "Support Agent"
   }'
 ```
@@ -108,7 +108,7 @@ Response:
 ```json
 {
   "id": "inb_...",
-  "email_address": "agent@agents.reverbin.com",
+  "email_address": "dustin@reverbin.com",
   "display_name": "Support Agent",
   "status": "active",
   "policy": {
@@ -128,7 +128,7 @@ Optional policy override:
 
 ```json
 {
-  "email_address": "restricted@agents.reverbin.com",
+  "email_address": "restricted@reverbin.com",
   "display_name": "Restricted Agent",
   "policy": {
     "require_approval_for_new_recipients": true,
@@ -197,7 +197,7 @@ Response:
       "id": "msg_...",
       "direction": "inbound",
       "from_email": "sender@example.com",
-      "to_json": ["agent@agents.reverbin.com"],
+      "to_json": ["dustin@reverbin.com"],
       "subject": "Hello",
       "text_body": "Can you help?"
     }
@@ -445,7 +445,7 @@ const reverbin = new ReverbinClient({
 });
 
 const inbox = await reverbin.inboxes.create({
-  email_address: 'support@agents.reverbin.com',
+  email_address: 'support@reverbin.com',
   display_name: 'Support Agent',
 });
 
