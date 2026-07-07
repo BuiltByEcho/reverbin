@@ -115,6 +115,27 @@ Run tests:
 npm run check
 ```
 
+## Vercel frontend deploy
+
+The backend/API/dashboard stays on the VPS at `https://api.reverbin.com`. The Vercel deployment is a static frontend export for the public lander, docs redirect, favicon, and `llms.txt`.
+
+When importing this repo into Vercel from GitHub, use:
+
+```txt
+Framework preset: Other
+Build command: npm run build:frontend
+Output directory: vercel-static
+Install command: npm install
+```
+
+`vercel.json` already encodes those settings and redirects backend paths such as `/dashboard`, `/v1/*`, `/health`, and `/readyz` to `https://api.reverbin.com`.
+
+To verify locally:
+
+```sh
+npm run build:frontend
+```
+
 ## Dashboard access
 
 The operational dashboard is app-token protected.

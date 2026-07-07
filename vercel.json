@@ -1,0 +1,54 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "npm run build:frontend",
+  "outputDirectory": "vercel-static",
+  "cleanUrls": true,
+  "trailingSlash": false,
+  "headers": [
+    {
+      "source": "/llms.txt",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "text/plain; charset=utf-8"
+        }
+      ]
+    },
+    {
+      "source": "/favicon.svg",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "image/svg+xml"
+        }
+      ]
+    }
+  ],
+  "redirects": [
+    {
+      "source": "/dashboard",
+      "destination": "https://api.reverbin.com/dashboard",
+      "permanent": false
+    },
+    {
+      "source": "/dashboard/:path*",
+      "destination": "https://api.reverbin.com/dashboard/:path*",
+      "permanent": false
+    },
+    {
+      "source": "/v1/:path*",
+      "destination": "https://api.reverbin.com/v1/:path*",
+      "permanent": false
+    },
+    {
+      "source": "/health",
+      "destination": "https://api.reverbin.com/health",
+      "permanent": false
+    },
+    {
+      "source": "/readyz",
+      "destination": "https://api.reverbin.com/readyz",
+      "permanent": false
+    }
+  ]
+}
