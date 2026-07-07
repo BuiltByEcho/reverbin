@@ -12,6 +12,8 @@ test('landing page presents Reverbin as agent communication infrastructure', () 
   assert.equal(html.includes('agents.reverbin.com'), false);
   assert.match(html, /href="\/docs"/);
   assert.match(html, /href="\/dashboard\/login"/);
+  assert.match(html, /Sign up/);
+  assert.equal(html.includes('Request access'), false);
   assert.match(html, /email\.received/);
   assert.match(html, /email\.sent/);
   assert.match(html, /thread\.created/);

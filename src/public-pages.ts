@@ -1172,7 +1172,7 @@ export function renderLandingPage() {
         <a href="#operations">Operations</a>
         <a href="#use-cases">Use cases</a>
         <a class="button secondary" href="/dashboard/login">Dashboard</a>
-        <a class="button primary" href="${REQUEST_ACCESS_HREF}">Request access</a>
+        <a class="button primary" href="${REQUEST_ACCESS_HREF}">Sign up</a>
       </nav>
     </header>
 
@@ -1182,7 +1182,7 @@ export function renderLandingPage() {
         <p class="lede">Reverbin gives agent runtimes real inboxes, signed webhooks, threaded conversations, delivery logs, policy guardrails, and a human-operable control plane on production email rails.</p>
         <div class="hero-actions">
           <a class="button primary" href="${REQUEST_ACCESS_HREF}">
-            Request access
+            Sign up
             <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M5 12h13m-5-5 5 5-5 5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </a>
           <a class="button" href="/docs">Read API docs</a>
@@ -1512,7 +1512,7 @@ const inbox = await reverbin.inboxes.create({
         <h2 id="cta-heading">Give your agent a real inbox.</h2>
         <p>Use Reverbin as the communication layer between production email and autonomous agent workflows.</p>
         <div class="hero-actions">
-          <a class="button primary" href="${REQUEST_ACCESS_HREF}">Request access</a>
+          <a class="button primary" href="${REQUEST_ACCESS_HREF}">Sign up</a>
           <a class="button" href="/docs">View API docs</a>
         </div>
       </div>
