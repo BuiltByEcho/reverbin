@@ -2293,31 +2293,301 @@ export function renderDashboardLoginPage(error = '') {
 </html>`;
 }
 
-export function renderDocsRedirectPage() {
+export type DocsPageKey = 'overview' | 'quickstart' | 'api' | 'agents';
+
+const docsPageMeta: Record<DocsPageKey, { title: string; eyebrow: string; description: string; href: string }> = {
+  overview: {
+    title: 'Docs built for humans and agents.',
+    eyebrow: 'Documentation',
+    description: 'A first-party documentation surface for wiring real inboxes, signed webhooks, durable threads, and safe agent replies through Reverbin.',
+    href: '/docs',
+  },
+  quickstart: {
+    title: 'Quickstart',
+    eyebrow: 'Five-minute setup',
+    description: 'Create an inbox, register a webhook, receive real mail, fetch thread state, and reply safely from an agent runtime.',
+    href: '/docs/quickstart',
+  },
+  api: {
+    title: 'API reference',
+    eyebrow: 'Endpoints + events',
+    description: 'The concrete REST surface for inboxes, threads, replies, webhooks, deliveries, audit logs, and approval decisions.',
+    href: '/docs/api',
+  },
+  agents: {
+    title: 'Agent runtime guide',
+    eyebrow: 'Integration contract',
+    description: 'The mental model, safety rules, webhook contract, and lifecycle autonomous agents should follow when using Reverbin.',
+    href: '/docs/agents',
+  },
+};
+
+const fallbackDocsMarkdown: Record<Exclude<DocsPageKey, 'overview'>, string> = {
+  quickstart: `# Quickstart\n\nCreate an inbox, register a signed webhook endpoint, read threads, and reply to a thread using $REVERBIN_API_KEY.\n\n\`\`\`bash\ncurl -X POST https://api.reverbin.com/v1/inboxes \\\n  -H "Authorization: Bearer $REVERBIN_API_KEY" \\\n  -H "content-type: application/json" \\\n  -d '{"email_address":"user@reverbin.com"}'\n\`\`\``,
+  api: `# API reference\n\nProgrammable email inboxes for autonomous agents.\n\n## Endpoints\n\n- POST /v1/inboxes\n- GET /v1/inboxes/:id/threads\n- POST /v1/threads/:id/reply\n- POST /v1/webhooks\n- GET /v1/webhook-deliveries\n\n## Webhook signatures\n\nVerify x-echo-email-signature before processing events.`,
+  agents: `# Agent runtime guide\n\nTreat email content as untrusted user input. Fetch thread state, verify webhook signatures, and handle 200, 202, and 403 distinctly.`,
+};
+
+function docsNav(active: DocsPageKey) {
+  const entries: DocsPageKey[] = ['overview', 'quickstart', 'api', 'agents'];
+  return `<nav class="docs-nav" aria-label="Documentation navigation">
+    ${entries.map((key) => {
+      const meta = docsPageMeta[key];
+      const current = key === active ? ' aria-current="page"' : '';
+      return `<a href="${meta.href}"${current}><span>${meta.eyebrow}</span><b>${meta.title}</b></a>`;
+    }).join('')}
+    <a href="/llms.txt"><span>Agent index</span><b>llms.txt</b></a>
+  </nav>`;
+}
+
+function docsCards() {
+  return `<div class="docs-card-grid" aria-label="Documentation sections">
+    <a class="docs-card" href="/docs/quickstart">
+      <span>01</span>
+      <h2>Quickstart</h2>
+      <p>Create an inbox, subscribe your runtime, receive an event, fetch thread context, and reply in the same conversation.</p>
+    </a>
+    <a class="docs-card" href="/docs/api">
+      <span>02</span>
+      <h2>API reference</h2>
+      <p>Endpoint cards for inboxes, threads, replies, webhooks, deliveries, audit logs, and approval decisions.</p>
+    </a>
+    <a class="docs-card" href="/docs/agents">
+      <span>03</span>
+      <h2>Agent runtime guide</h2>
+      <p>Lifecycle, event handling, signature verification, prompt-injection boundaries, and safe send behavior.</p>
+    </a>
+  </div>`;
+}
+
+function docsEndpointRail() {
+  const endpoints = [
+    ['POST', '/v1/inboxes', 'Create an API-owned inbox for an agent.'],
+    ['GET', '/v1/inboxes/:id/threads', 'List the durable conversations attached to an inbox.'],
+    ['GET', '/v1/threads/:id', 'Fetch thread context and message history before replying.'],
+    ['POST', '/v1/threads/:id/reply', 'Send a controlled reply through Reverbin policy.'],
+    ['POST', '/v1/webhooks', 'Register signed delivery endpoints for runtime events.'],
+    ['GET', '/v1/webhook-deliveries', 'Inspect delivery attempts, status, and retry history.'],
+  ];
+  return `<section class="endpoint-rail" aria-label="Core API endpoints">
+    <div><span class="section-label">Core API</span><h2>Small surface, production behavior.</h2></div>
+    <div class="endpoint-list">
+      ${endpoints.map(([method, path, description]) => `<div class="endpoint-row"><code>${method}</code><strong>${path}</strong><span>${description}</span></div>`).join('')}
+    </div>
+  </section>`;
+}
+
+function inlineMarkdown(value: string) {
+  return escapeHtml(value)
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+}
+
+function markdownToHtml(markdown: string) {
+  const lines = markdown.replace(/\r\n/g, '\n').split('\n');
+  const html: string[] = [];
+  let code: string[] | null = null;
+  let listOpen = false;
+  let paragraph: string[] = [];
+
+  const closeParagraph = () => {
+    if (paragraph.length) {
+      html.push(`<p>${inlineMarkdown(paragraph.join(' '))}</p>`);
+      paragraph = [];
+    }
+  };
+  const closeList = () => {
+    if (listOpen) {
+      html.push('</ul>');
+      listOpen = false;
+    }
+  };
+
+  for (const raw of lines) {
+    const line = raw.trimEnd();
+    if (line.startsWith('```')) {
+      closeParagraph();
+      closeList();
+      if (code) {
+        html.push(`<pre><code>${escapeHtml(code.join('\n'))}</code></pre>`);
+        code = null;
+      } else {
+        code = [];
+      }
+      continue;
+    }
+    if (code) {
+      code.push(raw);
+      continue;
+    }
+    if (!line.trim()) {
+      closeParagraph();
+      closeList();
+      continue;
+    }
+    const heading = /^(#{1,4})\s+(.+)$/.exec(line);
+    if (heading) {
+      closeParagraph();
+      closeList();
+      const level = Math.min(heading[1].length + 1, 4);
+      html.push(`<h${level}>${inlineMarkdown(heading[2])}</h${level}>`);
+      continue;
+    }
+    const bullet = /^[-*]\s+(.+)$/.exec(line);
+    if (bullet) {
+      closeParagraph();
+      if (!listOpen) {
+        html.push('<ul>');
+        listOpen = true;
+      }
+      html.push(`<li>${inlineMarkdown(bullet[1])}</li>`);
+      continue;
+    }
+    const numbered = /^\d+\.\s+(.+)$/.exec(line);
+    if (numbered) {
+      closeParagraph();
+      if (!listOpen) {
+        html.push('<ul>');
+        listOpen = true;
+      }
+      html.push(`<li>${inlineMarkdown(numbered[1])}</li>`);
+      continue;
+    }
+    if (line.startsWith('|')) {
+      closeParagraph();
+      closeList();
+      html.push(`<p class="docs-table-line">${inlineMarkdown(line)}</p>`);
+      continue;
+    }
+    closeList();
+    paragraph.push(line.trim());
+  }
+  closeParagraph();
+  closeList();
+  if (code) html.push(`<pre><code>${escapeHtml(code.join('\n'))}</code></pre>`);
+  return html.join('\n');
+}
+
+function docsCss() {
+  return `<style>
+    :root { color-scheme: dark; --black:#0A0A0A; --ink:#060707; --ivory:#F4F4F2; --muted:rgba(244,244,242,.72); --soft:rgba(244,244,242,.52); --line:rgba(244,244,242,.14); --line-strong:rgba(244,244,242,.28); --surface:rgba(244,244,242,.052); --signal:#B9FF2D; --mint:#BDE6D3; --radius:8px; --display-font:'IBM Plex Sans Condensed','Space Grotesk','Geist',Inter,ui-sans-serif,system-ui,sans-serif; }
+    * { box-sizing:border-box; }
+    html { background:var(--black); scroll-behavior:smooth; }
+    body { margin:0; min-height:100vh; color:var(--ivory); font-family:'Geist',Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; background:linear-gradient(180deg,#070808 0%,#0A0A0A 48%,#050606 100%); overflow-x:hidden; }
+    body::before { content:""; position:fixed; inset:0; pointer-events:none; background-image:linear-gradient(rgba(244,244,242,.026) 1px,transparent 1px),linear-gradient(90deg,rgba(244,244,242,.026) 1px,transparent 1px); background-size:48px 48px; mask-image:linear-gradient(to bottom,black 0%,transparent 76%); }
+    a { color:inherit; text-decoration:none; }
+    code, pre { font-family:'Geist Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+    .docs-shell { position:relative; width:100%; padding:24px clamp(24px,4.4vw,82px) 72px; }
+    .docs-header { position:sticky; top:0; z-index:20; display:flex; align-items:center; justify-content:space-between; gap:18px; margin:-24px calc(-1 * clamp(24px,4.4vw,82px)) 0; padding:18px clamp(24px,4.4vw,82px); border-bottom:1px solid rgba(244,244,242,.08); background:rgba(10,10,10,.78); backdrop-filter:blur(18px); }
+    .brand { display:inline-flex; align-items:center; gap:12px; min-width:max-content; font-size:20px; font-weight:800; letter-spacing:.015em; }
+    .brand-mark { width:40px; height:40px; filter:drop-shadow(0 0 22px rgba(185,255,45,.2)); }
+    .top-actions { display:flex; align-items:center; justify-content:flex-end; flex-wrap:wrap; gap:10px; }
+    .button { display:inline-flex; align-items:center; justify-content:center; min-height:42px; padding:0 15px; border:1px solid var(--line); border-radius:var(--radius); background:rgba(255,255,255,.025); color:var(--ivory); font-size:14px; font-weight:700; }
+    .button.primary { background:var(--ivory); color:#050606; border-color:var(--ivory); }
+    .docs-hero { display:grid; grid-template-columns:minmax(0,.95fr) minmax(300px,.55fr); gap:clamp(28px,5vw,74px); align-items:end; padding:clamp(72px,9vh,118px) 0 44px; border-bottom:1px solid var(--line); }
+    .section-label { display:inline-flex; align-items:center; gap:8px; margin-bottom:18px; color:var(--signal); font-size:12px; font-weight:800; letter-spacing:.18em; text-transform:uppercase; }
+    h1 { margin:0; max-width:980px; font-family:var(--display-font); font-size:clamp(54px,6.2vw,108px); line-height:.9; font-weight:700; letter-spacing:0; text-wrap:balance; }
+    .lede { max-width:780px; margin:26px 0 0; color:var(--muted); font-size:clamp(18px,1.2vw,22px); line-height:1.6; }
+    .docs-nav { display:grid; gap:10px; align-content:start; }
+    .docs-nav a, .docs-card, .endpoint-row { border:1px solid var(--line); border-radius:var(--radius); background:linear-gradient(180deg,rgba(244,244,242,.06),rgba(244,244,242,.018)); }
+    .docs-nav a { display:grid; gap:5px; padding:14px; color:var(--muted); }
+    .docs-nav a[aria-current="page"] { border-color:rgba(185,255,45,.42); background:rgba(185,255,45,.06); color:var(--ivory); }
+    .docs-nav span, .docs-card span { color:var(--signal); font-size:11px; font-weight:800; letter-spacing:.16em; text-transform:uppercase; }
+    .docs-nav b { color:inherit; font-size:15px; }
+    .docs-card-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; margin:34px 0; }
+    .docs-card { display:block; min-height:220px; padding:20px; }
+    .docs-card h2 { margin:34px 0 10px; font-size:28px; }
+    .docs-card p { color:var(--muted); line-height:1.55; }
+    .docs-layout { display:grid; grid-template-columns:minmax(220px,300px) minmax(0,1fr); gap:clamp(24px,4vw,64px); padding:34px 0 0; align-items:start; }
+    .docs-article { min-width:0; max-width:980px; }
+    .docs-article h2 { margin:34px 0 12px; font-size:34px; line-height:1.1; }
+    .docs-article h3 { margin:28px 0 10px; font-size:24px; }
+    .docs-article h4 { margin:24px 0 8px; font-size:18px; color:var(--mint); }
+    .docs-article p, .docs-article li { color:var(--muted); line-height:1.72; font-size:16px; }
+    .docs-article a { color:var(--signal); }
+    .docs-article ul { padding-left:22px; }
+    .docs-article pre { overflow:auto; padding:18px; border:1px solid var(--line); border-radius:var(--radius); background:#050606; color:var(--ivory); line-height:1.55; }
+    .docs-article code { color:var(--ivory); background:rgba(244,244,242,.08); border:1px solid rgba(244,244,242,.08); border-radius:5px; padding:.1em .34em; }
+    .docs-article pre code { padding:0; border:0; background:transparent; color:inherit; }
+    .endpoint-rail { display:grid; grid-template-columns:minmax(240px,.6fr) minmax(0,1fr); gap:24px; margin:30px 0 42px; padding:22px; border:1px solid var(--line); border-radius:var(--radius); background:rgba(244,244,242,.032); }
+    .endpoint-rail h2 { margin:0; font-size:32px; line-height:1.05; }
+    .endpoint-list { display:grid; gap:10px; }
+    .endpoint-row { display:grid; grid-template-columns:74px minmax(180px,.52fr) minmax(0,1fr); gap:12px; align-items:center; padding:13px; }
+    .endpoint-row code { color:#050606; background:var(--signal); border:0; font-weight:900; text-align:center; }
+    .endpoint-row strong { font-family:'Geist Mono',ui-monospace,monospace; font-size:14px; }
+    .endpoint-row span { color:var(--muted); line-height:1.45; }
+    .footer-cta { margin-top:54px; padding:24px; border:1px solid rgba(185,255,45,.24); border-radius:var(--radius); background:rgba(185,255,45,.045); display:flex; align-items:center; justify-content:space-between; gap:18px; flex-wrap:wrap; }
+    .footer-cta h2 { margin:0; font-size:30px; }
+    .footer-cta p { margin:6px 0 0; color:var(--muted); }
+    @media (max-width: 980px) { .docs-hero, .docs-layout, .endpoint-rail { grid-template-columns:1fr; } .docs-card-grid { grid-template-columns:1fr; } .endpoint-row { grid-template-columns:1fr; } h1 { font-size:52px; } }
+  </style>`;
+}
+
+function docsOverviewHtml() {
+  return `${docsCards()}
+    ${docsEndpointRail()}
+    <section class="docs-article" aria-label="Documentation philosophy">
+      <h2>Source-controlled docs, product-grade reading experience.</h2>
+      <p>GitHub remains the versioned source of truth, but builders should not have to leave Reverbin to understand the API. These pages mirror the repo docs into a branded, crawlable, first-party surface.</p>
+      <ul>
+        <li>Use <code>/docs/quickstart</code> when you want the fastest builder path.</li>
+        <li>Use <code>/docs/api</code> when wiring REST routes, webhook signatures, approvals, and delivery logs.</li>
+        <li>Use <code>/docs/agents</code> when integrating an autonomous runtime that needs safety and lifecycle guidance.</li>
+        <li>Use <code>/llms.txt</code> when an agent needs the compact machine-readable index.</li>
+      </ul>
+    </section>`;
+}
+
+export function renderDocsPage(page: DocsPageKey = 'overview', markdown?: string) {
+  const meta = docsPageMeta[page];
+  const content = page === 'overview'
+    ? docsOverviewHtml()
+    : `${page === 'api' ? docsEndpointRail() : ''}<article class="docs-article">${markdownToHtml(markdown ?? fallbackDocsMarkdown[page])}</article>`;
   return `<!doctype html>
 <html lang="en">
 <head>
   ${baseHead}
-  <title>Reverbin API docs</title>
-  <meta http-equiv="refresh" content="0; url=https://github.com/BuiltByEcho/reverbin/blob/main/docs/API.md">
-  <style>
-    :root { color-scheme: dark; --ivory:#F4F4F2; --muted:rgba(244,244,242,.72); --line:rgba(244,244,242,.14); --signal:#B9FF2D; --radius:8px; }
-    * { box-sizing: border-box; }
-    body { margin:0; min-height:100vh; display:grid; place-items:center; padding:24px; background:#0A0A0A; color:var(--ivory); font-family:'Geist', Inter, system-ui, sans-serif; }
-    .card { width:min(560px,100%); border:1px solid var(--line); border-radius:var(--radius); background:linear-gradient(180deg, rgba(244,244,242,.052), rgba(244,244,242,.018)); padding:24px; }
-    .brand { display:inline-flex; align-items:center; gap:12px; margin-bottom:28px; font-family:'Geist',Inter,ui-sans-serif,system-ui,sans-serif; font-size:20px; font-weight:800; letter-spacing:.015em; color:var(--ivory); text-decoration:none; }
-    .brand-mark { width:40px; height:40px; }
-    h1 { margin:0; font-family:'Space Grotesk','Geist',Inter,ui-sans-serif,system-ui,sans-serif; font-size:42px; line-height:1.05; font-weight:700; letter-spacing:0; }
-    p { color:var(--muted); line-height:1.6; }
-    a { color:var(--signal); }
-  </style>
+  <title>${escapeHtml(meta.title)} - Reverbin docs</title>
+  <meta name="description" content="${escapeHtml(meta.description)}" />
+  <link rel="canonical" href="https://reverbin.com${meta.href}" />
+  <meta property="og:title" content="${escapeHtml(meta.title)} - Reverbin docs" />
+  <meta property="og:description" content="${escapeHtml(meta.description)}" />
+  ${docsCss()}
 </head>
 <body>
-  <section class="card">
-    <a class="brand" href="/" aria-label="Reverbin home">${reverbinMarkSvg()}<span>reverbin</span></a>
-    <h1>Opening API docs.</h1>
-    <p>Reverbin API docs live at <a href="https://github.com/BuiltByEcho/reverbin/blob/main/docs/API.md">docs/API.md</a>. If the redirect does not happen automatically, use that link.</p>
-  </section>
+  <main class="docs-shell">
+    <header class="docs-header">
+      <a class="brand" href="/" aria-label="Reverbin home">${reverbinMarkSvg()}<span>reverbin</span></a>
+      <nav class="top-actions" aria-label="Docs actions">
+        <a class="button" href="/">Product</a>
+        <a class="button" href="/dashboard/login">Dashboard</a>
+        <a class="button primary" href="${REQUEST_ACCESS_HREF}">Sign up</a>
+      </nav>
+    </header>
+    <section class="docs-hero" aria-label="${escapeHtml(meta.title)}">
+      <div>
+        <span class="section-label">${escapeHtml(meta.eyebrow)}</span>
+        <h1>${escapeHtml(meta.title)}</h1>
+        <p class="lede">${escapeHtml(meta.description)}</p>
+      </div>
+      ${docsNav(page)}
+    </section>
+    ${page === 'overview' ? content : `<section class="docs-layout">${docsNav(page)}<div>${content}</div></section>`}
+    <section class="footer-cta">
+      <div>
+        <h2>Give your agent a real inbox.</h2>
+        <p>Start from the quickstart or wire the REST API directly.</p>
+      </div>
+      <div class="top-actions">
+        <a class="button primary" href="${REQUEST_ACCESS_HREF}">Sign up</a>
+        <a class="button" href="/docs/api">API reference</a>
+      </div>
+    </section>
+  </main>
 </body>
 </html>`;
+}
+
+export function renderDocsRedirectPage() {
+  return renderDocsPage('api');
 }

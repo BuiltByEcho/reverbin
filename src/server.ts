@@ -10,7 +10,7 @@ import { getEmailProvider } from './providers.js';
 import { fetchResendReceivedEmail, normalizeResendReceivedEmail, verifySvixSignature } from './resend.js';
 import { buildWebhookDeliveryHeaders, buildWebhookEventPayload, shouldDeliverWebhookEvent, type WebhookEventType } from './webhooks.js';
 import { clearDashboardCookie, dashboardCookie, dashboardTokenFromEnv, isDashboardRequestAuthorized } from './dashboard-auth.js';
-import { renderDashboardLoginPage, renderDashboardPage, renderDashboardUnavailablePage, renderDocsRedirectPage, renderFaviconSvg, renderLandingPage } from './public-pages.js';
+import { renderDashboardLoginPage, renderDashboardPage, renderDashboardUnavailablePage, renderDocsPage, renderFaviconSvg, renderLandingPage, type DocsPageKey } from './public-pages.js';
 import { buildWebhookDeliveryJob, redisConnectionOptions, WEBHOOK_DELIVERY_QUEUE, webhookDeliveryMode } from './webhook-delivery.js';
 import { arrayify, id, normalizeEmail } from './util.js';
 
@@ -19,6 +19,11 @@ const DEFAULT_AGENT_ID = process.env.DEFAULT_AGENT_ID ?? 'agt_default';
 const PORT = Number(process.env.PORT ?? 8797);
 const HOST = process.env.HOST ?? '127.0.0.1';
 const LLMS_TXT_PATH = new URL('../../llms.txt', import.meta.url);
+const DOCS_MARKDOWN_PATHS: Record<Exclude<DocsPageKey, 'overview'>, URL> = {
+  quickstart: new URL('../../docs/QUICKSTART.md', import.meta.url),
+  api: new URL('../../docs/API.md', import.meta.url),
+  agents: new URL('../../docs/AGENTS.md', import.meta.url),
+};
 
 const app = Fastify({ logger: true });
 await app.register(cors, { origin: true });
@@ -293,8 +298,25 @@ app.get('/llms.txt', async (_req, reply) => {
   reply.header('cache-control', 'public, max-age=300').type('text/plain; charset=utf-8').send(body);
 });
 
+async function sendDocsPage(reply: FastifyReply, page: DocsPageKey) {
+  const markdown = page === 'overview' ? undefined : await readFile(DOCS_MARKDOWN_PATHS[page], 'utf8');
+  reply.header('cache-control', 'public, max-age=300').type('text/html').send(renderDocsPage(page, markdown));
+}
+
 app.get('/docs', async (_req, reply) => {
-  reply.type('text/html').send(renderDocsRedirectPage());
+  await sendDocsPage(reply, 'overview');
+});
+
+app.get('/docs/quickstart', async (_req, reply) => {
+  await sendDocsPage(reply, 'quickstart');
+});
+
+app.get('/docs/api', async (_req, reply) => {
+  await sendDocsPage(reply, 'api');
+});
+
+app.get('/docs/agents', async (_req, reply) => {
+  await sendDocsPage(reply, 'agents');
 });
 
 app.get('/dashboard/login', async (_req, reply) => {

@@ -19,10 +19,11 @@ Reverbin lets autonomous agents use normal email safely:
 
 ## Primary docs
 
-- Human quickstart: https://github.com/BuiltByEcho/reverbin/blob/main/docs/QUICKSTART.md
-- Agent integration guide: https://github.com/BuiltByEcho/reverbin/blob/main/docs/AGENTS.md
-- API reference: https://github.com/BuiltByEcho/reverbin/blob/main/docs/API.md
-- README: https://github.com/BuiltByEcho/reverbin/blob/main/README.md
+- Docs hub: https://reverbin.com/docs
+- Human quickstart: https://reverbin.com/docs/quickstart
+- Agent integration guide: https://reverbin.com/docs/agents
+- API reference: https://reverbin.com/docs/api
+- Source repository: https://github.com/BuiltByEcho/reverbin
 
 ## API summary
 

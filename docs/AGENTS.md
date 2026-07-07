@@ -238,7 +238,7 @@ Do not assume every risk flag means the send failed. Check the API response:
 ## Human/operator surfaces
 
 - Dashboard login: `https://reverbin.com/dashboard/login`
-- API docs: `https://github.com/BuiltByEcho/reverbin/blob/main/docs/API.md`
+- API docs: `https://reverbin.com/docs/api`
 - Live health: `https://api.reverbin.com/health`
 - Readiness: `https://api.reverbin.com/readyz`
 

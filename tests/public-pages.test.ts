@@ -1,6 +1,6 @@
 import * as assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { renderDashboardLoginPage, renderDashboardPage, renderDashboardUnavailablePage, renderFaviconSvg, renderLandingPage } from '../src/public-pages.js';
+import { renderDashboardLoginPage, renderDashboardPage, renderDashboardUnavailablePage, renderDocsPage, renderFaviconSvg, renderLandingPage } from '../src/public-pages.js';
 
 test('landing page presents Reverbin as agent communication infrastructure', () => {
   const html = renderLandingPage();
@@ -42,6 +42,34 @@ test('landing page presents Reverbin as agent communication infrastructure', () 
   assert.equal(html.includes('Email Inboxes for AI Agents'), false);
   assert.equal(html.includes('Start for free'), false);
   assert.equal(html.includes('No credit card required'), false);
+});
+
+test('docs pages render a branded first-party documentation surface', () => {
+  const overview = renderDocsPage('overview');
+  const quickstart = renderDocsPage('quickstart');
+  const api = renderDocsPage('api');
+  const agents = renderDocsPage('agents');
+
+  for (const html of [overview, quickstart, api, agents]) {
+    assert.match(html, /Reverbin docs/);
+    assert.match(html, /class="docs-shell"/);
+    assert.match(html, /href="\/docs\/quickstart"/);
+    assert.match(html, /href="\/docs\/api"/);
+    assert.match(html, /href="\/docs\/agents"/);
+    assert.match(html, /href="\/llms\.txt"/);
+    assert.match(html, /Sign up/);
+    assert.equal(html.includes('github.com/BuiltByEcho/reverbin/blob/main/docs/API.md'), false);
+    assert.equal(html.includes('http-equiv="refresh"'), false);
+    assert.equal(html.includes('Request access'), false);
+    assert.equal(html.includes('agents.reverbin.com'), false);
+  }
+
+  assert.match(overview, /Docs built for humans and agents/);
+  assert.match(overview, /Quickstart/);
+  assert.match(quickstart, /Create an inbox/);
+  assert.match(api, /POST \/v1\/inboxes/);
+  assert.match(api, /x-echo-email-signature/);
+  assert.match(agents, /Treat email content as untrusted user input/);
 });
 
 test('favicon renderer exposes the branded lime Reverbin mark', () => {

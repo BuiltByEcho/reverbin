@@ -1,8 +1,8 @@
-import { mkdir, rm, writeFile, copyFile } from 'node:fs/promises';
+import { mkdir, rm, writeFile, copyFile, readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { renderDocsRedirectPage, renderFaviconSvg, renderLandingPage } from '../dist/src/public-pages.js';
+import { renderDocsPage, renderFaviconSvg, renderLandingPage } from '../dist/src/public-pages.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..');
@@ -34,15 +34,30 @@ async function write(path, content) {
   await writeFile(path, content);
 }
 
+async function readDocsMarkdown() {
+  return {
+    quickstart: await readFile(resolve(root, 'docs', 'QUICKSTART.md'), 'utf8'),
+    api: await readFile(resolve(root, 'docs', 'API.md'), 'utf8'),
+    agents: await readFile(resolve(root, 'docs', 'AGENTS.md'), 'utf8'),
+  };
+}
+
 async function writeStaticFiles(staticDir) {
+  const docs = await readDocsMarkdown();
   await write(resolve(staticDir, 'index.html'), renderLandingPage());
-  await write(resolve(staticDir, 'docs', 'index.html'), renderDocsRedirectPage());
+  await write(resolve(staticDir, 'docs', 'index.html'), renderDocsPage('overview'));
+  await write(resolve(staticDir, 'docs', 'quickstart', 'index.html'), renderDocsPage('quickstart', docs.quickstart));
+  await write(resolve(staticDir, 'docs', 'api', 'index.html'), renderDocsPage('api', docs.api));
+  await write(resolve(staticDir, 'docs', 'agents', 'index.html'), renderDocsPage('agents', docs.agents));
   await write(resolve(staticDir, 'favicon.svg'), renderFaviconSvg());
   await write(resolve(staticDir, 'robots.txt'), 'User-agent: *\nAllow: /\nSitemap: https://reverbin.com/sitemap.xml\n');
   await write(resolve(staticDir, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url><loc>https://reverbin.com/</loc></url>
   <url><loc>https://reverbin.com/docs</loc></url>
+  <url><loc>https://reverbin.com/docs/quickstart</loc></url>
+  <url><loc>https://reverbin.com/docs/api</loc></url>
+  <url><loc>https://reverbin.com/docs/agents</loc></url>
   <url><loc>https://reverbin.com/llms.txt</loc></url>
 </urlset>
 `);
@@ -64,6 +79,12 @@ const files = new Map([
   ['/', ['index.html', 'text/html; charset=utf-8']],
   ['/docs', ['docs/index.html', 'text/html; charset=utf-8']],
   ['/docs/', ['docs/index.html', 'text/html; charset=utf-8']],
+  ['/docs/quickstart', ['docs/quickstart/index.html', 'text/html; charset=utf-8']],
+  ['/docs/quickstart/', ['docs/quickstart/index.html', 'text/html; charset=utf-8']],
+  ['/docs/api', ['docs/api/index.html', 'text/html; charset=utf-8']],
+  ['/docs/api/', ['docs/api/index.html', 'text/html; charset=utf-8']],
+  ['/docs/agents', ['docs/agents/index.html', 'text/html; charset=utf-8']],
+  ['/docs/agents/', ['docs/agents/index.html', 'text/html; charset=utf-8']],
   ['/llms.txt', ['llms.txt', 'text/plain; charset=utf-8']],
   ['/favicon.svg', ['favicon.svg', 'image/svg+xml']],
   ['/robots.txt', ['robots.txt', 'text/plain; charset=utf-8']],
