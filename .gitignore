@@ -5,5 +5,6 @@ dist/
 !.env.example
 coverage/
 .vercel/
+vercel-static/
 .DS_Store
 *.log

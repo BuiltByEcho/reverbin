@@ -59,8 +59,9 @@ test('frontend static build emits Vercel Build Output API files without backend 
   }
 });
 
-test('default frontend build writes .vercel/output for Vercel build detection', () => {
+test('default frontend build writes .vercel/output and stale-output-directory fallback for Vercel detection', () => {
   const outputRoot = new URL('../.vercel/output/', import.meta.url);
+  const fallbackRoot = new URL('../vercel-static/', import.meta.url);
   try {
     execFileSync(process.execPath, ['scripts/build-frontend.mjs'], {
       cwd: new URL('.', root),
@@ -71,16 +72,23 @@ test('default frontend build writes .vercel/output for Vercel build detection', 
     const configPath = new URL('config.json', outputRoot);
     const indexPath = new URL('index.html', staticRoot);
     const llmsPath = new URL('llms.txt', staticRoot);
+    const fallbackEntrypoint = new URL('index.mjs', fallbackRoot);
+    const fallbackHtml = new URL('index.html', fallbackRoot);
 
     assert.equal(existsSync(configPath), true);
     assert.equal(existsSync(indexPath), true);
     assert.equal(existsSync(llmsPath), true);
+    assert.equal(existsSync(fallbackEntrypoint), true);
+    assert.equal(existsSync(fallbackHtml), true);
 
     const config = JSON.parse(readFileSync(configPath, 'utf8'));
     assert.equal(config.version, 3);
     assert.match(JSON.stringify(config.routes), /api\.reverbin\.com/);
     assert.match(readFileSync(indexPath, 'utf8'), /user@reverbin\.com/);
+    assert.match(readFileSync(fallbackEntrypoint, 'utf8'), /createServer/);
+    assert.match(readFileSync(fallbackEntrypoint, 'utf8'), /apiBase = 'https:\/\/api\.reverbin\.com'/);
   } finally {
     rmSync(new URL('../.vercel', import.meta.url), { recursive: true, force: true });
+    rmSync(new URL('../vercel-static', import.meta.url), { recursive: true, force: true });
   }
 });

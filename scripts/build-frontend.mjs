@@ -7,6 +7,7 @@ import { renderDocsRedirectPage, renderFaviconSvg, renderLandingPage } from '../
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..');
 const defaultOutputRoot = resolve(root, '.vercel', 'output');
+const fallbackServerRoot = resolve(root, 'vercel-static');
 
 function parseOutDir() {
   const outIndex = process.argv.indexOf('--out');
@@ -17,12 +18,14 @@ function parseOutDir() {
       outputRoot: resolve(process.cwd(), value),
       staticDir: resolve(process.cwd(), value),
       writeBuildOutputConfig: false,
+      writeFallbackServer: false,
     };
   }
   return {
     outputRoot: defaultOutputRoot,
     staticDir: resolve(defaultOutputRoot, 'static'),
     writeBuildOutputConfig: true,
+    writeFallbackServer: true,
   };
 }
 
@@ -31,22 +34,82 @@ async function write(path, content) {
   await writeFile(path, content);
 }
 
-const { outputRoot, staticDir, writeBuildOutputConfig } = parseOutDir();
-await rm(outputRoot, { recursive: true, force: true });
-await mkdir(staticDir, { recursive: true });
-
-await write(resolve(staticDir, 'index.html'), renderLandingPage());
-await write(resolve(staticDir, 'docs', 'index.html'), renderDocsRedirectPage());
-await write(resolve(staticDir, 'favicon.svg'), renderFaviconSvg());
-await write(resolve(staticDir, 'robots.txt'), 'User-agent: *\nAllow: /\nSitemap: https://reverbin.com/sitemap.xml\n');
-await write(resolve(staticDir, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>
+async function writeStaticFiles(staticDir) {
+  await write(resolve(staticDir, 'index.html'), renderLandingPage());
+  await write(resolve(staticDir, 'docs', 'index.html'), renderDocsRedirectPage());
+  await write(resolve(staticDir, 'favicon.svg'), renderFaviconSvg());
+  await write(resolve(staticDir, 'robots.txt'), 'User-agent: *\nAllow: /\nSitemap: https://reverbin.com/sitemap.xml\n');
+  await write(resolve(staticDir, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url><loc>https://reverbin.com/</loc></url>
   <url><loc>https://reverbin.com/docs</loc></url>
   <url><loc>https://reverbin.com/llms.txt</loc></url>
 </urlset>
 `);
-await copyFile(resolve(root, 'llms.txt'), resolve(staticDir, 'llms.txt'));
+  await copyFile(resolve(root, 'llms.txt'), resolve(staticDir, 'llms.txt'));
+}
+
+const fallbackEntrypoint = `import { createReadStream } from 'node:fs';
+import { stat } from 'node:fs/promises';
+import { createServer } from 'node:http';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const root = dirname(fileURLToPath(import.meta.url));
+const apiBase = 'https://api.reverbin.com';
+
+const files = new Map([
+  ['/', ['index.html', 'text/html; charset=utf-8']],
+  ['/docs', ['docs/index.html', 'text/html; charset=utf-8']],
+  ['/docs/', ['docs/index.html', 'text/html; charset=utf-8']],
+  ['/llms.txt', ['llms.txt', 'text/plain; charset=utf-8']],
+  ['/favicon.svg', ['favicon.svg', 'image/svg+xml']],
+  ['/robots.txt', ['robots.txt', 'text/plain; charset=utf-8']],
+  ['/sitemap.xml', ['sitemap.xml', 'application/xml; charset=utf-8']],
+]);
+
+function redirect(res, location) {
+  res.writeHead(307, { Location: location, 'Cache-Control': 'no-store' });
+  res.end();
+}
+
+function notFound(res) {
+  res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+  res.end('Not found');
+}
+
+const server = createServer(async (req, res) => {
+  const url = new URL(req.url ?? '/', 'https://reverbin.com');
+  if (url.pathname === '/dashboard' || url.pathname.startsWith('/dashboard/')) return redirect(res, apiBase + url.pathname + url.search);
+  if (url.pathname.startsWith('/v1/')) return redirect(res, apiBase + url.pathname + url.search);
+  if (url.pathname === '/health' || url.pathname === '/readyz') return redirect(res, apiBase + url.pathname + url.search);
+
+  const match = files.get(url.pathname);
+  if (!match) return notFound(res);
+
+  const [relativePath, contentType] = match;
+  const filePath = join(root, relativePath);
+  try {
+    const info = await stat(filePath);
+    res.writeHead(200, {
+      'Content-Type': contentType,
+      'Content-Length': String(info.size),
+      'Cache-Control': url.pathname === '/' || url.pathname === '/docs' ? 'public, max-age=0, must-revalidate' : 'public, max-age=3600',
+    });
+    createReadStream(filePath).pipe(res);
+  } catch {
+    notFound(res);
+  }
+});
+
+const port = Number(process.env.PORT || 3000);
+server.listen(port, () => console.log('Reverbin fallback frontend listening on ' + port));
+`;
+
+const { outputRoot, staticDir, writeBuildOutputConfig, writeFallbackServer } = parseOutDir();
+await rm(outputRoot, { recursive: true, force: true });
+await mkdir(staticDir, { recursive: true });
+await writeStaticFiles(staticDir);
 
 if (writeBuildOutputConfig) {
   const config = {
@@ -62,4 +125,12 @@ if (writeBuildOutputConfig) {
   await write(resolve(outputRoot, 'config.json'), `${JSON.stringify(config, null, 2)}\n`);
 }
 
+if (writeFallbackServer) {
+  await rm(fallbackServerRoot, { recursive: true, force: true });
+  await mkdir(fallbackServerRoot, { recursive: true });
+  await writeStaticFiles(fallbackServerRoot);
+  await write(resolve(fallbackServerRoot, 'index.mjs'), fallbackEntrypoint);
+}
+
 console.log(`Built Vercel frontend into ${staticDir}`);
+if (writeFallbackServer) console.log(`Built Vercel fallback entrypoint into ${fallbackServerRoot}`);
