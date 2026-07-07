@@ -53,7 +53,7 @@ export function dashboardCookie(token: string, options: { secure?: boolean; maxA
   const maxAge = options.maxAgeSeconds ?? 60 * 60 * 12;
   const parts = [
     `reverbin_dashboard=${encodeURIComponent(token)}`,
-    'Path=/dashboard',
+    'Path=/',
     'HttpOnly',
     'SameSite=Lax',
     `Max-Age=${maxAge}`,
@@ -63,5 +63,5 @@ export function dashboardCookie(token: string, options: { secure?: boolean; maxA
 }
 
 export function clearDashboardCookie() {
-  return 'reverbin_dashboard=; Path=/dashboard; HttpOnly; SameSite=Lax; Max-Age=0; Secure';
+  return 'reverbin_dashboard=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0; Secure';
 }

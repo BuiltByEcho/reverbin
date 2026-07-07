@@ -21,6 +21,8 @@ test('dashboard cookie is httpOnly and does not expose unrelated values', () => 
   assert.match(header, /SameSite=Lax/);
   assert.match(header, /Secure/);
   assert.match(header, /Max-Age=60/);
+  assert.match(header, /Path=\//);
+  assert.doesNotMatch(header, /Path=\/dashboard/);
   assert.equal(header.includes('wrong'), false);
 });
 
