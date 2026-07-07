@@ -101,6 +101,17 @@ test('docs pages render a branded first-party documentation surface', () => {
   assert.match(agents, /Treat email content as untrusted user input/);
 });
 
+test('docs pages include mobile overflow guards for long API content', () => {
+  const api = renderDocsPage('api');
+
+  assert.match(api, /@media \(max-width: 760px\)/);
+  assert.match(api, /\.docs-shell \{ padding: 18px; overflow-x: hidden; \}/);
+  assert.match(api, /\.docs-layout, \.docs-layout > div, \.docs-article, \.docs-nav \{ min-width: 0; max-width: 100%; \}/);
+  assert.match(api, /\.docs-article pre \{ max-width: 100%; overflow-x: auto; white-space: pre-wrap; \}/);
+  assert.match(api, /\.docs-article code \{ overflow-wrap: anywhere; \}/);
+  assert.match(api, /\.docs-article pre code \{ white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; \}/);
+});
+
 test('favicon renderer exposes the branded lime Reverbin mark', () => {
   const svg = renderFaviconSvg();
 
