@@ -6,15 +6,24 @@ import { renderDocsRedirectPage, renderFaviconSvg, renderLandingPage } from '../
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..');
+const defaultOutputRoot = resolve(root, '.vercel', 'output');
 
 function parseOutDir() {
   const outIndex = process.argv.indexOf('--out');
   if (outIndex >= 0) {
     const value = process.argv[outIndex + 1];
     if (!value) throw new Error('--out requires a directory');
-    return resolve(process.cwd(), value);
+    return {
+      outputRoot: resolve(process.cwd(), value),
+      staticDir: resolve(process.cwd(), value),
+      writeBuildOutputConfig: false,
+    };
   }
-  return resolve(root, 'vercel-static');
+  return {
+    outputRoot: defaultOutputRoot,
+    staticDir: resolve(defaultOutputRoot, 'static'),
+    writeBuildOutputConfig: true,
+  };
 }
 
 async function write(path, content) {
@@ -22,21 +31,35 @@ async function write(path, content) {
   await writeFile(path, content);
 }
 
-const outDir = parseOutDir();
-await rm(outDir, { recursive: true, force: true });
-await mkdir(outDir, { recursive: true });
+const { outputRoot, staticDir, writeBuildOutputConfig } = parseOutDir();
+await rm(outputRoot, { recursive: true, force: true });
+await mkdir(staticDir, { recursive: true });
 
-await write(resolve(outDir, 'index.html'), renderLandingPage());
-await write(resolve(outDir, 'docs', 'index.html'), renderDocsRedirectPage());
-await write(resolve(outDir, 'favicon.svg'), renderFaviconSvg());
-await write(resolve(outDir, 'robots.txt'), 'User-agent: *\nAllow: /\nSitemap: https://reverbin.com/sitemap.xml\n');
-await write(resolve(outDir, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>
+await write(resolve(staticDir, 'index.html'), renderLandingPage());
+await write(resolve(staticDir, 'docs', 'index.html'), renderDocsRedirectPage());
+await write(resolve(staticDir, 'favicon.svg'), renderFaviconSvg());
+await write(resolve(staticDir, 'robots.txt'), 'User-agent: *\nAllow: /\nSitemap: https://reverbin.com/sitemap.xml\n');
+await write(resolve(staticDir, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url><loc>https://reverbin.com/</loc></url>
   <url><loc>https://reverbin.com/docs</loc></url>
   <url><loc>https://reverbin.com/llms.txt</loc></url>
 </urlset>
 `);
-await copyFile(resolve(root, 'llms.txt'), resolve(outDir, 'llms.txt'));
+await copyFile(resolve(root, 'llms.txt'), resolve(staticDir, 'llms.txt'));
 
-console.log(`Built Vercel frontend into ${outDir}`);
+if (writeBuildOutputConfig) {
+  const config = {
+    version: 3,
+    routes: [
+      { src: '/dashboard', status: 307, headers: { Location: 'https://api.reverbin.com/dashboard' } },
+      { src: '/dashboard/(.*)', status: 307, headers: { Location: 'https://api.reverbin.com/dashboard/$1' } },
+      { src: '/v1/(.*)', status: 307, headers: { Location: 'https://api.reverbin.com/v1/$1' } },
+      { src: '/health', status: 307, headers: { Location: 'https://api.reverbin.com/health' } },
+      { src: '/readyz', status: 307, headers: { Location: 'https://api.reverbin.com/readyz' } },
+    ],
+  };
+  await write(resolve(outputRoot, 'config.json'), `${JSON.stringify(config, null, 2)}\n`);
+}
+
+console.log(`Built Vercel frontend into ${staticDir}`);

@@ -8,22 +8,25 @@ import { test } from 'node:test';
 const root = new URL('../', import.meta.url);
 const read = (path: string) => readFileSync(new URL(path, root), 'utf8');
 
-test('Vercel frontend config builds a static landing surface and delegates backend paths to VPS API', () => {
+test('Vercel frontend config uses Build Output API and delegates backend paths to the VPS API', () => {
   const pkg = JSON.parse(read('package.json'));
   const vercel = JSON.parse(read('vercel.json'));
 
   assert.equal(pkg.scripts['build:frontend'], 'npm run build && node scripts/build-frontend.mjs');
   assert.equal(vercel.buildCommand, 'npm run build:frontend');
-  assert.equal(vercel.outputDirectory, 'vercel-static');
+  assert.equal(vercel.outputDirectory, undefined);
   assert.equal(vercel.cleanUrls, true);
 
-  const redirects = JSON.stringify(vercel.redirects);
-  assert.match(redirects, /https:\/\/api\.reverbin\.com\/dashboard/);
-  assert.match(redirects, /https:\/\/api\.reverbin\.com\/v1/);
-  assert.match(redirects, /https:\/\/api\.reverbin\.com\/health/);
+  const buildScript = read('scripts/build-frontend.mjs');
+  assert.match(buildScript, /\.vercel/);
+  assert.match(buildScript, /output/);
+  assert.match(buildScript, /static/);
+  assert.match(buildScript, /https:\/\/api\.reverbin\.com\/dashboard/);
+  assert.match(buildScript, /https:\/\/api\.reverbin\.com\/v1/);
+  assert.match(buildScript, /https:\/\/api\.reverbin\.com\/health/);
 });
 
-test('frontend static build emits Vercel-ready public files without backend secrets', () => {
+test('frontend static build emits Vercel Build Output API files without backend secrets', () => {
   const outDir = mkdtempSync(join(tmpdir(), 'reverbin-vercel-'));
   try {
     execFileSync(process.execPath, ['scripts/build-frontend.mjs', '--out', outDir], {
@@ -53,5 +56,31 @@ test('frontend static build emits Vercel-ready public files without backend secr
     assert.match(llms, /^# Reverbin/);
   } finally {
     rmSync(outDir, { recursive: true, force: true });
+  }
+});
+
+test('default frontend build writes .vercel/output for Vercel build detection', () => {
+  const outputRoot = new URL('../.vercel/output/', import.meta.url);
+  try {
+    execFileSync(process.execPath, ['scripts/build-frontend.mjs'], {
+      cwd: new URL('.', root),
+      stdio: 'pipe',
+    });
+
+    const staticRoot = new URL('static/', outputRoot);
+    const configPath = new URL('config.json', outputRoot);
+    const indexPath = new URL('index.html', staticRoot);
+    const llmsPath = new URL('llms.txt', staticRoot);
+
+    assert.equal(existsSync(configPath), true);
+    assert.equal(existsSync(indexPath), true);
+    assert.equal(existsSync(llmsPath), true);
+
+    const config = JSON.parse(readFileSync(configPath, 'utf8'));
+    assert.equal(config.version, 3);
+    assert.match(JSON.stringify(config.routes), /api\.reverbin\.com/);
+    assert.match(readFileSync(indexPath, 'utf8'), /user@reverbin\.com/);
+  } finally {
+    rmSync(new URL('../.vercel', import.meta.url), { recursive: true, force: true });
   }
 });
