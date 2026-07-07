@@ -150,6 +150,20 @@ test('dashboard page renders branded operational tables with escaped data', () =
     audits: [
       { action: 'email.received', target_type: 'message', target_id: 'msg_1', created_at: new Date('2026-07-06T17:45:00Z') },
     ],
+    signupRequests: [
+      {
+        id: 'sgr_1',
+        requester_email: 'founder@example.com',
+        preferred_inbox_name: 'founder',
+        status: 'pending',
+        verification_json: [
+          { key: 'use_case_review', label: 'Use case review', required: true, status: 'pending' },
+          { key: 'requester_contact_verified', label: 'Requester contact verified', required: true, status: 'passed' },
+        ],
+        verification_summary: { required: 2, passed: 1, failed: 0, pending: 1, ready_to_provision: false },
+        created_at: new Date('2026-07-06T17:46:00Z'),
+      },
+    ],
   });
 
   assert.match(html, /Reverbin operations/);
@@ -158,6 +172,13 @@ test('dashboard page renders branded operational tables with escaped data', () =
   assert.match(html, /email\.received/);
   assert.match(html, /Webhook deliveries/);
   assert.match(html, /Audit trail/);
+  assert.match(html, /founder@example\.com/);
+  assert.match(html, /action="\/dashboard\/signup-requests\/sgr_1\/checks"/);
+  assert.match(html, /name="check_key" value="use_case_review"/);
+  assert.match(html, /name="check_status" value="passed"/);
+  assert.match(html, /name="status" value="approved"/);
+  assert.match(html, /Use case review/);
+  assert.match(html, /1\/2 passed/);
   assert.match(html, /Support &lt;Agent&gt;/);
   assert.match(html, /&lt;hello&gt;/);
   assert.equal(html.includes('<hello>'), false);

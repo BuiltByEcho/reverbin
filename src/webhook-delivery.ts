@@ -35,8 +35,8 @@ export function buildWebhookDeliveryJob(delivery: StoredWebhookDelivery): Webhoo
   };
 }
 
-export function webhookDeliveryMode() {
-  return process.env.WEBHOOK_DELIVERY_MODE === 'queue' ? 'queue' : 'sync';
+export function webhookDeliveryMode(env: NodeJS.ProcessEnv | Record<string, string | undefined> = process.env) {
+  return env.WEBHOOK_DELIVERY_MODE === 'queue' ? 'queue' : 'sync';
 }
 
 export function redisConnectionOptions(redisUrl: string) {

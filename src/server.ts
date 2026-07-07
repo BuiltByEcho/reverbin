@@ -4,6 +4,7 @@ import cors from '@fastify/cors';
 import formbody from '@fastify/formbody';
 import { z } from 'zod';
 import { Queue } from 'bullmq';
+import { Redis } from 'ioredis';
 import { pool, query, tx } from './db.js';
 import { defaultPolicy, evaluatePolicy, type Policy } from './policy.js';
 import { getEmailProvider } from './providers.js';
@@ -13,7 +14,9 @@ import { clearDashboardCookie, dashboardCookie, dashboardTokenFromEnv, isDashboa
 import { renderDashboardLoginPage, renderDashboardPage, renderDashboardUnavailablePage, renderDocsPage, renderFaviconSvg, renderLandingPage, type DocsPageKey } from './public-pages.js';
 import { buildWebhookDeliveryJob, redisConnectionOptions, WEBHOOK_DELIVERY_QUEUE, webhookDeliveryMode } from './webhook-delivery.js';
 import { normalizeSignupRequestInput, summarizeSignupVerification, type SignupRequestStatus, type SignupVerificationCheck } from './signup-verification.js';
+import { checkReadiness } from './readiness.js';
 import { configuredSecret, internalErrorPayload, isCorsOriginAllowed, webhookDeliveryTimeoutMs } from './http-hardening.js';
+import { createFixedWindowRateLimiter } from './rate-limit.js';
 import { arrayify, id, normalizeEmail } from './util.js';
 
 const TENANT_ID = process.env.DEFAULT_TENANT_ID ?? 'ten_default';
@@ -34,6 +37,25 @@ await app.register(cors, {
   },
 });
 await app.register(formbody);
+
+const dashboardLoginLimiter = createFixedWindowRateLimiter({ limit: 8, windowMs: 15 * 60_000 });
+const apiAuthLimiter = createFixedWindowRateLimiter({ limit: 60, windowMs: 60_000 });
+
+function rateLimitKey(req: FastifyRequest, scope: string) {
+  const forwardedFor = req.headers['x-forwarded-for'];
+  const forwardedClient = Array.isArray(forwardedFor) ? forwardedFor[0] : forwardedFor;
+  const client = forwardedClient?.split(',')[0]?.trim() || req.ip || 'unknown';
+  return `${scope}:${client}`;
+}
+
+function sendRateLimited(reply: FastifyReply, retryAfterSeconds: number, html = false) {
+  reply.header('retry-after', String(retryAfterSeconds)).code(429);
+  if (html) {
+    reply.type('text/html').send(renderDashboardLoginPage('Too many attempts. Try again shortly.'));
+    return;
+  }
+  reply.send({ error: 'rate_limited', retry_after_seconds: retryAfterSeconds });
+}
 
 let webhookQueue: Queue | null = null;
 function getWebhookQueue() {
@@ -69,6 +91,11 @@ function requireApiKey(req: FastifyRequest, reply: FastifyReply, done: () => voi
   }
   const auth = req.headers.authorization ?? '';
   if (auth !== `Bearer ${configured}`) {
+    const limit = apiAuthLimiter.check(rateLimitKey(req, 'api-auth'));
+    if (!limit.allowed) {
+      sendRateLimited(reply, limit.retry_after_seconds);
+      return;
+    }
     reply.code(401).send({ error: 'unauthorized' });
     return;
   }
@@ -308,15 +335,27 @@ app.get('/health', async () => ({
   public_base_url: process.env.PUBLIC_BASE_URL ?? `http://${HOST}:${PORT}`,
 }));
 
-app.get('/readyz', async (req, reply) => {
+async function checkRedisReady() {
+  const redisUrl = process.env.REDIS_URL;
+  if (!redisUrl) throw new Error('REDIS_URL is required when WEBHOOK_DELIVERY_MODE=queue');
+  const redis = new Redis(redisConnectionOptions(redisUrl));
   try {
-    await query('SELECT 1');
-    return { ok: true, db: 'ok' };
-  } catch (error) {
-    req.log.error(error);
-    reply.code(503);
-    return { ok: false, db: 'error' };
+    await redis.ping();
+  } finally {
+    redis.disconnect();
   }
+}
+
+app.get('/readyz', async (req, reply) => {
+  const result = await checkReadiness({
+    checkDb: () => query('SELECT 1'),
+    checkRedis: checkRedisReady,
+  });
+  if (result.statusCode !== 200) {
+    req.log.warn({ readyz: result.body }, 'readiness check failed');
+    reply.code(result.statusCode);
+  }
+  return result.body;
 });
 
 app.get('/', async (_req, reply) => {
@@ -374,12 +413,54 @@ app.post('/dashboard/login', async (req, reply) => {
     reply.redirect('/dashboard');
     return;
   }
+  const limit = dashboardLoginLimiter.check(rateLimitKey(req, 'dashboard-login'));
+  if (!limit.allowed) {
+    sendRateLimited(reply, limit.retry_after_seconds, true);
+    return;
+  }
   reply.code(401).type('text/html').send(renderDashboardLoginPage('Invalid dashboard token.'));
 });
 
 app.get('/dashboard/logout', async (_req, reply) => {
   reply.header('set-cookie', clearDashboardCookie());
   reply.redirect('/dashboard/login');
+});
+
+app.post<{ Params: { id: string } }>('/dashboard/signup-requests/:id/checks', { preHandler: requireDashboardAuth }, async (req, reply) => {
+  const body = req.body as { check_key?: string; check_status?: string; status?: string } | undefined;
+  const existing = await query<any>('SELECT * FROM signup_requests WHERE id = $1', [req.params.id]);
+  if (existing.rowCount === 0) {
+    reply.code(404).type('text/html').send(renderDashboardUnavailablePage('signup request not found'));
+    return;
+  }
+
+  const current = existing.rows[0];
+  let nextVerification = (current.verification_json ?? []) as SignupVerificationCheck[];
+  if (body?.check_key || body?.check_status) {
+    const checkKey = z.string().min(1).parse(body?.check_key);
+    const checkStatus = z.enum(['pending', 'passed', 'failed']).parse(body?.check_status);
+    if (!nextVerification.some((check) => check.key === checkKey)) {
+      reply.code(400).type('text/html').send(renderDashboardUnavailablePage('signup verification check not found'));
+      return;
+    }
+    nextVerification = nextVerification.map((check) => check.key === checkKey ? { ...check, status: checkStatus } : check);
+  }
+
+  const nextStatus = body?.status
+    ? z.enum(['pending', 'approved', 'rejected', 'provisioned']).parse(body.status) as SignupRequestStatus
+    : current.status as SignupRequestStatus;
+  const summary = summarizeSignupVerification(nextVerification);
+  await query(
+    `UPDATE signup_requests
+     SET status = $2,
+         verification_json = $3::jsonb,
+         updated_at = now(),
+         decided_at = CASE WHEN $2 IN ('approved', 'rejected', 'provisioned') THEN COALESCE(decided_at, now()) ELSE decided_at END
+     WHERE id = $1`,
+    [req.params.id, nextStatus, JSON.stringify(nextVerification)],
+  );
+  await audit('signup.dashboard_verification_updated', 'signup_request', req.params.id, { status: nextStatus, summary }, 'human');
+  reply.redirect('/dashboard');
 });
 
 app.get('/dashboard', { preHandler: requireDashboardAuth }, async (_req, reply) => {

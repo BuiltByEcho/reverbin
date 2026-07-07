@@ -59,8 +59,13 @@ test('signup verification is a first-class persisted operator workflow', () => {
   assert.match(server, /summarizeSignupVerification/);
   assert.match(server, /signup\.requested/);
   assert.match(server, /signup\.verification_updated/);
+  assert.match(server, /app\.post<\{ Params: \{ id: string \} \}>\('\/dashboard\/signup-requests\/:id\/checks'/);
+  assert.match(server, /reply\.redirect\('\/dashboard'\)/);
 
   assert.match(publicPages, /Signup requests/);
   assert.match(publicPages, /ready_to_provision/);
+  assert.match(publicPages, /\/dashboard\/signup-requests\/\$\{escapeHtml\(row\.id\)\}\/checks/);
+  assert.match(publicPages, /name="check_status" value="passed"/);
+  assert.match(publicPages, /name="status" value="approved"/);
   assert.match(publicPages, /No signup requests yet/);
 });

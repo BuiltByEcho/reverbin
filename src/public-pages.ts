@@ -1608,11 +1608,20 @@ export type DashboardAuditView = {
   created_at: Date | string;
 };
 
+export type DashboardSignupVerificationCheckView = {
+  key: string;
+  label: string;
+  required?: boolean;
+  status: string;
+  notes?: string | null;
+};
+
 export type DashboardSignupRequestView = {
   id: string;
   requester_email: string;
   preferred_inbox_name: string | null;
   status: string;
+  verification_json?: DashboardSignupVerificationCheckView[];
   verification_summary?: {
     required: number;
     passed: number;
@@ -1648,6 +1657,24 @@ function statusPill(status: string) {
   return `<span class="status-pill ${tone}">${escapeHtml(status)}</span>`;
 }
 
+function renderSignupControls(row: DashboardSignupRequestView) {
+  const checks = row.verification_json ?? [];
+  const checkForms = checks.map((check) => `<form class="mini-form" method="post" action="/dashboard/signup-requests/${escapeHtml(row.id)}/checks">
+    <input type="hidden" name="check_key" value="${escapeHtml(check.key)}" />
+    <span>${escapeHtml(check.label)}${check.required ? ' *' : ''}: ${escapeHtml(check.status)}</span>
+    <button type="submit" name="check_status" value="passed">Pass</button>
+    <button type="submit" name="check_status" value="failed">Fail</button>
+    <button type="submit" name="check_status" value="pending">Reset</button>
+  </form>`).join('');
+  const statusForm = `<form class="mini-form status-form" method="post" action="/dashboard/signup-requests/${escapeHtml(row.id)}/checks">
+    <span>Decision</span>
+    <button type="submit" name="status" value="approved">Approve</button>
+    <button type="submit" name="status" value="rejected">Reject</button>
+    <button type="submit" name="status" value="provisioned">Provisioned</button>
+  </form>`;
+  return `<div class="signup-controls">${checkForms || '<span>No checklist items recorded.</span>'}${statusForm}</div>`;
+}
+
 function renderDashboardRows(data: DashboardPageData) {
   const signupRequests = data.signupRequests ?? [];
   const signupRows = signupRequests.length
@@ -1657,7 +1684,7 @@ function renderDashboardRows(data: DashboardPageData) {
         return `<tr>
           <td><strong>${escapeHtml(row.requester_email)}</strong><span>${escapeHtml(row.preferred_inbox_name || 'no inbox requested')}</span></td>
           <td>${statusPill(row.status)}</td>
-          <td><span class="mono">${escapeHtml(progress)}</span></td>
+          <td><span class="mono">${escapeHtml(progress)}</span>${renderSignupControls(row)}</td>
           <td>${formatDate(row.created_at)}</td>
         </tr>`;
       }).join('')
@@ -1954,6 +1981,39 @@ export function renderDashboardPage(data: DashboardPageData) {
     .empty-row td {
       color: var(--soft);
       font-style: italic;
+    }
+    .signup-controls {
+      display: grid;
+      gap: 6px;
+      margin-top: 10px;
+    }
+    .mini-form {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+    .mini-form span {
+      display: inline;
+      margin: 0;
+      min-width: 180px;
+      color: var(--soft);
+    }
+    .mini-form button {
+      min-height: 26px;
+      border: 1px solid rgba(244,244,242,.18);
+      border-radius: 6px;
+      background: rgba(244,244,242,.045);
+      color: var(--ivory);
+      font: inherit;
+      font-size: 11px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    .mini-form button:hover,
+    .mini-form button:focus-visible {
+      border-color: var(--signal);
+      color: var(--signal);
     }
     .footer {
       display: flex;

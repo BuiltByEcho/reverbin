@@ -50,3 +50,12 @@ test('server hardening contract fails closed for missing secrets and hides inter
   assert.doesNotMatch(serverSource, /send\(\{ error: 'internal_error', message \}\)/);
   assert.doesNotMatch(serverSource, /register\(cors, \{ origin: true \}\)/);
 });
+
+test('auth-sensitive routes have fixed-window brute-force controls', () => {
+  assert.match(serverSource, /dashboardLoginLimiter = createFixedWindowRateLimiter\(\{ limit: 8, windowMs: 15 \* 60_000 \}\)/);
+  assert.match(serverSource, /apiAuthLimiter = createFixedWindowRateLimiter\(\{ limit: 60, windowMs: 60_000 \}\)/);
+  assert.match(serverSource, /rateLimitKey\(req, 'dashboard-login'\)/);
+  assert.match(serverSource, /rateLimitKey\(req, 'api-auth'\)/);
+  assert.match(serverSource, /reply\.header\('retry-after'/);
+  assert.match(serverSource, /error: 'rate_limited'/);
+});

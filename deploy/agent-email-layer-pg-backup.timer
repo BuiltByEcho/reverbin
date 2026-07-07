@@ -1,0 +1,11 @@
+[Unit]
+Description=Nightly Agent Email Layer PostgreSQL backup
+
+[Timer]
+OnCalendar=*-*-* 03:15:00 UTC
+Persistent=true
+RandomizedDelaySec=10m
+Unit=agent-email-layer-pg-backup.service
+
+[Install]
+WantedBy=timers.target

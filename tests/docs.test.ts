@@ -140,6 +140,36 @@ test('agent quickstart example uses the SDK without hardcoded secrets', () => {
   assertNoSecretExamples(example);
 });
 
+test('versioned Postgres backup and restore-drill assets match the live hardening contract', () => {
+  const backupScript = read('deploy/agent-email-layer-pg-backup.sh');
+  const restoreScript = read('deploy/agent-email-layer-pg-restore-drill.sh');
+  const backupService = read('deploy/agent-email-layer-pg-backup.service');
+  const backupTimer = read('deploy/agent-email-layer-pg-backup.timer');
+  const restoreService = read('deploy/agent-email-layer-pg-restore-drill.service');
+  const restoreTimer = read('deploy/agent-email-layer-pg-restore-drill.timer');
+
+  assert.match(backupScript, /set -euo pipefail/);
+  assert.match(backupScript, /umask 077/);
+  assert.match(backupScript, /pg_dump --dbname="\$DATABASE_URL" --format=custom --compress=9/);
+  assert.match(backupScript, /sha256sum "\$out" > "\$out\.sha256"/);
+  assert.match(backupScript, /AGENT_EMAIL_BACKUP_RETENTION_DAYS:-14/);
+
+  assert.match(restoreScript, /pg_restore --exit-on-error/);
+  assert.match(restoreScript, /expected_tables='agents,api_keys,approval_requests,audit_logs,inboxes,messages,provider_events,send_policies,signup_requests,tenants,threads,webhook_deliveries,webhook_endpoints'/);
+  assert.match(restoreScript, /expected 13 Reverbin tables/);
+  assert.match(restoreScript, /signup_requests=/);
+  assert.match(restoreScript, /dropdb --if-exists/);
+
+  assert.match(backupService, /ExecStart=\/usr\/local\/sbin\/agent-email-layer-pg-backup\.sh/);
+  assert.match(backupService, /ProtectSystem=full/);
+  assert.match(backupService, /ReadWritePaths=\/var\/backups\/agent-email-layer\/postgres/);
+  assert.match(backupTimer, /OnCalendar=\*-\*-\* 03:15:00 UTC/);
+  assert.match(backupTimer, /Persistent=true/);
+  assert.match(restoreService, /ExecStart=\/usr\/local\/sbin\/agent-email-layer-pg-restore-drill\.sh/);
+  assert.match(restoreTimer, /OnCalendar=Wed \*-\*-\* 03:45:00 UTC/);
+  assert.match(restoreTimer, /Persistent=true/);
+});
+
 test('systemd services include restart limits and sandbox hardening', () => {
   const env = read('.env.example');
   assert.match(env, /WEBHOOK_DELIVERY_MODE=sync/);

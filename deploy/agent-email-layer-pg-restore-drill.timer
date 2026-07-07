@@ -1,0 +1,11 @@
+[Unit]
+Description=Weekly Agent Email Layer PostgreSQL restore drill
+
+[Timer]
+OnCalendar=Wed *-*-* 03:45:00 UTC
+Persistent=true
+RandomizedDelaySec=10m
+Unit=agent-email-layer-pg-restore-drill.service
+
+[Install]
+WantedBy=timers.target

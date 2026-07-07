@@ -1,0 +1,11 @@
+[Unit]
+Description=Agent Email Layer PostgreSQL restore drill
+After=postgresql.service
+Requires=postgresql.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/agent-email-layer-pg-restore-drill.sh
+Nice=5
+IOSchedulingClass=best-effort
+IOSchedulingPriority=6

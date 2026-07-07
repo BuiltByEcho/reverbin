@@ -1,0 +1,17 @@
+[Unit]
+Description=Agent Email Layer PostgreSQL backup
+Wants=postgresql.service
+After=postgresql.service
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+ExecStart=/usr/local/sbin/agent-email-layer-pg-backup.sh
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+ReadWritePaths=/var/backups/agent-email-layer/postgres
