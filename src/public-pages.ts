@@ -1640,6 +1640,48 @@ export type DashboardPageData = {
   signupRequests?: DashboardSignupRequestView[];
 };
 
+export type MailInboxView = {
+  id: string;
+  email_address: string;
+  display_name?: string | null;
+  status?: string | null;
+  thread_count?: number | string | null;
+};
+
+export type MailThreadView = {
+  id: string;
+  inbox_id: string;
+  subject: string | null;
+  last_message_at: Date | string | null;
+  last_from_email?: string | null;
+  last_direction?: string | null;
+  last_preview?: string | null;
+  message_count?: number | string | null;
+};
+
+export type MailMessageView = {
+  id: string;
+  thread_id: string;
+  direction: string;
+  from_email: string | null;
+  from_name?: string | null;
+  to_json?: unknown;
+  subject: string | null;
+  text_body?: string | null;
+  html_body?: string | null;
+  created_at: Date | string;
+};
+
+export type MailPageData = {
+  inboxes: MailInboxView[];
+  selectedInboxId?: string | null;
+  threads: MailThreadView[];
+  selectedThreadId?: string | null;
+  selectedThread?: MailThreadView | null;
+  messages: MailMessageView[];
+  notice?: string | null;
+};
+
 function formatDate(value: Date | string | null | undefined) {
   if (!value) return 'pending';
   const date = value instanceof Date ? value : new Date(value);
@@ -1655,6 +1697,175 @@ function statusPill(status: string) {
   const normalized = status.toLowerCase();
   const tone = normalized.includes('fail') || normalized.includes('error') ? 'danger' : normalized.includes('pending') ? 'pending' : 'live';
   return `<span class="status-pill ${tone}">${escapeHtml(status)}</span>`;
+}
+
+function renderMailRecipients(value: unknown) {
+  const items = Array.isArray(value) ? value : [];
+  return items.map((item) => {
+    if (typeof item === 'string') return item;
+    if (item && typeof item === 'object' && 'email' in item) return String((item as { email?: unknown }).email ?? '');
+    return String(item ?? '');
+  }).filter(Boolean).join(', ') || 'recipient hidden';
+}
+
+function renderMailNotice(notice?: string | null) {
+  if (!notice) return '';
+  const label = notice === 'reply_sent' ? 'Reply sent' : notice === 'approval_pending' ? 'Reply queued for approval' : notice;
+  return `<div class="mail-notice" role="status">${escapeHtml(label)}</div>`;
+}
+
+function renderMailThreads(data: MailPageData) {
+  if (!data.threads.length) {
+    return `<div class="mail-empty">No threads yet. New inbound messages will appear here.</div>`;
+  }
+  const selectedThreadId = data.selectedThreadId ?? data.threads[0]?.id;
+  return data.threads.map((thread) => {
+    const selected = thread.id === selectedThreadId;
+    const subject = thread.subject || '(no subject)';
+    return `<a class="mail-thread ${selected ? 'selected' : ''}" href="/mail?inbox_id=${encodeURIComponent(thread.inbox_id)}&thread_id=${encodeURIComponent(thread.id)}" aria-current="${selected ? 'true' : 'false'}">
+      <span class="mail-thread-top"><strong>${escapeHtml(thread.last_from_email || 'unknown sender')}</strong><time>${formatDate(thread.last_message_at)}</time></span>
+      <span class="mail-thread-subject">${escapeHtml(subject)}</span>
+      <span class="mail-thread-preview">${escapeHtml(thread.last_preview || 'No preview available')}</span>
+      <span class="mail-thread-meta">${escapeHtml(thread.last_direction || 'message')} · ${escapeHtml(String(thread.message_count ?? 0))} messages</span>
+    </a>`;
+  }).join('');
+}
+
+function renderMailMessages(data: MailPageData) {
+  const selectedThread = data.selectedThread;
+  if (!selectedThread) {
+    return `<div class="mail-empty reader-empty">Choose a thread to read and reply.</div>`;
+  }
+  const messages = data.messages.length
+    ? data.messages.map((message) => {
+        const fromLabel = [message.from_name, message.from_email].filter(Boolean).join(' · ') || 'unknown sender';
+        return `<article class="mail-message ${escapeHtml(message.direction)}">
+          <header><div><strong>${escapeHtml(fromLabel)}</strong><span>to ${escapeHtml(renderMailRecipients(message.to_json))}</span></div><time>${formatDate(message.created_at)}</time></header>
+          <pre>${escapeHtml(message.text_body || message.html_body || '')}</pre>
+        </article>`;
+      }).join('')
+    : `<div class="mail-empty">This thread has no stored messages yet.</div>`;
+  return `<div class="mail-reader-head">
+      <p class="eyebrow">Thread</p>
+      <h1>${escapeHtml(selectedThread.subject || '(no subject)')}</h1>
+      <span class="mail-agent-chip">Agent connected · policy guarded</span>
+    </div>
+    <div class="mail-messages">${messages}</div>
+    <form class="mail-reply" method="post" action="/mail/threads/${escapeHtml(selectedThread.id)}/reply">
+      <label for="reply-text">Reply</label>
+      <textarea id="reply-text" name="text" rows="6" placeholder="Write a human reply…" required></textarea>
+      <div class="mail-reply-actions"><span>Sent through Reverbin, logged to the thread, and delivered through the active provider.</span><button type="submit">Send reply</button></div>
+    </form>`;
+}
+
+export function renderMailPage(data: MailPageData) {
+  const selectedInboxId = data.selectedInboxId ?? data.inboxes[0]?.id ?? null;
+  const inboxLinks = data.inboxes.length
+    ? data.inboxes.map((inbox) => {
+        const selected = inbox.id === selectedInboxId;
+        return `<a class="mail-inbox-link ${selected ? 'selected' : ''}" href="/mail?inbox_id=${encodeURIComponent(inbox.id)}" aria-current="${selected ? 'page' : 'false'}">
+          <span><strong>${escapeHtml(inbox.display_name || inbox.email_address)}</strong><small>${escapeHtml(inbox.email_address)}</small></span>
+          <em>${escapeHtml(String(inbox.thread_count ?? 0))}</em>
+        </a>`;
+      }).join('')
+    : `<div class="mail-empty">No inboxes yet. Create one from the operations dashboard.</div>`;
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+  ${baseHead}
+  <title>Reverbin Mail - Human inbox console</title>
+  <meta name="description" content="A Gmail-style human mail console for managing Reverbin agent inboxes, threads, and replies." />
+  <style>
+    :root { color-scheme: dark; --bg:#080909; --panel:#101214; --panel-2:#15181b; --line:rgba(244,244,242,.12); --line-strong:rgba(244,244,242,.22); --ivory:#F4F4F2; --muted:rgba(244,244,242,.68); --soft:rgba(244,244,242,.44); --signal:#B9FF2D; --mint:#BDE6D3; --danger:#ff7b7b; }
+    * { box-sizing: border-box; }
+    body { margin:0; min-height:100vh; background:var(--bg); color:var(--ivory); font-family:'Geist', Inter, ui-sans-serif, system-ui, sans-serif; overflow:hidden; }
+    a { color:inherit; text-decoration:none; }
+    button, textarea, input { font:inherit; }
+    .mail-shell { height:100vh; display:grid; grid-template-rows:64px 1fr; background:linear-gradient(135deg, rgba(185,255,45,.05), transparent 38%), var(--bg); }
+    .mail-topbar { display:flex; align-items:center; gap:16px; padding:10px 18px; border-bottom:1px solid var(--line); background:rgba(8,9,9,.9); }
+    .brand { display:flex; align-items:center; gap:10px; min-width:210px; font-weight:800; }
+    .brand-mark { width:34px; height:34px; }
+    .mail-search { flex:1; min-width:180px; max-width:760px; position:relative; }
+    .mail-search input { width:100%; min-height:42px; border:1px solid var(--line); border-radius:999px; padding:0 18px; background:rgba(244,244,242,.06); color:var(--ivory); }
+    .top-actions { margin-left:auto; display:flex; gap:10px; align-items:center; color:var(--muted); font-size:13px; }
+    .top-actions a { padding:10px 12px; border:1px solid var(--line); border-radius:999px; }
+    .mail-layout { min-height:0; display:grid; grid-template-columns:280px minmax(320px, 430px) minmax(0, 1fr); }
+    .mail-sidebar, .mail-thread-list, .mail-reader { min-height:0; overflow:auto; border-right:1px solid var(--line); }
+    .mail-sidebar { padding:18px 14px; background:rgba(244,244,242,.035); }
+    .compose { display:flex; align-items:center; justify-content:center; min-height:48px; margin:0 0 18px; border-radius:18px; background:var(--ivory); color:#050606; font-weight:800; box-shadow:0 18px 40px rgba(0,0,0,.24); }
+    .mail-nav { display:grid; gap:6px; margin-bottom:20px; }
+    .mail-nav a, .mail-inbox-link { display:flex; align-items:center; justify-content:space-between; gap:10px; min-height:42px; padding:10px 12px; border-radius:14px; color:var(--muted); }
+    .mail-nav a:hover, .mail-inbox-link:hover, .mail-inbox-link.selected { background:rgba(185,255,45,.09); color:var(--ivory); }
+    .mail-inbox-link span { display:grid; gap:3px; min-width:0; }
+    .mail-inbox-link strong, .mail-inbox-link small { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .mail-inbox-link small { color:var(--soft); }
+    .mail-inbox-link em { min-width:28px; text-align:center; font-style:normal; color:var(--signal); }
+    .section-label { margin:18px 12px 8px; color:var(--soft); text-transform:uppercase; letter-spacing:.14em; font-size:11px; font-weight:800; }
+    .mail-thread-list { background:var(--panel); }
+    .thread-list-head { position:sticky; top:0; z-index:2; padding:18px; border-bottom:1px solid var(--line); background:rgba(16,18,20,.96); }
+    .thread-list-head h2 { margin:0; font-size:20px; }
+    .thread-list-head p { margin:5px 0 0; color:var(--soft); font-size:13px; }
+    .mail-thread { display:grid; gap:6px; padding:15px 18px; border-bottom:1px solid rgba(244,244,242,.075); }
+    .mail-thread.selected { background:rgba(185,255,45,.08); box-shadow:inset 3px 0 0 var(--signal); }
+    .mail-thread-top { display:flex; justify-content:space-between; gap:12px; color:var(--ivory); font-size:14px; }
+    .mail-thread time, .mail-thread-meta { color:var(--soft); font-size:12px; }
+    .mail-thread-subject { font-weight:750; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .mail-thread-preview { color:var(--muted); font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .mail-reader { background:var(--panel-2); padding:0; border-right:0; }
+    .mail-reader-head { position:sticky; top:0; z-index:2; padding:24px 28px 18px; border-bottom:1px solid var(--line); background:rgba(21,24,27,.96); }
+    .eyebrow { margin:0 0 8px; color:var(--signal); text-transform:uppercase; font-size:11px; font-weight:900; letter-spacing:.16em; }
+    .mail-reader h1 { margin:0; font-size:28px; line-height:1.15; }
+    .mail-agent-chip { display:inline-flex; margin-top:12px; color:var(--mint); border:1px solid rgba(189,230,211,.28); border-radius:999px; padding:7px 10px; font-size:12px; font-weight:700; }
+    .mail-messages { display:grid; gap:14px; padding:22px 28px; }
+    .mail-message { border:1px solid var(--line); border-radius:18px; padding:16px; background:rgba(244,244,242,.045); }
+    .mail-message.outbound { margin-left:8%; border-color:rgba(185,255,45,.25); background:rgba(185,255,45,.06); }
+    .mail-message header { display:flex; justify-content:space-between; gap:16px; margin-bottom:12px; color:var(--muted); }
+    .mail-message header div { display:grid; gap:4px; }
+    .mail-message header strong { color:var(--ivory); }
+    .mail-message pre { margin:0; white-space:pre-wrap; overflow-wrap:anywhere; color:rgba(244,244,242,.82); line-height:1.55; font-family:'Geist', Inter, ui-sans-serif, system-ui, sans-serif; }
+    .mail-reply { margin:0 28px 28px; padding:16px; border:1px solid var(--line-strong); border-radius:20px; background:#0b0d0e; display:grid; gap:10px; }
+    .mail-reply label { font-weight:800; }
+    .mail-reply textarea { width:100%; resize:vertical; border:1px solid var(--line); border-radius:14px; padding:12px; background:rgba(244,244,242,.045); color:var(--ivory); }
+    .mail-reply-actions { display:flex; justify-content:space-between; gap:14px; align-items:center; color:var(--soft); font-size:12px; }
+    .mail-reply button { min-height:42px; border:0; border-radius:999px; padding:0 18px; background:var(--signal); color:#050606; font-weight:900; cursor:pointer; }
+    .mail-empty { margin:16px; padding:18px; border:1px dashed var(--line); border-radius:16px; color:var(--soft); }
+    .reader-empty { margin:28px; }
+    .mail-notice { margin:12px 18px 0; padding:10px 12px; border:1px solid rgba(185,255,45,.28); border-radius:12px; color:var(--signal); background:rgba(185,255,45,.07); font-weight:800; }
+    @media (max-width: 980px) { body { overflow:auto; } .mail-shell { height:auto; min-height:100vh; } .mail-layout { grid-template-columns:1fr; } .mail-sidebar, .mail-thread-list, .mail-reader { border-right:0; border-bottom:1px solid var(--line); } .brand { min-width:auto; } .top-actions { display:none; } }
+  </style>
+</head>
+<body>
+  <main class="mail-shell" data-surface-id="human-mail-console">
+    <header class="mail-topbar">
+      <a class="brand" href="/mail">${reverbinMarkSvg()}<span>Reverbin Mail</span></a>
+      <div class="mail-search"><input type="search" placeholder="Search mail" aria-label="Search mail" disabled /></div>
+      <div class="top-actions"><a href="/dashboard">Operations</a><a href="/docs">Docs</a><a href="/dashboard/logout">Logout</a></div>
+    </header>
+    <section class="mail-layout" aria-label="Gmail-style human mail management console">
+      <aside class="mail-sidebar" aria-label="Inbox folders">
+        <a class="compose" href="mailto:${data.inboxes[0] ? escapeHtml(data.inboxes[0].email_address) : 'hello@builtbyecho.com'}">Compose</a>
+        <nav class="mail-nav" aria-label="Mail folders">
+          <a href="/mail">Inbox</a>
+          <a href="/mail?folder=sent">Sent</a>
+          <a href="/dashboard#webhooks">Webhooks</a>
+          <a href="/dashboard">Settings</a>
+        </nav>
+        <div class="section-label">Inboxes</div>
+        ${inboxLinks}
+      </aside>
+      <section class="mail-thread-list" aria-label="Thread list">
+        <div class="thread-list-head"><h2>Inbox</h2><p>Human-readable threads from agent inboxes.</p></div>
+        ${renderMailNotice(data.notice)}
+        ${renderMailThreads(data)}
+      </section>
+      <section class="mail-reader" aria-label="Thread conversation">
+        ${renderMailMessages(data)}
+      </section>
+    </section>
+  </main>
+</body>
+</html>`;
 }
 
 function renderSignupControls(row: DashboardSignupRequestView) {

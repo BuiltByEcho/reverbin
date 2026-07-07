@@ -11,7 +11,7 @@ import { getEmailProvider } from './providers.js';
 import { fetchResendReceivedEmail, normalizeResendReceivedEmail, verifySvixSignature } from './resend.js';
 import { buildWebhookDeliveryHeaders, buildWebhookEventPayload, isAllowedWebhookEvent, isAllowedWebhookUrl, shouldDeliverWebhookEvent, type WebhookEventType } from './webhooks.js';
 import { clearDashboardCookie, dashboardCookie, dashboardTokenFromEnv, isDashboardRequestAuthorized } from './dashboard-auth.js';
-import { renderDashboardLoginPage, renderDashboardPage, renderDashboardUnavailablePage, renderDocsPage, renderFaviconSvg, renderLandingPage, type DocsPageKey } from './public-pages.js';
+import { renderDashboardLoginPage, renderDashboardPage, renderDashboardUnavailablePage, renderDocsPage, renderFaviconSvg, renderLandingPage, renderMailPage, type DocsPageKey } from './public-pages.js';
 import { buildWebhookDeliveryJob, redisConnectionOptions, WEBHOOK_DELIVERY_QUEUE, webhookDeliveryMode } from './webhook-delivery.js';
 import { normalizeSignupRequestInput, summarizeSignupVerification, type SignupRequestStatus, type SignupVerificationCheck } from './signup-verification.js';
 import { checkReadiness } from './readiness.js';
@@ -327,6 +327,73 @@ async function storeInboundEmail(body: InboundEmail) {
   return { inbox_id: inbox.id, thread_id: threadId, message_id: messageId, event: 'email.received' };
 }
 
+type ThreadReplyBody = z.infer<typeof ReplySchema>;
+type ThreadReplyResult = {
+  statusCode: 200 | 202 | 400 | 403 | 404;
+  payload: Record<string, unknown>;
+};
+
+async function sendThreadReply(threadId: string, body: ThreadReplyBody): Promise<ThreadReplyResult> {
+  const threadResult = await query<any>('SELECT * FROM threads WHERE id = $1', [threadId]);
+  if (threadResult.rowCount === 0) return { statusCode: 404, payload: { error: 'thread not found' } };
+  const thread = threadResult.rows[0];
+  const inboxResult = await query<any>('SELECT * FROM inboxes WHERE id = $1', [thread.inbox_id]);
+  const inbox = inboxResult.rows[0];
+  const recipients = body.to?.map(normalizeEmail) ?? (await query<any>(
+    `SELECT from_email FROM messages WHERE thread_id = $1 AND direction = 'inbound' ORDER BY created_at DESC LIMIT 1`,
+    [thread.id],
+  )).rows.map((row) => normalizeEmail(row.from_email));
+  if (recipients.length === 0) return { statusCode: 400, payload: { error: 'no recipient available for reply' } };
+
+  const policy = await getPolicy(inbox.id);
+  const decision = evaluatePolicy(policy, {
+    to: recipients,
+    bodyText: body.text,
+    bodyHtml: body.html,
+    attachments: body.attachments,
+    isNewThread: false,
+    knownRecipientEmails: await knownRecipients(inbox.id),
+    sentLastHour: await countOutbound(inbox.id, '1 hour'),
+    sentLastDay: await countOutbound(inbox.id, '1 day'),
+  });
+
+  if (decision.decision === 'block') {
+    await audit('policy.blocked', 'thread', thread.id, { decision });
+    return { statusCode: 403, payload: { error: 'policy blocked send', ...decision } };
+  }
+
+  if (decision.decision === 'require_approval') {
+    const approvalId = id('apr');
+    await query(
+      `INSERT INTO approval_requests (id, tenant_id, inbox_id, agent_id, thread_id, proposed_to_json, subject, body_text, body_html, risk_flags_json, policy_reasons_json)
+       VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10::jsonb,$11::jsonb)`,
+      [approvalId, TENANT_ID, inbox.id, inbox.agent_id, thread.id, JSON.stringify(recipients), body.subject ?? `Re: ${thread.subject}`,
+        body.text, body.html ?? null, JSON.stringify(decision.risk_flags), JSON.stringify(decision.reasons)],
+    );
+    await audit('approval.required', 'approval', approvalId, { thread_id: thread.id, decision });
+    await publishWebhookEvent('approval.required', { approval_id: approvalId, inbox_id: inbox.id, thread_id: thread.id, to: recipients, subject: body.subject ?? `Re: ${thread.subject}`, risk_flags: decision.risk_flags, reasons: decision.reasons });
+    return { statusCode: 202, payload: { approval_id: approvalId, status: 'pending', ...decision } };
+  }
+
+  const provider = getEmailProvider();
+  const sendResult = await provider.sendEmail({
+    from: process.env.RESEND_FROM_EMAIL || inbox.email_address || process.env.DEFAULT_FROM_EMAIL,
+    to: recipients,
+    subject: body.subject ?? `Re: ${thread.subject}`,
+    text: body.text,
+    html: body.html,
+  });
+  const messageId = id('msg');
+  await query(
+    `INSERT INTO messages (id, tenant_id, inbox_id, thread_id, provider_message_id, direction, from_email, to_json, subject, text_body, html_body, risk_flags_json, sent_at)
+     VALUES ($1,$2,$3,$4,$5,'outbound',$6,$7::jsonb,$8,$9,$10,$11::jsonb,now())`,
+    [messageId, TENANT_ID, inbox.id, thread.id, sendResult.provider_message_id, inbox.email_address, JSON.stringify(recipients), body.subject ?? `Re: ${thread.subject}`, body.text, body.html ?? null, JSON.stringify(decision.risk_flags)],
+  );
+  await audit('email.sent', 'message', messageId, { provider_result: sendResult });
+  await publishWebhookEvent('email.sent', { inbox_id: inbox.id, thread_id: thread.id, message_id: messageId, to: recipients, subject: body.subject ?? `Re: ${thread.subject}`, risk_flags: decision.risk_flags });
+  return { statusCode: 200, payload: { message_id: messageId, provider_result: sendResult } };
+}
+
 app.get('/health', async () => ({
   ok: true,
   service: 'agent-email-layer',
@@ -424,6 +491,91 @@ app.post('/dashboard/login', async (req, reply) => {
 app.get('/dashboard/logout', async (_req, reply) => {
   reply.header('set-cookie', clearDashboardCookie());
   reply.redirect('/dashboard/login');
+});
+
+app.get<{ Querystring: { inbox_id?: string; thread_id?: string; notice?: string } }>('/mail', { preHandler: requireDashboardAuth }, async (req, reply) => {
+  try {
+    const inboxes = await query<any>(
+      `SELECT i.id, i.email_address, i.display_name, i.status, count(t.id)::int AS thread_count
+       FROM inboxes i
+       LEFT JOIN threads t ON t.inbox_id = i.id
+       GROUP BY i.id, i.email_address, i.display_name, i.status, i.created_at
+       ORDER BY i.created_at DESC
+       LIMIT 50`,
+    );
+
+    const threadFromQuery = req.query.thread_id
+      ? await query<any>('SELECT id, inbox_id, subject, last_message_at FROM threads WHERE id = $1', [req.query.thread_id])
+      : null;
+    const selectedThreadFromQuery = threadFromQuery?.rows[0] ?? null;
+    const selectedInboxId = req.query.inbox_id ?? selectedThreadFromQuery?.inbox_id ?? inboxes.rows[0]?.id ?? null;
+
+    const threads = selectedInboxId
+      ? await query<any>(
+        `SELECT t.id,
+                t.inbox_id,
+                t.subject,
+                t.last_message_at,
+                lm.from_email AS last_from_email,
+                lm.direction AS last_direction,
+                left(coalesce(lm.text_body, lm.html_body, ''), 180) AS last_preview,
+                count(m.id)::int AS message_count
+         FROM threads t
+         LEFT JOIN LATERAL (
+           SELECT from_email, direction, text_body, html_body, created_at
+           FROM messages
+           WHERE thread_id = t.id
+           ORDER BY created_at DESC
+           LIMIT 1
+         ) lm ON true
+         LEFT JOIN messages m ON m.thread_id = t.id
+         WHERE t.inbox_id = $1
+         GROUP BY t.id, t.inbox_id, t.subject, t.last_message_at, lm.from_email, lm.direction, lm.text_body, lm.html_body
+         ORDER BY t.last_message_at DESC
+         LIMIT 100`,
+        [selectedInboxId],
+      )
+      : { rows: [] };
+
+    const selectedThreadId = req.query.thread_id ?? threads.rows[0]?.id ?? null;
+    const selectedThread = threads.rows.find((thread: any) => thread.id === selectedThreadId) ?? selectedThreadFromQuery;
+    const messages = selectedThreadId
+      ? await query<any>(
+        `SELECT id, thread_id, direction, from_email, from_name, to_json, subject, text_body, html_body, coalesce(sent_at, received_at, created_at) AS created_at
+         FROM messages
+         WHERE thread_id = $1
+         ORDER BY created_at ASC`,
+        [selectedThreadId],
+      )
+      : { rows: [] };
+
+    reply.type('text/html').send(renderMailPage({
+      inboxes: inboxes.rows,
+      selectedInboxId,
+      threads: threads.rows,
+      selectedThreadId,
+      selectedThread,
+      messages: messages.rows,
+      notice: req.query.notice,
+    }));
+  } catch (error) {
+    req.log.error(error, 'mail console database query failed');
+    reply.code(503).type('text/html').send(renderDashboardUnavailablePage('mail console unavailable'));
+  }
+});
+
+app.post<{ Params: { id: string } }>('/mail/threads/:id/reply', { preHandler: requireDashboardAuth }, async (req, reply) => {
+  const body = req.body as { text?: string } | undefined;
+  const result = await sendThreadReply(req.params.id, ReplySchema.parse({ text: body?.text ?? '' }));
+  if (result.statusCode === 200) {
+    reply.redirect(`/mail?thread_id=${encodeURIComponent(req.params.id)}&notice=reply_sent`);
+    return;
+  }
+  if (result.statusCode === 202) {
+    reply.redirect(`/mail?thread_id=${encodeURIComponent(req.params.id)}&notice=approval_pending`);
+    return;
+  }
+  reply.code(result.statusCode).type('text/html').send(renderDashboardUnavailablePage('reply unavailable'));
 });
 
 app.post<{ Params: { id: string } }>('/dashboard/signup-requests/:id/checks', { preHandler: requireDashboardAuth }, async (req, reply) => {
@@ -584,64 +736,8 @@ app.register(async (privateRoutes) => {
 
   privateRoutes.post<{ Params: { id: string } }>('/v1/threads/:id/reply', async (req, reply) => {
     const body = ReplySchema.parse(req.body);
-    const threadResult = await query<any>('SELECT * FROM threads WHERE id = $1', [req.params.id]);
-    if (threadResult.rowCount === 0) return reply.code(404).send({ error: 'thread not found' });
-    const thread = threadResult.rows[0];
-    const inboxResult = await query<any>('SELECT * FROM inboxes WHERE id = $1', [thread.inbox_id]);
-    const inbox = inboxResult.rows[0];
-    const recipients = body.to?.map(normalizeEmail) ?? (await query<any>(
-      `SELECT from_email FROM messages WHERE thread_id = $1 AND direction = 'inbound' ORDER BY created_at DESC LIMIT 1`,
-      [thread.id],
-    )).rows.map((row) => normalizeEmail(row.from_email));
-    if (recipients.length === 0) return reply.code(400).send({ error: 'no recipient available for reply' });
-
-    const policy = await getPolicy(inbox.id);
-    const decision = evaluatePolicy(policy, {
-      to: recipients,
-      bodyText: body.text,
-      bodyHtml: body.html,
-      attachments: body.attachments,
-      isNewThread: false,
-      knownRecipientEmails: await knownRecipients(inbox.id),
-      sentLastHour: await countOutbound(inbox.id, '1 hour'),
-      sentLastDay: await countOutbound(inbox.id, '1 day'),
-    });
-
-    if (decision.decision === 'block') {
-      await audit('policy.blocked', 'thread', thread.id, { decision });
-      return reply.code(403).send({ error: 'policy blocked send', ...decision });
-    }
-
-    if (decision.decision === 'require_approval') {
-      const approvalId = id('apr');
-      await query(
-        `INSERT INTO approval_requests (id, tenant_id, inbox_id, agent_id, thread_id, proposed_to_json, subject, body_text, body_html, risk_flags_json, policy_reasons_json)
-         VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10::jsonb,$11::jsonb)`,
-        [approvalId, TENANT_ID, inbox.id, inbox.agent_id, thread.id, JSON.stringify(recipients), body.subject ?? `Re: ${thread.subject}`,
-          body.text, body.html ?? null, JSON.stringify(decision.risk_flags), JSON.stringify(decision.reasons)],
-      );
-      await audit('approval.required', 'approval', approvalId, { thread_id: thread.id, decision });
-      await publishWebhookEvent('approval.required', { approval_id: approvalId, inbox_id: inbox.id, thread_id: thread.id, to: recipients, subject: body.subject ?? `Re: ${thread.subject}`, risk_flags: decision.risk_flags, reasons: decision.reasons });
-      return reply.code(202).send({ approval_id: approvalId, status: 'pending', ...decision });
-    }
-
-    const provider = getEmailProvider();
-    const sendResult = await provider.sendEmail({
-      from: process.env.RESEND_FROM_EMAIL || inbox.email_address || process.env.DEFAULT_FROM_EMAIL,
-      to: recipients,
-      subject: body.subject ?? `Re: ${thread.subject}`,
-      text: body.text,
-      html: body.html,
-    });
-    const messageId = id('msg');
-    await query(
-      `INSERT INTO messages (id, tenant_id, inbox_id, thread_id, provider_message_id, direction, from_email, to_json, subject, text_body, html_body, risk_flags_json, sent_at)
-       VALUES ($1,$2,$3,$4,$5,'outbound',$6,$7::jsonb,$8,$9,$10,$11::jsonb,now())`,
-      [messageId, TENANT_ID, inbox.id, thread.id, sendResult.provider_message_id, inbox.email_address, JSON.stringify(recipients), body.subject ?? `Re: ${thread.subject}`, body.text, body.html ?? null, JSON.stringify(decision.risk_flags)],
-    );
-    await audit('email.sent', 'message', messageId, { provider_result: sendResult });
-    await publishWebhookEvent('email.sent', { inbox_id: inbox.id, thread_id: thread.id, message_id: messageId, to: recipients, subject: body.subject ?? `Re: ${thread.subject}`, risk_flags: decision.risk_flags });
-    return { message_id: messageId, provider_result: sendResult };
+    const result = await sendThreadReply(req.params.id, body);
+    return reply.code(result.statusCode).send(result.payload);
   });
 
   privateRoutes.get('/v1/approvals', async () => {
