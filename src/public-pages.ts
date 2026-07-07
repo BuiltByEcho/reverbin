@@ -1004,6 +1004,120 @@ export function renderLandingPage() {
       color: rgba(244,244,242,.38);
       font-size: 13px;
     }
+    [hidden] { display: none !important; }
+    .tabbed-section {
+      padding-top: 84px;
+      padding-bottom: 84px;
+      border-bottom: 1px solid rgba(244,244,242,.1);
+    }
+    .compact-head { margin-bottom: 24px; }
+    .landing-tabs {
+      border: 1px solid var(--line);
+      border-radius: calc(var(--radius) + 8px);
+      background: linear-gradient(180deg, rgba(244,244,242,.058), rgba(244,244,242,.022));
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .tab-rail {
+      display: flex;
+      gap: 8px;
+      padding: 12px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(5,6,6,.62);
+      overflow-x: auto;
+      scrollbar-width: thin;
+    }
+    .tab-button {
+      appearance: none;
+      border: 1px solid transparent;
+      border-radius: var(--radius);
+      background: transparent;
+      color: var(--muted);
+      padding: 12px 14px;
+      min-width: max-content;
+      font-weight: 800;
+      cursor: pointer;
+      transition: color .16s ease, background .16s ease, border-color .16s ease;
+    }
+    .tab-button:hover,
+    .tab-button:focus-visible {
+      color: var(--ivory);
+      border-color: var(--line-strong);
+      outline: none;
+    }
+    .tab-button.active,
+    .tab-button[aria-selected="true"] {
+      color: #050606;
+      background: var(--signal);
+      border-color: var(--signal);
+    }
+    .tab-panel {
+      grid-template-columns: minmax(0, 1fr) minmax(320px, .74fr);
+      gap: clamp(24px, 4vw, 58px);
+      align-items: stretch;
+      min-height: 470px;
+      padding: clamp(22px, 4vw, 46px);
+    }
+    .tab-panel.active { display: grid; }
+    .tab-copy h3 {
+      margin: 10px 0 16px;
+      font-family: var(--display-font);
+      font-size: clamp(34px, 3vw, 56px);
+      line-height: .96;
+      letter-spacing: 0;
+      max-width: 900px;
+    }
+    .tab-copy p {
+      margin: 0 0 24px;
+      color: var(--muted);
+      font-size: 18px;
+      line-height: 1.6;
+      max-width: 790px;
+    }
+    .mini-grid,
+    .step-strip {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .mini-grid div,
+    .step-strip div,
+    .tab-card {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: rgba(244,244,242,.036);
+      padding: 16px;
+    }
+    .mini-grid b,
+    .step-strip b,
+    .mini-grid span,
+    .step-strip small { display: block; }
+    .mini-grid b,
+    .step-strip b { margin-bottom: 7px; font-size: 16px; }
+    .mini-grid span,
+    .step-strip small { color: var(--soft); line-height: 1.45; }
+    .step-strip span {
+      display: inline-flex;
+      width: 34px;
+      height: 34px;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 14px;
+      border-radius: 50%;
+      background: rgba(185,255,45,.12);
+      color: var(--signal);
+      font-family: 'Geist Mono', ui-monospace, monospace;
+      font-weight: 800;
+    }
+    .tab-card h4,
+    .resource-panel h4,
+    .use-case h4 { margin: 0 0 12px; font-size: 20px; }
+    .slim-terminal { min-width: 0; height: 100%; }
+    .slim-terminal pre { min-height: auto; font-size: 12px; }
+    .tight-grid { grid-template-columns: 1fr; gap: 10px; }
+    .compact-list { max-width: 620px; margin-top: 0; }
+    .compact-dashboard { min-height: auto; }
+    .compact-cases { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .mobile-only { display: none; }
     @media (max-width: 1080px) {
       .hero {
@@ -1159,6 +1273,15 @@ export function renderLandingPage() {
       .button { font-size: 13px; }
       .hero-actions .button { width: 100%; }
     }
+    @media (max-width: 760px) {
+      .tab-rail { padding: 10px; }
+      .tab-panel,
+      .tab-panel.active { grid-template-columns: 1fr; min-height: auto; padding: 20px; }
+      .mini-grid,
+      .step-strip,
+      .compact-cases { grid-template-columns: 1fr; }
+      .tab-copy h3 { font-size: 32px; }
+    }
   </style>
 </head>
 <body>
@@ -1166,11 +1289,8 @@ export function renderLandingPage() {
     <header class="site-header">
       <a class="brand" href="/" aria-label="Reverbin home">${reverbinMarkSvg()}<span>reverbin</span></a>
       <nav class="navlinks" aria-label="Primary navigation">
-        <a href="#product">Product</a>
-        <a href="#flow">Agent flow</a>
-        <a href="#developers">Developers</a>
-        <a href="#operations">Operations</a>
-        <a href="#use-cases">Use cases</a>
+        <a href="#explore">Explore</a>
+        <a href="/docs">Docs</a>
         <a class="button secondary" href="/dashboard/login">Dashboard</a>
         <a class="button primary" href="${REQUEST_ACCESS_HREF}">Sign up</a>
       </nav>
@@ -1247,264 +1367,132 @@ export function renderLandingPage() {
       </aside>
     </section>
 
-    <section class="section" id="product" aria-labelledby="product-heading">
-      <div class="section-head">
+    <section class="section tabbed-section" id="explore" data-section-id="landing-tabs" aria-labelledby="explore-heading">
+      <div class="section-head compact-head">
         <div>
-          <span class="section-label">Product surface</span>
-          <h2 id="product-heading">Give every agent a real email address, inbox, and reply path.</h2>
-          </div>
-          <p>Reverbin is email infrastructure packaged for AI agents: real addresses, inbound message storage, signed runtime events, reply APIs, and human-visible audit trails.</p>
-      </div>
-      <div class="audience-grid">
-        <article class="audience-panel">
-          <div>
-            <h3>For AI agents</h3>
-            <p>Reverbin gives each agent a real email inbox it can receive from, read as thread context, and reply through by API.</p>
-          </div>
-          <ul class="feature-list">
-            <li>Create agent-specific inboxes on verified email infrastructure.</li>
-            <li>Receive normalized inbound provider events through signed webhooks.</li>
-            <li>Reply in context without rebuilding thread storage and provider glue.</li>
-          </ul>
-        </article>
-        <article class="audience-panel">
-          <div>
-            <h3>For human operators</h3>
-            <p>The same system keeps policy decisions, webhook deliveries, approval records, and audit logs inspectable when agents operate in production.</p>
-          </div>
-          <ul class="feature-list">
-            <li>Use dashboard views for inbox status, messages, delivery rows, and audit trails.</li>
-            <li>Keep frictionless sends by default while retaining risk flags for review.</li>
-            <li>Turn on explicit approval workflows for higher-risk policies when needed.</li>
-          </ul>
-        </article>
-      </div>
-      <div class="capability-matrix" aria-label="Reverbin capability matrix">
-        <article class="capability-cell">
-          <span>Inboxes</span>
-          <h3>API-owned inboxes</h3>
-          <p>Create agent-specific addresses and inspect them from the same operational surface.</p>
-        </article>
-        <article class="capability-cell">
-          <span>Threads</span>
-          <h3>Durable conversations</h3>
-          <p>Inbound and outbound messages stay attached to stored threads instead of a prompt transcript.</p>
-        </article>
-        <article class="capability-cell">
-          <span>Events</span>
-          <h3>Signed runtime events</h3>
-          <p>Webhook payloads carry event names, delivery IDs, and HMAC signatures for agent services.</p>
-        </article>
-        <article class="capability-cell">
-          <span>Policy</span>
-          <h3>Operator guardrails</h3>
-          <p>Optional approvals, risk flags, and audit rows sit next to the message record.</p>
-        </article>
-      </div>
-    </section>
-
-    <section class="section" id="flow" aria-labelledby="flow-heading">
-      <div class="section-head">
-        <div>
-          <span class="section-label">Five-minute agent flow</span>
-          <h2 id="flow-heading">Wire an inbox, subscribe the runtime, and let the agent answer in thread.</h2>
+          <span class="section-label">Explore Reverbin</span>
+          <h2 id="explore-heading">Everything important, without the long scroll.</h2>
         </div>
-        <p>The API shape is intentionally small: create the address, receive the event, fetch context, respond, and audit every step.</p>
+        <p>Use the tabs to see what Reverbin is, how agent email flows, how developers integrate, what operators can inspect, and where it fits.</p>
       </div>
-      <div class="flow-grid">
-        <article class="flow-step"><span class="step-number">01</span><h3>Create inbox</h3><p>Provision a mailbox for the agent identity or workflow surface.</p></article>
-        <article class="flow-step"><span class="step-number">02</span><h3>Subscribe webhook</h3><p>Register endpoint secrets for <code>email.received</code> and <code>email.sent</code>.</p></article>
-        <article class="flow-step"><span class="step-number">03</span><h3>Receive mail</h3><p>Provider payloads normalize into stored threads and message rows.</p></article>
-        <article class="flow-step"><span class="step-number">04</span><h3>Fetch thread</h3><p>Your runtime reads the conversation before deciding what to do.</p></article>
-        <article class="flow-step"><span class="step-number">05</span><h3>Reply safely</h3><p>Send immediately unless configured policy requires approval or blocks.</p></article>
-      </div>
-      <div class="code-stack">
-        <div class="terminal" aria-label="Create inbox API example">
-          <div class="terminal-bar"><span>Create inbox</span><span>curl</span></div>
-          <pre><span class="muted">curl -X POST https://api.reverbin.com/v1/inboxes \\</span>
-  -H "Authorization: Bearer $REVERBIN_API_KEY" \\
-  -H "content-type: application/json" \\
+      <div class="landing-tabs">
+        <div class="tab-rail" role="tablist" aria-label="Explore Reverbin">
+          <button class="tab-button active" type="button" role="tab" id="reverbin-tab-overview" data-tab-id="overview" aria-selected="true" aria-controls="reverbin-panel-overview">Overview</button>
+          <button class="tab-button" type="button" role="tab" id="reverbin-tab-flow" data-tab-id="flow" aria-selected="false" aria-controls="reverbin-panel-flow">Agent flow</button>
+          <button class="tab-button" type="button" role="tab" id="reverbin-tab-developers" data-tab-id="developers" aria-selected="false" aria-controls="reverbin-panel-developers">Developers</button>
+          <button class="tab-button" type="button" role="tab" id="reverbin-tab-operations" data-tab-id="operations" aria-selected="false" aria-controls="reverbin-panel-operations">Operations</button>
+          <button class="tab-button" type="button" role="tab" id="reverbin-tab-use-cases" data-tab-id="use-cases" aria-selected="false" aria-controls="reverbin-panel-use-cases">Use cases</button>
+        </div>
+
+        <article class="tab-panel active" role="tabpanel" id="reverbin-panel-overview" aria-labelledby="reverbin-tab-overview" data-tab-panel="overview">
+          <div class="tab-copy">
+            <span class="section-label">Product surface</span>
+            <h3>Give every agent a real email address, inbox, and reply path.</h3>
+            <p>Reverbin is email infrastructure packaged for AI agents: real addresses, inbound message storage, signed runtime events, reply APIs, and human-visible audit trails.</p>
+            <div class="mini-grid" aria-label="Reverbin capability matrix">
+              <div><b>API-owned inboxes</b><span>Create agent-specific addresses on verified email infrastructure.</span></div>
+              <div><b>Durable conversations</b><span>Messages stay attached to stored threads instead of prompt transcripts.</span></div>
+              <div><b>Signed runtime events</b><span>Webhook payloads carry event names, delivery IDs, and HMAC signatures.</span></div>
+              <div><b>Operator guardrails</b><span>Risk flags, optional approvals, and audit rows sit next to message records.</span></div>
+            </div>
+          </div>
+          <aside class="tab-card" aria-label="What Reverbin replaces">
+            <h4>What you stop rebuilding</h4>
+            <ul class="feature-list">
+              <li>Mailbox provisioning and provider glue.</li>
+              <li>Thread storage for inbound and outbound mail.</li>
+              <li>Webhook signatures, retries, and delivery logs.</li>
+              <li>A dashboard for humans responsible for agent behavior.</li>
+            </ul>
+          </aside>
+        </article>
+
+        <article class="tab-panel" role="tabpanel" id="reverbin-panel-flow" aria-labelledby="reverbin-tab-flow" data-tab-panel="flow" hidden aria-hidden="true">
+          <div class="tab-copy">
+            <span class="section-label">Five-minute agent flow</span>
+            <h3>Wire an inbox, subscribe the runtime, and let the agent answer in thread.</h3>
+            <p>The API shape is intentionally small: create the address, receive the event, fetch context, respond, and audit every step.</p>
+            <div class="step-strip" aria-label="Agent email flow">
+              <div><span>01</span><b>Create inbox</b><small>Provision a mailbox for the agent identity.</small></div>
+              <div><span>02</span><b>Subscribe webhook</b><small>Listen for <code>email.received</code> and <code>email.sent</code>.</small></div>
+              <div><span>03</span><b>Receive mail</b><small>Provider payloads normalize into stored threads.</small></div>
+              <div><span>04</span><b>Reply safely</b><small>Policy, delivery, and audit records travel with the reply.</small></div>
+            </div>
+          </div>
+          <div class="terminal slim-terminal" aria-label="Create inbox API example">
+            <div class="terminal-bar"><span>Create inbox</span><span>curl</span></div>
+            <pre><span class="muted">curl -X POST https://api.reverbin.com/v1/inboxes \</span>
+  -H "Authorization: Bearer ***" \
+  -H "content-type: application/json" \
   -d '{
     <span class="key">"email_address"</span>: "user@reverbin.com",
     <span class="key">"display_name"</span>: "Support Agent"
   }'</pre>
-        </div>
-        <div class="terminal" aria-label="Webhook event example">
-          <div class="terminal-bar"><span>Webhook event</span><span>json</span></div>
-          <pre>{
-  <span class="key">"type"</span>: "email.received",
-  <span class="key">"created_at"</span>: "2026-07-06T17:42:02.085Z",
-  <span class="key">"data"</span>: {
-    "inbox_id": "inb_...",
-    "thread_id": "thr_...",
-    "message_id": "msg_...",
-    "from": "sender@example.com",
-    "subject": "Hello"
-          }
-}</pre>
-        </div>
-      </div>
-      <div class="production-strip" aria-label="Production readiness">
-        <article class="production-stat"><span>01</span><b>One API surface</b><p>Inboxes, messages, threads, replies, webhooks, deliveries, and audit rows share the same product boundary.</p></article>
-        <article class="production-stat"><span>02</span><b>Real webhook evidence</b><p>Delivery attempts are inspectable instead of disappearing into a provider dashboard.</p></article>
-        <article class="production-stat"><span>03</span><b>Human-readable state</b><p>Operators can see which inbox received mail, what thread it touched, and what the agent sent.</p></article>
-        <article class="production-stat"><span>04</span><b>Policy when needed</b><p>Default sends stay low-friction while higher-risk workflows can require review.</p></article>
-      </div>
-    </section>
+          </div>
+        </article>
 
-    <section class="section" id="developers" aria-labelledby="developers-heading">
-      <div class="section-head">
-        <div>
-          <span class="section-label">Developer resources</span>
-          <h2 id="developers-heading">The useful pieces are documented, typed, and reachable from the first screen.</h2>
-        </div>
-        <p>Use the API directly or import the TypeScript client. The public docs cover endpoints, webhook signatures, delivery inspection, audit logs, and worker mode.</p>
-      </div>
-      <div class="resource-grid">
-        <article class="resource-panel">
-          <code>POST /v1/inboxes</code>
-          <h3>Programmable inboxes</h3>
-          <p>Create and list agent inboxes with default policies that send normal replies immediately while preserving audit data.</p>
-        </article>
-        <article class="resource-panel">
-          <code>POST /v1/webhooks</code>
-          <h3>Signed event delivery</h3>
-          <p>Deliver provider-normalized events to your runtime with retryable delivery records and HMAC signatures.</p>
-        </article>
-        <article class="resource-panel">
-          <code>ReverbinClient</code>
-          <h3>TypeScript SDK</h3>
-          <p>Use the package client for inbox creation, thread retrieval, and replies from Node-based agent services.</p>
-        </article>
-      </div>
-      <div class="code-stack">
-        <div class="terminal" aria-label="TypeScript SDK example">
-          <div class="terminal-bar"><span class="snippet-tabs"><span>TypeScript</span><span>cURL</span><span>Webhook</span></span><span>agent.ts</span></div>
-          <pre>import { ReverbinClient } from '@builtbyecho/reverbin';
+        <article class="tab-panel" role="tabpanel" id="reverbin-panel-developers" aria-labelledby="reverbin-tab-developers" data-tab-panel="developers" hidden aria-hidden="true">
+          <div class="tab-copy">
+            <span class="section-label">Developer resources</span>
+            <h3>Small API, typed client, first-party docs.</h3>
+            <p>Use the API directly or import the TypeScript client. The docs cover endpoints, webhook signatures, delivery inspection, audit logs, and worker mode.</p>
+            <div class="resource-grid tight-grid">
+              <article class="resource-panel"><code>POST /v1/inboxes</code><h4>Programmable inboxes</h4><p>Create and list agent inboxes with default send policies.</p></article>
+              <article class="resource-panel"><code>POST /v1/webhooks</code><h4>Signed delivery</h4><p>Deliver normalized events to your runtime with retryable delivery records.</p></article>
+              <article class="resource-panel"><code>ReverbinClient</code><h4>TypeScript SDK</h4><p>Use typed helpers for inbox creation, thread retrieval, and replies.</p></article>
+            </div>
+          </div>
+          <div class="terminal slim-terminal" aria-label="TypeScript SDK example">
+            <div class="terminal-bar"><span>TypeScript</span><span>agent.ts</span></div>
+            <pre>import { ReverbinClient } from '@builtbyecho/reverbin';
 
 const reverbin = new ReverbinClient({
   baseUrl: process.env.REVERBIN_BASE_URL,
   apiKey: process.env.REVERBIN_API_KEY,
 });
 
-const inbox = await reverbin.inboxes.create({
+await reverbin.inboxes.create({
   email_address: 'support@reverbin.com',
   display_name: 'Support Agent',
 });</pre>
-        </div>
-        <div class="terminal" aria-label="Reply API example">
-          <div class="terminal-bar"><span>Thread reply</span><span>policy aware</span></div>
-          <pre>await reverbin.threads.reply(thread.id, {
-  text: 'Thanks - I can help with that.',
-});
+          </div>
+        </article>
 
-// If policy allows it:
-// { message_id, provider_result }
-
-// If approval is required:
-// { approval_id, status: 'pending' }</pre>
-        </div>
-      </div>
-    </section>
-
-    <section class="section" id="operations" aria-labelledby="operations-heading">
-      <div class="section-head">
-        <div>
-          <span class="section-label">Operator view</span>
-          <h2 id="operations-heading">Production email needs an inspection surface, not just API success responses.</h2>
-        </div>
-        <p>The dashboard is app-token protected and focused on operational state: inboxes, messages, webhook deliveries, and audit logs.</p>
-      </div>
-      <div class="ops-grid">
-        <aside class="ops-copy">
-          <h3>Humans can see what the agent did.</h3>
-          <p>Reverbin keeps the operational trail close to the communication layer so incidents are diagnosable without replaying a whole agent run.</p>
-          <ul class="ops-list">
-            <li><span>Dashboard login</span><span class="pill">app token</span></li>
-            <li><span>Webhook delivery rows</span><span class="pill">retryable</span></li>
-            <li><span>Audit actions</span><span class="pill">recorded</span></li>
-            <li><span>Approvals</span><span class="pill">optional</span></li>
-          </ul>
-        </aside>
-        <div class="dashboard-preview" aria-label="Reverbin dashboard preview">
-          <div class="dash-header">
-            <b>Reverbin operations</b>
-            <div class="dash-tabs" aria-label="Dashboard preview tabs">
-              <span>Inboxes</span><span>Messages</span><span>Webhooks</span><span>Audit</span>
+        <article class="tab-panel" role="tabpanel" id="reverbin-panel-operations" aria-labelledby="reverbin-tab-operations" data-tab-panel="operations" hidden aria-hidden="true">
+          <div class="tab-copy">
+            <span class="section-label">Operator view</span>
+            <h3>Humans can see what the agent did.</h3>
+            <p>The dashboard is app-token protected and focused on operational state: inboxes, messages, webhook deliveries, approvals, and audit logs.</p>
+            <ul class="ops-list compact-list">
+              <li><span>Dashboard login</span><span class="pill">app token</span></li>
+              <li><span>Webhook delivery rows</span><span class="pill">retryable</span></li>
+              <li><span>Audit actions</span><span class="pill">recorded</span></li>
+              <li><span>Policy knobs</span><span class="pill">per inbox</span></li>
+            </ul>
+          </div>
+          <div class="dashboard-preview compact-dashboard" aria-label="Reverbin dashboard preview">
+            <div class="dash-header"><b>Reverbin operations</b><div class="dash-tabs" aria-label="Dashboard preview tabs"><span>Inboxes</span><span>Messages</span><span>Webhooks</span><span>Audit</span></div></div>
+            <div class="dash-table">
+              <div class="dash-row header"><span>Inbox</span><span>Status</span><span>Last event</span></div>
+              <div class="dash-row"><span><code class="mini-code">support@reverbin.com</code></span><span class="status-live">active</span><span>email.received</span></div>
+              <div class="dash-row"><span><code class="mini-code">ops@reverbin.com</code></span><span class="status-live">active</span><span>webhook.delivered</span></div>
             </div>
           </div>
-          <div class="dash-table">
-            <div class="dash-row header"><span>Inbox</span><span>Status</span><span>Last event</span></div>
-            <div class="dash-row"><span><code class="mini-code">support@reverbin.com</code></span><span class="status-live">active</span><span>email.received</span></div>
-            <div class="dash-row"><span><code class="mini-code">alerts@reverbin.com</code></span><span class="status-live">active</span><span>email.sent</span></div>
-            <div class="dash-row"><span><code class="mini-code">billing@reverbin.com</code></span><span class="status-live">active</span><span>approval.required</span></div>
-            <div class="dash-row"><span><code class="mini-code">ops@reverbin.com</code></span><span class="status-live">active</span><span>webhook.delivered</span></div>
+        </article>
+
+        <article class="tab-panel" role="tabpanel" id="reverbin-panel-use-cases" aria-labelledby="reverbin-tab-use-cases" data-tab-panel="use-cases" hidden aria-hidden="true">
+          <div class="tab-copy">
+            <span class="section-label">Use cases</span>
+            <h3>Agent email gets useful when it touches real workflows.</h3>
+            <p>Use Reverbin anywhere an agent needs to receive, understand, and answer email while leaving a record a human can trust.</p>
           </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="section" id="use-cases" aria-labelledby="use-cases-heading">
-      <div class="section-head">
-        <div>
-          <span class="section-label">Use cases</span>
-          <h2 id="use-cases-heading">Agent email gets useful when it touches real workflows.</h2>
-        </div>
-        <p>Reverbin is for any agent that needs to receive, understand, and answer email while leaving a record a human can trust.</p>
-      </div>
-      <div class="use-case-grid">
-        <article class="use-case"><span>Support</span><h3>Customer-service agents</h3><p>Give a support runtime a durable inbox, signed inbound events, and auditable replies.</p></article>
-        <article class="use-case"><span>Browser agents</span><h3>Account setup and verification</h3><p>Route OTP and onboarding messages to agents without handing them a human mailbox.</p></article>
-        <article class="use-case"><span>Operations</span><h3>Vendor and billing workflows</h3><p>Keep receipts, invoices, and follow-ups attached to threads that humans can inspect later.</p></article>
-        <article class="use-case"><span>Internal tools</span><h3>Escalation handoff</h3><p>Let agents draft or send routine email while policy flags and audit rows stay visible.</p></article>
-      </div>
-    </section>
-
-    <section class="section" id="trust" aria-labelledby="trust-heading">
-      <div class="section-head">
-        <div>
-          <span class="section-label">Guardrails</span>
-          <h2 id="trust-heading">Default friction stays low, but the record stays complete.</h2>
-        </div>
-        <p>Reverbin is built for real mail. Safety decisions are explicit, inspectable, and adjustable by inbox policy instead of hidden in an agent prompt.</p>
-      </div>
-      <div class="guardrail-grid">
-        <article class="guardrail">
-          <span class="guardrail-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M12 3 5 6v5c0 4.6 2.8 8.3 7 10 4.2-1.7 7-5.4 7-10V6l-7-3Z" stroke="currentColor" stroke-linejoin="round"/><path d="m9 12 2 2 4-5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-          <h3>Signed webhooks</h3>
-          <p>Every subscribed delivery can be verified from raw JSON and the endpoint secret.</p>
+          <div class="use-case-grid compact-cases">
+            <article class="use-case"><span>Support</span><h4>Customer-service agents</h4><p>Give support agents a durable inbox, signed inbound events, and auditable replies.</p></article>
+            <article class="use-case"><span>Browser agents</span><h4>Account setup and verification</h4><p>Route onboarding mail without handing agents a human mailbox.</p></article>
+            <article class="use-case"><span>Operations</span><h4>Vendor and billing workflows</h4><p>Keep receipts, invoices, and follow-ups attached to inspectable threads.</p></article>
+            <article class="use-case"><span>Internal tools</span><h4>Escalation handoff</h4><p>Let agents draft or send routine email while audit rows stay visible.</p></article>
+          </div>
         </article>
-        <article class="guardrail">
-          <span class="guardrail-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M5 5h14v5H5zM5 14h14v5H5z" stroke="currentColor" stroke-linejoin="round"/><path d="M8 7.5h.01M8 16.5h.01" stroke="currentColor" stroke-linecap="round"/></svg></span>
-          <h3>Delivery logs</h3>
-          <p>Webhook attempts, failures, and delivered timestamps are retained for debugging.</p>
-        </article>
-        <article class="guardrail">
-          <span class="guardrail-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M7 7h10M7 12h10M7 17h6" stroke="currentColor" stroke-linecap="round"/><path d="M5 3h14a1 1 0 0 1 1 1v16l-3-2-3 2-3-2-3 2-3-2-3 2V4a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-linejoin="round"/></svg></span>
-          <h3>Audit trails</h3>
-          <p>Policy decisions, sends, approvals, and inbound events stay attached to records.</p>
-        </article>
-        <article class="guardrail">
-          <span class="guardrail-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M4 12h16M12 4v16" stroke="currentColor" stroke-linecap="round"/><path d="M7 7h10v10H7z" stroke="currentColor" stroke-linejoin="round"/></svg></span>
-          <h3>Policy knobs</h3>
-          <p>Reply-only, attachment, link, domain, recipient, and approval behavior can be configured per inbox.</p>
-        </article>
-      </div>
-    </section>
-
-    <section class="section" id="faq" aria-labelledby="faq-heading">
-      <div class="section-head">
-        <div>
-          <span class="section-label">FAQ</span>
-          <h2 id="faq-heading">Questions agents and operators both ask.</h2>
-        </div>
-        <p>The goal is not another email sending wrapper. Reverbin gives agent systems a communication record that can be integrated, verified, and inspected.</p>
-      </div>
-      <div class="faq-grid">
-        <article class="faq-item"><span>01</span><h3>Is this just outbound email?</h3><p>No. Reverbin stores inbound and outbound messages as threads and emits signed runtime events.</p></article>
-        <article class="faq-item"><span>02</span><h3>Can humans inspect what happened?</h3><p>Yes. The dashboard shows inboxes, stored messages, delivery attempts, and audit actions.</p></article>
-        <article class="faq-item"><span>03</span><h3>Do sends always need approval?</h3><p>No. Low-risk sends can move immediately; approvals are a policy layer for workflows that need review.</p></article>
-        <article class="faq-item"><span>04</span><h3>Where do agents integrate?</h3><p>Agents use the API/SDK, listen for webhooks, fetch thread context, and send replies back through Reverbin.</p></article>
       </div>
     </section>
 
@@ -1531,6 +1519,40 @@ REVERBIN_BASE_URL=https://api.reverbin.com</pre>
       <span>Real inboxes · signed webhooks · threaded conversations · delivery logs</span>
     </footer>
   </main>
+<script>
+  (() => {
+    const root = document.querySelector('[data-section-id="landing-tabs"]');
+    if (!root) return;
+    const tabs = Array.from(root.querySelectorAll('[role="tab"]'));
+    const panels = Array.from(root.querySelectorAll('[role="tabpanel"]'));
+    function selectReverbinTab(nextTab) {
+      tabs.forEach((tab) => {
+        const selected = tab === nextTab;
+        tab.classList.toggle('active', selected);
+        tab.setAttribute('aria-selected', selected ? 'true' : 'false');
+        tab.tabIndex = selected ? 0 : -1;
+      });
+      panels.forEach((panel) => {
+        const selected = panel.id === nextTab.getAttribute('aria-controls');
+        panel.classList.toggle('active', selected);
+        panel.hidden = !selected;
+        panel.setAttribute('aria-hidden', selected ? 'false' : 'true');
+      });
+    }
+    tabs.forEach((tab, index) => {
+      tab.tabIndex = tab.getAttribute('aria-selected') === 'true' ? 0 : -1;
+      tab.addEventListener('click', () => selectReverbinTab(tab));
+      tab.addEventListener('keydown', (event) => {
+        const direction = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
+        if (!direction) return;
+        event.preventDefault();
+        const next = tabs[(index + direction + tabs.length) % tabs.length];
+        selectReverbinTab(next);
+        next.focus();
+      });
+    });
+  })();
+</script>
 </body>
 </html>`;
 }
@@ -1907,6 +1929,15 @@ export function renderDashboardPage(data: DashboardPageData) {
       .button { flex: 1 1 auto; }
       .top-actions { width: 100%; }
     }
+    @media (max-width: 760px) {
+      .tab-rail { padding: 10px; }
+      .tab-panel,
+      .tab-panel.active { grid-template-columns: 1fr; min-height: auto; padding: 20px; }
+      .mini-grid,
+      .step-strip,
+      .compact-cases { grid-template-columns: 1fr; }
+      .tab-copy h3 { font-size: 32px; }
+    }
   </style>
 </head>
 <body>
@@ -1956,6 +1987,40 @@ export function renderDashboardPage(data: DashboardPageData) {
       <span>App-token protected operational dashboard</span>
     </footer>
   </main>
+<script>
+  (() => {
+    const root = document.querySelector('[data-section-id="landing-tabs"]');
+    if (!root) return;
+    const tabs = Array.from(root.querySelectorAll('[role="tab"]'));
+    const panels = Array.from(root.querySelectorAll('[role="tabpanel"]'));
+    function selectReverbinTab(nextTab) {
+      tabs.forEach((tab) => {
+        const selected = tab === nextTab;
+        tab.classList.toggle('active', selected);
+        tab.setAttribute('aria-selected', selected ? 'true' : 'false');
+        tab.tabIndex = selected ? 0 : -1;
+      });
+      panels.forEach((panel) => {
+        const selected = panel.id === nextTab.getAttribute('aria-controls');
+        panel.classList.toggle('active', selected);
+        panel.hidden = !selected;
+        panel.setAttribute('aria-hidden', selected ? 'false' : 'true');
+      });
+    }
+    tabs.forEach((tab, index) => {
+      tab.tabIndex = tab.getAttribute('aria-selected') === 'true' ? 0 : -1;
+      tab.addEventListener('click', () => selectReverbinTab(tab));
+      tab.addEventListener('keydown', (event) => {
+        const direction = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
+        if (!direction) return;
+        event.preventDefault();
+        const next = tabs[(index + direction + tabs.length) % tabs.length];
+        selectReverbinTab(next);
+        next.focus();
+      });
+    });
+  })();
+</script>
 </body>
 </html>`;
 }
@@ -2086,6 +2151,15 @@ export function renderDashboardUnavailablePage(_reason = '') {
       .card { padding: 20px; }
       h1 { font-size: 36px; }
     }
+    @media (max-width: 760px) {
+      .tab-rail { padding: 10px; }
+      .tab-panel,
+      .tab-panel.active { grid-template-columns: 1fr; min-height: auto; padding: 20px; }
+      .mini-grid,
+      .step-strip,
+      .compact-cases { grid-template-columns: 1fr; }
+      .tab-copy h3 { font-size: 32px; }
+    }
   </style>
 </head>
 <body>
@@ -2104,6 +2178,40 @@ export function renderDashboardUnavailablePage(_reason = '') {
       <a class="button" href="/">Public site</a>
     </div>
   </section>
+<script>
+  (() => {
+    const root = document.querySelector('[data-section-id="landing-tabs"]');
+    if (!root) return;
+    const tabs = Array.from(root.querySelectorAll('[role="tab"]'));
+    const panels = Array.from(root.querySelectorAll('[role="tabpanel"]'));
+    function selectReverbinTab(nextTab) {
+      tabs.forEach((tab) => {
+        const selected = tab === nextTab;
+        tab.classList.toggle('active', selected);
+        tab.setAttribute('aria-selected', selected ? 'true' : 'false');
+        tab.tabIndex = selected ? 0 : -1;
+      });
+      panels.forEach((panel) => {
+        const selected = panel.id === nextTab.getAttribute('aria-controls');
+        panel.classList.toggle('active', selected);
+        panel.hidden = !selected;
+        panel.setAttribute('aria-hidden', selected ? 'false' : 'true');
+      });
+    }
+    tabs.forEach((tab, index) => {
+      tab.tabIndex = tab.getAttribute('aria-selected') === 'true' ? 0 : -1;
+      tab.addEventListener('click', () => selectReverbinTab(tab));
+      tab.addEventListener('keydown', (event) => {
+        const direction = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
+        if (!direction) return;
+        event.preventDefault();
+        const next = tabs[(index + direction + tabs.length) % tabs.length];
+        selectReverbinTab(next);
+        next.focus();
+      });
+    });
+  })();
+</script>
 </body>
 </html>`;
 }
@@ -2262,6 +2370,15 @@ export function renderDashboardLoginPage(error = '') {
       .login-grid { grid-template-columns: 1fr; margin-top: 52px; }
       h1 { font-size: 40px; }
     }
+    @media (max-width: 760px) {
+      .tab-rail { padding: 10px; }
+      .tab-panel,
+      .tab-panel.active { grid-template-columns: 1fr; min-height: auto; padding: 20px; }
+      .mini-grid,
+      .step-strip,
+      .compact-cases { grid-template-columns: 1fr; }
+      .tab-copy h3 { font-size: 32px; }
+    }
   </style>
 </head>
 <body>
@@ -2290,6 +2407,40 @@ export function renderDashboardLoginPage(error = '') {
       </div>
     </section>
   </main>
+<script>
+  (() => {
+    const root = document.querySelector('[data-section-id="landing-tabs"]');
+    if (!root) return;
+    const tabs = Array.from(root.querySelectorAll('[role="tab"]'));
+    const panels = Array.from(root.querySelectorAll('[role="tabpanel"]'));
+    function selectReverbinTab(nextTab) {
+      tabs.forEach((tab) => {
+        const selected = tab === nextTab;
+        tab.classList.toggle('active', selected);
+        tab.setAttribute('aria-selected', selected ? 'true' : 'false');
+        tab.tabIndex = selected ? 0 : -1;
+      });
+      panels.forEach((panel) => {
+        const selected = panel.id === nextTab.getAttribute('aria-controls');
+        panel.classList.toggle('active', selected);
+        panel.hidden = !selected;
+        panel.setAttribute('aria-hidden', selected ? 'false' : 'true');
+      });
+    }
+    tabs.forEach((tab, index) => {
+      tab.tabIndex = tab.getAttribute('aria-selected') === 'true' ? 0 : -1;
+      tab.addEventListener('click', () => selectReverbinTab(tab));
+      tab.addEventListener('keydown', (event) => {
+        const direction = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
+        if (!direction) return;
+        event.preventDefault();
+        const next = tabs[(index + direction + tabs.length) % tabs.length];
+        selectReverbinTab(next);
+        next.focus();
+      });
+    });
+  })();
+</script>
 </body>
 </html>`;
 }
@@ -2521,6 +2672,15 @@ function docsCss() {
     .footer-cta h2 { margin:0; font-size:30px; }
     .footer-cta p { margin:6px 0 0; color:var(--muted); }
     @media (max-width: 980px) { .docs-hero, .docs-layout, .endpoint-rail { grid-template-columns:1fr; } .docs-card-grid { grid-template-columns:1fr; } .endpoint-row { grid-template-columns:1fr; } h1 { font-size:52px; } }
+    @media (max-width: 760px) {
+      .tab-rail { padding: 10px; }
+      .tab-panel,
+      .tab-panel.active { grid-template-columns: 1fr; min-height: auto; padding: 20px; }
+      .mini-grid,
+      .step-strip,
+      .compact-cases { grid-template-columns: 1fr; }
+      .tab-copy h3 { font-size: 32px; }
+    }
   </style>`;
 }
 
@@ -2585,6 +2745,40 @@ export function renderDocsPage(page: DocsPageKey = 'overview', markdown?: string
       </div>
     </section>
   </main>
+<script>
+  (() => {
+    const root = document.querySelector('[data-section-id="landing-tabs"]');
+    if (!root) return;
+    const tabs = Array.from(root.querySelectorAll('[role="tab"]'));
+    const panels = Array.from(root.querySelectorAll('[role="tabpanel"]'));
+    function selectReverbinTab(nextTab) {
+      tabs.forEach((tab) => {
+        const selected = tab === nextTab;
+        tab.classList.toggle('active', selected);
+        tab.setAttribute('aria-selected', selected ? 'true' : 'false');
+        tab.tabIndex = selected ? 0 : -1;
+      });
+      panels.forEach((panel) => {
+        const selected = panel.id === nextTab.getAttribute('aria-controls');
+        panel.classList.toggle('active', selected);
+        panel.hidden = !selected;
+        panel.setAttribute('aria-hidden', selected ? 'false' : 'true');
+      });
+    }
+    tabs.forEach((tab, index) => {
+      tab.tabIndex = tab.getAttribute('aria-selected') === 'true' ? 0 : -1;
+      tab.addEventListener('click', () => selectReverbinTab(tab));
+      tab.addEventListener('keydown', (event) => {
+        const direction = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
+        if (!direction) return;
+        event.preventDefault();
+        const next = tabs[(index + direction + tabs.length) % tabs.length];
+        selectReverbinTab(next);
+        next.focus();
+      });
+    });
+  })();
+</script>
 </body>
 </html>`;
 }

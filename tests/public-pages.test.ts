@@ -27,8 +27,8 @@ test('landing page presents Reverbin as agent communication infrastructure', () 
   assert.match(html, /Agent answers in thread/);
   assert.match(html, /Live inbox/);
   assert.match(html, /API-owned inboxes/);
+  assert.match(html, /Explore Reverbin/);
   assert.match(html, /Use cases/);
-  assert.match(html, /Questions agents and operators/);
   assert.match(html, /npm install @builtbyecho\/reverbin/);
   assert.match(html, /#B9FF2D/);
   assert.match(html, /rel="canonical" href="https:\/\/reverbin\.com\/"/);
@@ -45,6 +45,32 @@ test('landing page presents Reverbin as agent communication infrastructure', () 
   assert.equal(html.includes('Email Inboxes for AI Agents'), false);
   assert.equal(html.includes('Start for free'), false);
   assert.equal(html.includes('No credit card required'), false);
+});
+
+test('landing page consolidates secondary information into accessible tabs', () => {
+  const html = renderLandingPage();
+
+  assert.match(html, /data-section-id="landing-tabs"/);
+  assert.match(html, /role="tablist"/);
+  assert.equal((html.match(/<button[^>]+role="tab"/g) ?? []).length, 5);
+  assert.equal((html.match(/<article[^>]+role="tabpanel"/g) ?? []).length, 5);
+  for (const tabId of ['overview', 'flow', 'developers', 'operations', 'use-cases']) {
+    assert.match(html, new RegExp(`data-tab-id="${tabId}"`));
+    assert.match(html, new RegExp(`id="reverbin-tab-${tabId}"`));
+    assert.match(html, new RegExp(`id="reverbin-panel-${tabId}"`));
+    assert.match(html, new RegExp(`aria-controls="reverbin-panel-${tabId}"`));
+    assert.match(html, new RegExp(`aria-labelledby="reverbin-tab-${tabId}"`));
+  }
+  assert.match(html, /aria-selected="true"/);
+  assert.match(html, /hidden aria-hidden="true"/);
+  assert.match(html, /selectReverbinTab/);
+  assert.match(html, /addEventListener\('click'/);
+  assert.match(html, /addEventListener\('keydown'/);
+  assert.equal(html.includes('<section class="section" id="flow"'), false);
+  assert.equal(html.includes('<section class="section" id="developers"'), false);
+  assert.equal(html.includes('<section class="section" id="operations"'), false);
+  assert.equal(html.includes('<section class="section" id="trust"'), false);
+  assert.equal(html.includes('<section class="section" id="faq"'), false);
 });
 
 test('docs pages render a branded first-party documentation surface', () => {
