@@ -132,6 +132,7 @@ test('systemd services include restart limits and sandbox hardening', () => {
     assert.match(service, /TimeoutStopSec=30/);
     assert.match(service, /LimitNOFILE=65536/);
     assert.match(service, /MemoryMax=512M/);
+    assert.match(service, /UMask=0077/);
     assert.match(service, /NoNewPrivileges=true/);
     assert.match(service, /PrivateTmp=true/);
     assert.match(service, /PrivateDevices=true/);

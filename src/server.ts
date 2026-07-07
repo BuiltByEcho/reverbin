@@ -612,11 +612,11 @@ app.register(async (internalRoutes) => {
 });
 
 app.setErrorHandler((error, req, reply) => {
-  req.log.error(error);
   if (error instanceof z.ZodError) {
     reply.code(400).send({ error: 'validation_error', details: error.issues });
     return;
   }
+  req.log.error(error);
   reply.code(500).send(internalErrorPayload());
 });
 

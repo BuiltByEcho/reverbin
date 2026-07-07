@@ -19,6 +19,7 @@ TimeoutStopSec=30
 KillSignal=SIGTERM
 LimitNOFILE=65536
 MemoryMax=512M
+UMask=0077
 NoNewPrivileges=true
 PrivateTmp=true
 PrivateDevices=true
