@@ -1,6 +1,6 @@
 import * as assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { renderDashboardLoginPage, renderDashboardPage, renderDashboardUnavailablePage, renderLandingPage } from '../src/public-pages.js';
+import { renderDashboardLoginPage, renderDashboardPage, renderDashboardUnavailablePage, renderFaviconSvg, renderLandingPage } from '../src/public-pages.js';
 
 test('landing page presents Reverbin as agent communication infrastructure', () => {
   const html = renderLandingPage();
@@ -29,6 +29,15 @@ test('landing page presents Reverbin as agent communication infrastructure', () 
   assert.equal(html.includes('Email Inboxes for AI Agents'), false);
   assert.equal(html.includes('Start for free'), false);
   assert.equal(html.includes('No credit card required'), false);
+});
+
+test('favicon renderer exposes the branded lime Reverbin mark', () => {
+  const svg = renderFaviconSvg();
+
+  assert.match(svg, /^<svg /);
+  assert.match(svg, /viewBox="0 0 512 512"/);
+  assert.match(svg, /#B9FF2D/);
+  assert.equal(svg.includes('#B8734A'), false);
 });
 
 test('dashboard page renders branded operational tables with escaped data', () => {

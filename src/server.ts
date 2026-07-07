@@ -9,7 +9,7 @@ import { getEmailProvider } from './providers.js';
 import { fetchResendReceivedEmail, normalizeResendReceivedEmail, verifySvixSignature } from './resend.js';
 import { buildWebhookDeliveryHeaders, buildWebhookEventPayload, shouldDeliverWebhookEvent, type WebhookEventType } from './webhooks.js';
 import { clearDashboardCookie, dashboardCookie, dashboardTokenFromEnv, isDashboardRequestAuthorized } from './dashboard-auth.js';
-import { renderDashboardLoginPage, renderDashboardPage, renderDashboardUnavailablePage, renderDocsRedirectPage, renderLandingPage } from './public-pages.js';
+import { renderDashboardLoginPage, renderDashboardPage, renderDashboardUnavailablePage, renderDocsRedirectPage, renderFaviconSvg, renderLandingPage } from './public-pages.js';
 import { buildWebhookDeliveryJob, redisConnectionOptions, WEBHOOK_DELIVERY_QUEUE, webhookDeliveryMode } from './webhook-delivery.js';
 import { arrayify, id, normalizeEmail } from './util.js';
 
@@ -276,6 +276,14 @@ app.get('/readyz', async (req, reply) => {
 
 app.get('/', async (_req, reply) => {
   reply.type('text/html').send(renderLandingPage());
+});
+
+app.get('/favicon.ico', async (_req, reply) => {
+  reply.header('cache-control', 'public, max-age=86400').type('image/svg+xml').send(renderFaviconSvg());
+});
+
+app.get('/favicon.svg', async (_req, reply) => {
+  reply.header('cache-control', 'public, max-age=86400').type('image/svg+xml').send(renderFaviconSvg());
 });
 
 app.get('/docs', async (_req, reply) => {

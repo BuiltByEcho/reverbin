@@ -3,6 +3,10 @@ const REQUEST_ACCESS_HREF = 'mailto:hello@builtbyecho.com?subject=Reverbin%20acc
 const faviconSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="72" fill="#050606"/><path d="M148 383V129H292C364 129 410 169 410 231C410 292 365 330 292 330H148" fill="none" stroke="#F4F4F2" stroke-width="52" stroke-linecap="round" stroke-linejoin="round"/><path d="M286 330L394 432" fill="none" stroke="#F4F4F2" stroke-width="52" stroke-linecap="round"/><path d="M190 228H289C327 228 351 245 351 271C351 297 327 313 289 313H190" fill="none" stroke="#B9FF2D" stroke-width="32" stroke-linecap="round"/><circle cx="394" cy="432" r="16" fill="#B9FF2D"/></svg>`;
 const faviconHref = `data:image/svg+xml,${encodeURIComponent(faviconSvg)}`;
 
+export function renderFaviconSvg() {
+  return faviconSvg;
+}
+
 function reverbinMarkSvg(className = 'brand-mark') {
   return `<svg class="${className}" viewBox="0 0 512 512" aria-hidden="true">
     <rect width="512" height="512" rx="72" fill="#050606"/>
