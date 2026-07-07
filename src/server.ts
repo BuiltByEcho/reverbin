@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import Fastify, { type FastifyReply, type FastifyRequest } from 'fastify';
 import cors from '@fastify/cors';
 import formbody from '@fastify/formbody';
@@ -17,6 +18,7 @@ const TENANT_ID = process.env.DEFAULT_TENANT_ID ?? 'ten_default';
 const DEFAULT_AGENT_ID = process.env.DEFAULT_AGENT_ID ?? 'agt_default';
 const PORT = Number(process.env.PORT ?? 8797);
 const HOST = process.env.HOST ?? '127.0.0.1';
+const LLMS_TXT_PATH = new URL('../../llms.txt', import.meta.url);
 
 const app = Fastify({ logger: true });
 await app.register(cors, { origin: true });
@@ -284,6 +286,11 @@ app.get('/favicon.ico', async (_req, reply) => {
 
 app.get('/favicon.svg', async (_req, reply) => {
   reply.header('cache-control', 'public, max-age=86400').type('image/svg+xml').send(renderFaviconSvg());
+});
+
+app.get('/llms.txt', async (_req, reply) => {
+  const body = await readFile(LLMS_TXT_PATH, 'utf8');
+  reply.header('cache-control', 'public, max-age=300').type('text/plain; charset=utf-8').send(body);
 });
 
 app.get('/docs', async (_req, reply) => {

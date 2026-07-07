@@ -1,30 +1,100 @@
 # Reverbin
 
-Communication infrastructure for autonomous agents: real inboxes, signed webhooks, threaded conversations, delivery logs, and policy guardrails on production email rails.
+Communication infrastructure for autonomous agents.
 
-Live site: https://reverbin.com
-API base URL: https://api.reverbin.com
+Reverbin gives agents real email inboxes, threaded conversations, signed webhooks, delivery logs, policy guardrails, and an operator dashboard on production email rails.
 
-## What is included now
+- Live site: https://reverbin.com
+- API base URL: https://api.reverbin.com
+- API reference: [`docs/API.md`](docs/API.md)
+- Human quickstart: [`docs/QUICKSTART.md`](docs/QUICKSTART.md)
+- Agent integration guide: [`docs/AGENTS.md`](docs/AGENTS.md)
+- Agent-readable index: [`llms.txt`](llms.txt)
 
-- Fastify TypeScript API
-- Public Reverbin landing page and app-token protected operational dashboard
-- Postgres schema/migrations
-- Redis/BullMQ webhook worker
-- Agent inbox CRUD
-- Inbound provider webhook normalization endpoint
-- Thread/message storage
-- Deterministic policy engine
-- Frictionless default sends/replies with risk flags retained for audit
-- Optional approval queue for explicitly configured high-risk policies
-- Agent webhook subscriptions and delivery logs
-- Mock outbound provider for safe local bootstrapping
-- Resend inbound/outbound adapter hooks
-- Audit logs
-- systemd-ready deploy files
-- Brand direction and SVG drafts in [`brand/`](brand/)
+## What Reverbin is for
 
-## Local setup
+Agents often need to touch normal human workflows: support, onboarding, billing, vendor follow-up, verification, and escalation. Those workflows still happen over email.
+
+Reverbin gives each agent an addressable inbox and gives the application a small control plane around it:
+
+1. Create an inbox for an agent.
+2. Receive real inbound email.
+3. Store the thread and messages.
+4. Notify the agent runtime through signed webhooks.
+5. Let the agent fetch context and reply.
+6. Keep delivery logs, audit rows, and policy decisions for humans.
+
+## Current capabilities
+
+- Fastify TypeScript API.
+- Public Reverbin landing page.
+- App-token protected operational dashboard at `/dashboard`.
+- Postgres-backed inboxes, threads, messages, policies, webhooks, delivery logs, approvals, and audit logs.
+- Redis/BullMQ worker for queued webhook delivery.
+- Resend inbound/outbound provider integration.
+- Mock provider for local development.
+- TypeScript client exported as `ReverbinClient`.
+- Frictionless default replies with risk flags retained for audit.
+- Optional approval policies for higher-risk workflows.
+
+## Five-minute agent flow
+
+```ts
+import { ReverbinClient } from '@builtbyecho/reverbin';
+
+const reverbin = new ReverbinClient({
+  baseUrl: process.env.REVERBIN_BASE_URL ?? 'https://api.reverbin.com',
+  apiKey: process.env.REVERBIN_API_KEY,
+});
+
+const inbox = await reverbin.inboxes.create({
+  email_address: 'agent@agents.reverbin.com',
+  display_name: 'Support Agent',
+});
+
+await reverbin.webhooks.create({
+  url: 'https://agent.example.com/reverbin/webhook',
+  events: ['email.received', 'email.sent'],
+  secret: process.env.REVERBIN_WEBHOOK_SECRET,
+});
+```
+
+After inbound email arrives, fetch the thread and reply:
+
+```ts
+const thread = await reverbin.threads.get('thr_123');
+
+await reverbin.threads.reply(thread.id, {
+  text: 'Thanks — I can help with that.',
+});
+```
+
+## API shape
+
+All public API routes require bearer auth:
+
+```txt
+Authorization: Bearer $REVERBIN_API_KEY
+```
+
+Core routes:
+
+```txt
+POST /v1/inboxes
+GET  /v1/inboxes
+GET  /v1/inboxes/:id
+GET  /v1/inboxes/:id/threads
+GET  /v1/threads/:id
+POST /v1/threads/:id/reply
+POST /v1/webhooks
+GET  /v1/webhooks
+GET  /v1/webhook-deliveries
+GET  /v1/audit-logs
+```
+
+See [`docs/API.md`](docs/API.md) for request/response examples.
+
+## Local development
 
 ```sh
 cp .env.example .env
@@ -33,55 +103,41 @@ npm run migrate
 npm run dev
 ```
 
-Health:
+Health check:
 
 ```sh
 curl http://127.0.0.1:8797/health
 ```
 
-Authenticated API calls require:
+Run tests:
 
-```txt
-Authorization: Bearer $ECHO_EMAIL_API_KEY
+```sh
+npm run check
 ```
 
-The operational dashboard is app-token protected:
+## Dashboard access
+
+The operational dashboard is app-token protected.
 
 - Browser login: `GET /dashboard/login`, then enter `DASHBOARD_TOKEN`.
 - Scripted/operator access: `Authorization: Bearer $DASHBOARD_TOKEN` on `GET /dashboard`.
-- If `DASHBOARD_TOKEN` is unset, dashboard auth falls back to `ECHO_EMAIL_API_KEY`.
+- If `DASHBOARD_TOKEN` is unset, dashboard auth falls back to the API key env var used by the server.
 
-## Five-minute agent flow
+## Webhook signing
 
-1. `POST /v1/inboxes` creates an agent inbox with a frictionless default policy.
-2. `POST /internal/provider/inbound` or the Resend inbound webhook receives provider JSON.
-3. Reverbin stores the thread/message and emits `email.received` to subscribed webhooks.
-4. `GET /v1/inboxes/:id/threads` shows stored threads.
-5. `POST /v1/threads/:id/reply` sends immediately unless the inbox policy explicitly blocks or requires approval.
-6. Successful sends emit `email.sent` to subscribed webhooks and write audit/message rows.
+Agent webhooks are signed with HMAC-SHA256.
 
-## API docs and SDK
+The signature header is:
 
-- API reference: [`docs/API.md`](docs/API.md)
-- TypeScript client: `ReverbinClient` exported from this package after `npm run build`
-- Agent example: [`examples/hermes-agent.ts`](examples/hermes-agent.ts)
-
-```ts
-import { ReverbinClient } from '@builtbyecho/reverbin';
-
-const reverbin = new ReverbinClient({
-  baseUrl: process.env.REVERBIN_BASE_URL,
-  apiKey: process.env.REVERBIN_API_KEY,
-});
-
-const inbox = await reverbin.inboxes.create({
-  email_address: 'agent@agents.reverbin.com',
-});
+```txt
+x-echo-email-signature: sha256=<hmac_hex_digest>
 ```
 
-## VPS deploy shape
+The HMAC input is the raw JSON request body. The secret is the `secret` value supplied when creating the webhook endpoint.
 
-Current live runtime paths retain the original service name for continuity:
+## Production deploy shape
+
+The live runtime currently keeps the original service path/name for continuity:
 
 ```txt
 /opt/agent-email-layer
@@ -97,13 +153,13 @@ agent-email-layer.service
 agent-email-layer-webhook-worker.service
 ```
 
-Default listener is `127.0.0.1:8797` for Caddy reverse proxy.
+Default listener is `127.0.0.1:8797` behind Caddy.
 
 ## Safety defaults
 
-- Resend provider by default after DNS/domain verification
-- reply-only policy supported as an opt-in constraint
-- first-contact approvals supported only when explicitly enabled
-- no raw secrets in repo/docs
-- low send limits by default
-- audit everything
+- No raw secrets in repo/docs.
+- API keys should live in environment variables or an agent secret store.
+- Default policy allows normal replies immediately but records risk flags.
+- Approval workflows are opt-in policy constraints, not the default UX.
+- Webhook endpoint secrets are stored server-side and never returned by list routes.
+- Delivery logs and audit logs are first-class operational surfaces.
