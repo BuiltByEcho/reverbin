@@ -8,7 +8,7 @@ export function renderFaviconSvg() {
 }
 
 function reverbinMarkSvg(className = 'brand-mark') {
-  return `<svg class="${className}" viewBox="0 0 512 512" aria-hidden="true">
+  return `<svg class="${className}" viewBox="0 0 512 512" aria-hidden="true" focusable="false">
     <rect width="512" height="512" rx="72" fill="#050606"/>
     <path d="M106 263C106 180 174 112 258 112C340 112 405 174 413 253" fill="none" stroke="#B9FF2D" stroke-opacity=".82" stroke-width="12" stroke-linecap="round"/>
     <path d="M410 280C396 354 334 403 258 403C177 403 112 344 106 267" fill="none" stroke="#B9FF2D" stroke-opacity=".42" stroke-width="12" stroke-linecap="round"/>
@@ -206,7 +206,7 @@ export function renderLandingPage() {
     .button svg { width: 16px; height: 16px; }
     .hero {
       display: grid;
-      grid-template-columns: minmax(560px, .82fr) minmax(560px, 1.18fr);
+      grid-template-columns: minmax(0, .9fr) minmax(440px, 1.1fr);
       align-items: center;
       gap: clamp(58px, 6vw, 124px);
       min-height: calc(100vh - 72px);
@@ -1107,7 +1107,7 @@ export function renderLandingPage() {
         <div class="hero-actions">
           <a class="button primary" href="${REQUEST_ACCESS_HREF}">
             Request access
-            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h13m-5-5 5 5-5 5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M5 12h13m-5-5 5 5-5 5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </a>
           <a class="button" href="/docs">Read API docs</a>
         </div>
@@ -1124,7 +1124,7 @@ export function renderLandingPage() {
           <span class="relay-status">online</span>
         </div>
         <div class="relay-core">
-          <svg class="network" viewBox="0 0 520 300" fill="none" aria-hidden="true">
+          <svg class="network" viewBox="0 0 520 300" fill="none" aria-hidden="true" focusable="false">
             <path d="M16 58h112l54 50h92l68-72h162" stroke="rgba(189,230,211,.45)" stroke-width="1.4"/>
             <path d="M20 150h160l36-34h86l40 34h158" stroke="rgba(185,255,45,.8)" stroke-width="1.4"/>
             <path d="M28 244h126l62-58h82l58 58h132" stroke="rgba(189,230,211,.38)" stroke-width="1.4"/>
@@ -1146,7 +1146,7 @@ export function renderLandingPage() {
             <code>agent@agents.reverbin.com</code>
             <span>Inbound mail lands as a stored thread and signed webhook event.</span>
           </div>
-          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
             <path d="M4 6h16v12H4z" stroke="currentColor" stroke-linejoin="round"/>
             <path d="m4 7 8 6 8-6" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
@@ -1377,22 +1377,22 @@ const inbox = await reverbin.inboxes.create({
       </div>
       <div class="guardrail-grid">
         <article class="guardrail">
-          <span class="guardrail-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3 5 6v5c0 4.6 2.8 8.3 7 10 4.2-1.7 7-5.4 7-10V6l-7-3Z" stroke="currentColor" stroke-linejoin="round"/><path d="m9 12 2 2 4-5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          <span class="guardrail-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M12 3 5 6v5c0 4.6 2.8 8.3 7 10 4.2-1.7 7-5.4 7-10V6l-7-3Z" stroke="currentColor" stroke-linejoin="round"/><path d="m9 12 2 2 4-5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
           <h3>Signed webhooks</h3>
           <p>Every subscribed delivery can be verified from raw JSON and the endpoint secret.</p>
         </article>
         <article class="guardrail">
-          <span class="guardrail-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 5h14v5H5zM5 14h14v5H5z" stroke="currentColor" stroke-linejoin="round"/><path d="M8 7.5h.01M8 16.5h.01" stroke="currentColor" stroke-linecap="round"/></svg></span>
+          <span class="guardrail-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M5 5h14v5H5zM5 14h14v5H5z" stroke="currentColor" stroke-linejoin="round"/><path d="M8 7.5h.01M8 16.5h.01" stroke="currentColor" stroke-linecap="round"/></svg></span>
           <h3>Delivery logs</h3>
           <p>Webhook attempts, failures, and delivered timestamps are retained for debugging.</p>
         </article>
         <article class="guardrail">
-          <span class="guardrail-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 7h10M7 12h10M7 17h6" stroke="currentColor" stroke-linecap="round"/><path d="M5 3h14a1 1 0 0 1 1 1v16l-3-2-3 2-3-2-3 2-3-2-3 2V4a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-linejoin="round"/></svg></span>
+          <span class="guardrail-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M7 7h10M7 12h10M7 17h6" stroke="currentColor" stroke-linecap="round"/><path d="M5 3h14a1 1 0 0 1 1 1v16l-3-2-3 2-3-2-3 2-3-2-3 2V4a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-linejoin="round"/></svg></span>
           <h3>Audit trails</h3>
           <p>Policy decisions, sends, approvals, and inbound events stay attached to records.</p>
         </article>
         <article class="guardrail">
-          <span class="guardrail-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 12h16M12 4v16" stroke="currentColor" stroke-linecap="round"/><path d="M7 7h10v10H7z" stroke="currentColor" stroke-linejoin="round"/></svg></span>
+          <span class="guardrail-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M4 12h16M12 4v16" stroke="currentColor" stroke-linecap="round"/><path d="M7 7h10v10H7z" stroke="currentColor" stroke-linejoin="round"/></svg></span>
           <h3>Policy knobs</h3>
           <p>Reply-only, attachment, link, domain, recipient, and approval behavior can be configured per inbox.</p>
         </article>

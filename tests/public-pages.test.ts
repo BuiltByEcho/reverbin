@@ -21,6 +21,8 @@ test('landing page presents Reverbin as agent communication infrastructure', () 
   assert.match(html, /#B9FF2D/);
   assert.match(html, /rel="canonical" href="https:\/\/reverbin\.com\/"/);
   assert.match(html, /property="og:title" content="Reverbin - Communication infrastructure for autonomous agents"/);
+  assert.equal(Array.from(html.matchAll(/<svg[^>]*aria-hidden="true"[^>]*>/g)).every((match) => match[0].includes('focusable="false"')), true);
+  assert.equal(html.includes('proces...KEY'), false);
   assert.equal(html.includes('#B8734A'), false);
   assert.equal(html.includes('copper'), false);
   assert.equal(html.includes('MVP'), false);
