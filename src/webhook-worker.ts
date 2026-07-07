@@ -81,6 +81,14 @@ async function deliver(job: Job<{ delivery_id: string }>) {
 }
 
 const worker = new Worker(WEBHOOK_DELIVERY_QUEUE, deliver, { connection });
+const SHUTDOWN_TIMEOUT_MS = 10_000;
+let shuttingDown = false;
+
+function timeoutAfter(ms: number) {
+  return new Promise<void>((resolve) => {
+    setTimeout(resolve, ms).unref();
+  });
+}
 
 worker.on('completed', (job) => {
   console.log(`webhook delivery completed: ${job.data.delivery_id}`);
@@ -91,13 +99,21 @@ worker.on('failed', (job, error) => {
 });
 
 async function shutdown() {
-  await worker.close();
+  if (shuttingDown) return;
+  shuttingDown = true;
+  await Promise.race([worker.close(), timeoutAfter(SHUTDOWN_TIMEOUT_MS)]);
   await pool.end();
 }
 
 process.on('SIGTERM', () => {
-  shutdown().then(() => process.exit(0), () => process.exit(1));
+  shutdown().then(() => process.exit(0), (error) => {
+    console.warn(`webhook worker shutdown error: ${error instanceof Error ? error.message : 'unknown error'}`);
+    process.exit(1);
+  });
 });
 process.on('SIGINT', () => {
-  shutdown().then(() => process.exit(0), () => process.exit(1));
+  shutdown().then(() => process.exit(0), (error) => {
+    console.warn(`webhook worker shutdown error: ${error instanceof Error ? error.message : 'unknown error'}`);
+    process.exit(1);
+  });
 });
