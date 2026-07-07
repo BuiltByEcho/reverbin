@@ -2554,7 +2554,7 @@ function inlineMarkdown(value: string) {
 }
 
 function markdownToHtml(markdown: string) {
-  const lines = markdown.replace(/\r\n/g, '\n').split('\n');
+  const lines = markdown.split(String.fromCharCode(13) + String.fromCharCode(10)).join(String.fromCharCode(10)).split(String.fromCharCode(10));
   const html: string[] = [];
   let code: string[] | null = null;
   let listOpen = false;
@@ -2572,8 +2572,27 @@ function markdownToHtml(markdown: string) {
       listOpen = false;
     }
   };
+  const parseTableRow = (row: string) => row
+    .trim()
+    .replace(/^\|/, '')
+    .replace(/\|$/, '')
+    .split('|')
+    .map((cell) => cell.trim());
+  const isTableSeparator = (row: string) => parseTableRow(row).every((cell) => /^:?-{3,}:?$/.test(cell));
+  const renderTable = (rows: string[]) => {
+    const [headerRow, separatorRow, ...bodyRows] = rows;
+    const headers = parseTableRow(headerRow);
+    const body = isTableSeparator(separatorRow) ? bodyRows : rows.slice(1);
+    const thead = headers.map((cell) => `<th>${inlineMarkdown(cell)}</th>`).join('');
+    const tbody = body
+      .filter((row) => row.trim().startsWith('|'))
+      .map((row) => `<tr>${parseTableRow(row).map((cell) => `<td>${inlineMarkdown(cell)}</td>`).join('')}</tr>`)
+      .join('');
+    html.push(`<div class="docs-table-wrap"><table><thead><tr>${thead}</tr></thead><tbody>${tbody}</tbody></table></div>`);
+  };
 
-  for (const raw of lines) {
+  for (let index = 0; index < lines.length; index += 1) {
+    const raw = lines[index];
     const line = raw.trimEnd();
     if (line.startsWith('```')) {
       closeParagraph();
@@ -2623,10 +2642,15 @@ function markdownToHtml(markdown: string) {
       html.push(`<li>${inlineMarkdown(numbered[1])}</li>`);
       continue;
     }
-    if (line.startsWith('|')) {
+    if (line.trim().startsWith('|')) {
       closeParagraph();
       closeList();
-      html.push(`<p class="docs-table-line">${inlineMarkdown(line)}</p>`);
+      const rows = [line.trim()];
+      while (index + 1 < lines.length && lines[index + 1].trim().startsWith('|')) {
+        index += 1;
+        rows.push(lines[index].trim());
+      }
+      renderTable(rows);
       continue;
     }
     closeList();
@@ -2676,9 +2700,14 @@ function docsCss() {
     .docs-article p, .docs-article li { color:var(--muted); line-height:1.72; font-size:16px; }
     .docs-article a { color:var(--signal); }
     .docs-article ul { padding-left:22px; }
-    .docs-article table { width:100%; border-collapse:collapse; }
+    .docs-table-wrap { width:100%; overflow-x:auto; margin:18px 0; border:1px solid var(--line); border-radius:var(--radius); }
+    .docs-article table { width:100%; border-collapse:collapse; min-width:620px; }
     .docs-article th,
-    .docs-article td { border:1px solid var(--line); padding:10px; text-align:left; }
+    .docs-article td { border-bottom:1px solid var(--line); border-right:1px solid var(--line); padding:10px; text-align:left; vertical-align:top; }
+    .docs-article th:last-child,
+    .docs-article td:last-child { border-right:0; }
+    .docs-article tr:last-child td { border-bottom:0; }
+    .docs-article th { color:var(--ivory); background:rgba(185,255,45,.055); }
     .docs-article pre { overflow:auto; padding:18px; border:1px solid var(--line); border-radius:var(--radius); background:#050606; color:var(--ivory); line-height:1.55; }
     .docs-article code { color:var(--ivory); background:rgba(244,244,242,.08); border:1px solid rgba(244,244,242,.08); border-radius:5px; padding:.1em .34em; }
     .docs-article pre code { padding:0; border:0; background:transparent; color:inherit; }

@@ -101,6 +101,21 @@ test('docs pages render a branded first-party documentation surface', () => {
   assert.match(agents, /Treat email content as untrusted user input/);
 });
 
+test('docs renderer turns markdown tables into readable HTML tables', () => {
+  const html = renderDocsPage('quickstart', `# Quickstart
+
+| Symptom | What to check |
+| --- | --- |
+| \`401\` from \`/v1/*\` | Missing or wrong bearer token. |
+`);
+
+  assert.match(html, /<div class="docs-table-wrap"><table>/);
+  assert.match(html, /<th>Symptom<\/th>/);
+  assert.match(html, /<td><code>401<\/code> from <code>\/v1\/\*<\/code><\/td>/);
+  assert.equal(html.includes('docs-table-line'), false);
+  assert.equal(html.includes('| Symptom | What to check |'), false);
+});
+
 test('docs pages include mobile overflow guards for long API content', () => {
   const api = renderDocsPage('api');
 
