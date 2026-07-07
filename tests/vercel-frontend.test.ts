@@ -85,7 +85,8 @@ test('default frontend build writes .vercel/output and stale-output-directory fa
     assert.equal(config.version, 3);
     assert.match(JSON.stringify(config.routes), /api\.reverbin\.com/);
     assert.match(readFileSync(indexPath, 'utf8'), /user@reverbin\.com/);
-    assert.match(readFileSync(fallbackEntrypoint, 'utf8'), /createServer/);
+    assert.match(readFileSync(fallbackEntrypoint, 'utf8'), /import Fastify from 'fastify'/);
+    assert.match(readFileSync(fallbackEntrypoint, 'utf8'), /fastify\.listen/);
     assert.match(readFileSync(fallbackEntrypoint, 'utf8'), /apiBase = 'https:\/\/api\.reverbin\.com'/);
   } finally {
     rmSync(new URL('../.vercel', import.meta.url), { recursive: true, force: true });

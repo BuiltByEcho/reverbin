@@ -51,12 +51,14 @@ async function writeStaticFiles(staticDir) {
 
 const fallbackEntrypoint = `import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
-import { createServer } from 'node:http';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import Fastify from 'fastify';
+
 const root = dirname(fileURLToPath(import.meta.url));
 const apiBase = 'https://api.reverbin.com';
+const fastify = Fastify({ logger: false });
 
 const files = new Map([
   ['/', ['index.html', 'text/html; charset=utf-8']],
@@ -68,42 +70,45 @@ const files = new Map([
   ['/sitemap.xml', ['sitemap.xml', 'application/xml; charset=utf-8']],
 ]);
 
-function redirect(res, location) {
-  res.writeHead(307, { Location: location, 'Cache-Control': 'no-store' });
-  res.end();
+function redirect(reply, location) {
+  return reply.code(307).header('Location', location).header('Cache-Control', 'no-store').send();
 }
 
-function notFound(res) {
-  res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
-  res.end('Not found');
+function notFound(reply) {
+  return reply.code(404).type('text/plain; charset=utf-8').send('Not found');
 }
 
-const server = createServer(async (req, res) => {
-  const url = new URL(req.url ?? '/', 'https://reverbin.com');
-  if (url.pathname === '/dashboard' || url.pathname.startsWith('/dashboard/')) return redirect(res, apiBase + url.pathname + url.search);
-  if (url.pathname.startsWith('/v1/')) return redirect(res, apiBase + url.pathname + url.search);
-  if (url.pathname === '/health' || url.pathname === '/readyz') return redirect(res, apiBase + url.pathname + url.search);
+fastify.all('/*', async (request, reply) => {
+  const url = new URL(request.url, 'https://reverbin.com');
+  if (url.pathname === '/dashboard' || url.pathname.startsWith('/dashboard/')) return redirect(reply, apiBase + url.pathname + url.search);
+  if (url.pathname.startsWith('/v1/')) return redirect(reply, apiBase + url.pathname + url.search);
+  if (url.pathname === '/health' || url.pathname === '/readyz') return redirect(reply, apiBase + url.pathname + url.search);
 
   const match = files.get(url.pathname);
-  if (!match) return notFound(res);
+  if (!match) return notFound(reply);
 
   const [relativePath, contentType] = match;
   const filePath = join(root, relativePath);
   try {
     const info = await stat(filePath);
-    res.writeHead(200, {
-      'Content-Type': contentType,
-      'Content-Length': String(info.size),
-      'Cache-Control': url.pathname === '/' || url.pathname === '/docs' ? 'public, max-age=0, must-revalidate' : 'public, max-age=3600',
-    });
-    createReadStream(filePath).pipe(res);
+    return reply
+      .header('Content-Type', contentType)
+      .header('Content-Length', String(info.size))
+      .header('Cache-Control', url.pathname === '/' || url.pathname === '/docs' ? 'public, max-age=0, must-revalidate' : 'public, max-age=3600')
+      .send(createReadStream(filePath));
   } catch {
-    notFound(res);
+    return notFound(reply);
   }
 });
 
 const port = Number(process.env.PORT || 3000);
-server.listen(port, () => console.log('Reverbin fallback frontend listening on ' + port));
+fastify.listen({ port, host: '0.0.0.0' }, (error) => {
+  if (error) {
+    fastify.log.error(error);
+    process.exit(1);
+  }
+  console.log('Reverbin Fastify fallback frontend listening on ' + port);
+});
 `;
 
 const { outputRoot, staticDir, writeBuildOutputConfig, writeFallbackServer } = parseOutDir();
