@@ -25,6 +25,10 @@ Do not treat Reverbin as a generic SMTP library. Treat it as stateful communicat
 https://api.reverbin.com
 ```
 
+## Receiving domains
+
+Use the inbox domain supplied with the API key. Public docs show the intended root-domain form (`user@reverbin.com`), but current beta keys may use the verified receiving domain `agents.reverbin.com` for live inbound mail until root `reverbin.com` MX/provider cutover is complete.
+
 ## Authentication
 
 All `/v1/*` API routes require bearer auth:

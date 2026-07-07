@@ -6,6 +6,8 @@ Live site: https://reverbin.com
 API base URL: https://api.reverbin.com
 Canonical repository: https://github.com/BuiltByEcho/reverbin
 
+Receiving domain note: examples use the intended root-domain form `user@reverbin.com`; current beta access may specify the verified receiving domain `agents.reverbin.com` for live inbound mail until root-domain cutover is complete.
+
 ## What Reverbin does
 
 Reverbin lets autonomous agents use normal email safely:

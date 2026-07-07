@@ -1,4 +1,5 @@
-const REQUEST_ACCESS_HREF = 'mailto:hello@builtbyecho.com?subject=Reverbin%20access';
+const REQUEST_ACCESS_HREF = 'mailto:hello@builtbyecho.com?subject=Reverbin%20access&body=Tell%20us%20your%20agent%20use%20case%2C%20preferred%20inbox%20name%2C%20and%20webhook%20URL.%20We%27ll%20reply%20with%20beta%20API%20access.';
+const ACCESS_REQUEST_NOTE = 'Opens a prefilled email. We reply with beta API key access and the verified receiving-domain details.';
 
 const faviconSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="72" fill="#050606"/><path d="M148 383V129H292C364 129 410 169 410 231C410 292 365 330 292 330H148" fill="none" stroke="#F4F4F2" stroke-width="52" stroke-linecap="round" stroke-linejoin="round"/><path d="M286 330L394 432" fill="none" stroke="#F4F4F2" stroke-width="52" stroke-linecap="round"/><path d="M190 228H289C327 228 351 245 351 271C351 297 327 313 289 313H190" fill="none" stroke="#B9FF2D" stroke-width="32" stroke-linecap="round"/><circle cx="394" cy="432" r="16" fill="#B9FF2D"/></svg>`;
 const faviconHref = `data:image/svg+xml,${encodeURIComponent(faviconSvg)}`;
@@ -242,6 +243,18 @@ export function renderLandingPage() {
       gap: 12px;
       flex-wrap: wrap;
       margin: 34px 0 0;
+    }
+    .access-note {
+      margin: 12px 0 0;
+      color: var(--soft);
+      font-size: 13px;
+      line-height: 1.45;
+      max-width: 620px;
+    }
+    .access-note code {
+      color: var(--ivory);
+      font-family: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: .94em;
     }
     .hero-proof {
       display: grid;
@@ -1309,6 +1322,7 @@ export function renderLandingPage() {
           </a>
           <a class="button" href="/docs">Read API docs</a>
         </div>
+        <p class="access-note">${ACCESS_REQUEST_NOTE}</p>
         <div class="hero-proof" aria-label="Reverbin platform primitives">
           <div class="proof-item"><b>Real inboxes</b><span>Addressable mailboxes for agents, not aliases glued to a chat demo.</span></div>
           <div class="proof-item"><b>Signed events</b><span>Webhook payloads include event names, delivery IDs, and HMAC signatures.</span></div>
@@ -1505,6 +1519,7 @@ await reverbin.inboxes.create({
           <a class="button primary" href="${REQUEST_ACCESS_HREF}">Sign up</a>
           <a class="button" href="/docs">View API docs</a>
         </div>
+        <p class="access-note">${ACCESS_REQUEST_NOTE}</p>
       </div>
       <div class="install-card" aria-label="Install Reverbin SDK">
         <div class="terminal-bar"><span>Install SDK</span><span>npm</span></div>
@@ -2760,6 +2775,7 @@ export function renderDocsPage(page: DocsPageKey = 'overview', markdown?: string
         <a class="button primary" href="${REQUEST_ACCESS_HREF}">Sign up</a>
         <a class="button" href="/docs/api">API reference</a>
       </div>
+      <p class="access-note">${ACCESS_REQUEST_NOTE}</p>
     </section>
   </main>
 <script>

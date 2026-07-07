@@ -1,6 +1,7 @@
 import * as assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { test } from 'node:test';
+import { renderDocsPage, renderLandingPage } from '../src/public-pages.js';
 
 const root = new URL('../', import.meta.url);
 const read = (path: string) => readFileSync(new URL(path, root), 'utf8');
@@ -13,6 +14,27 @@ function assertNoSecretExamples(content: string) {
   assert.doesNotMatch(content, /Bearer \*\*\*/);
   assert.doesNotMatch(content, /apiKey:\s*proces\.\.\.KEY/);
 }
+
+test('public signup CTAs explain the beta access request flow', () => {
+  const landing = renderLandingPage();
+  const docs = renderDocsPage('overview');
+
+  for (const html of [landing, docs]) {
+    assert.match(html, /Sign up/);
+    assert.match(html, /mailto:hello@builtbyecho\.com\?subject=Reverbin%20access/);
+    assert.match(html, /Opens a prefilled email/);
+    assert.match(html, /API key/);
+  }
+});
+
+test('builder docs disclose the current beta receiving domain without replacing root-domain examples', () => {
+  for (const path of ['docs/QUICKSTART.md', 'docs/API.md', 'docs/AGENTS.md', 'llms.txt']) {
+    const docs = read(path);
+    assert.match(docs, /user@reverbin\.com/);
+    assert.match(docs, /agents\.reverbin\.com/);
+    assert.match(docs, /beta receiving domain|verified receiving domain|receiving domain/i);
+  }
+});
 
 test('README gives humans a clear product map and docs entry points', () => {
   const readme = read('README.md');
@@ -42,7 +64,7 @@ test('human quickstart walks through the complete builder flow', () => {
   assert.match(docs, /REVERBIN_API_KEY/);
   assert.match(docs, /REVERBIN_WEBHOOK_SECRET/);
   assert.match(docs, /user@reverbin\.com/);
-  assert.equal(docs.includes('agents.reverbin.com'), false);
+  assert.match(docs, /agents\.reverbin\.com/);
   assertNoSecretExamples(docs);
 });
 
@@ -60,7 +82,7 @@ test('agent docs describe behavior contracts and safe handling', () => {
   assert.match(docs, /`202` with `approval_id` means pending approval/);
   assert.match(docs, /`403` means blocked by policy/);
   assert.match(docs, /user@reverbin\.com/);
-  assert.equal(docs.includes('agents.reverbin.com'), false);
+  assert.match(docs, /agents\.reverbin\.com/);
   assertNoSecretExamples(docs);
 });
 
@@ -81,7 +103,7 @@ test('API docs describe endpoints, events, approvals, and SDK usage', () => {
   assert.match(docs, /x-echo-email-signature/);
   assert.match(docs, /process\.env\.REVERBIN_API_KEY/);
   assert.match(docs, /user@reverbin\.com/);
-  assert.equal(docs.includes('agents.reverbin.com'), false);
+  assert.match(docs, /agents\.reverbin\.com/);
   assertNoSecretExamples(docs);
 });
 
@@ -98,7 +120,7 @@ test('llms.txt is present, compact, and exposed by the public server route', () 
   assert.match(llms, /x-echo-email-signature/);
   assert.match(llms, /approval\.required/);
   assert.match(llms, /user@reverbin\.com/);
-  assert.equal(llms.includes('agents.reverbin.com'), false);
+  assert.match(llms, /agents\.reverbin\.com/);
   assert.match(server, /app\.get\('\/llms\.txt'/);
   assert.match(server, /text\/plain; charset=utf-8/);
   assertNoSecretExamples(llms);
