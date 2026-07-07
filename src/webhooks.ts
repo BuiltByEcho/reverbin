@@ -1,6 +1,50 @@
 import { createHmac } from 'node:crypto';
+import { isIP } from 'node:net';
 
 export type WebhookEventType = 'email.received' | 'email.sent' | 'approval.required' | 'approval.rejected' | string;
+
+const ALLOWED_WEBHOOK_EVENTS = new Set(['*', 'email.received', 'email.sent', 'approval.required', 'approval.rejected']);
+
+export function isAllowedWebhookEvent(event: string) {
+  return ALLOWED_WEBHOOK_EVENTS.has(event);
+}
+
+function isLoopbackHost(hostname: string) {
+  return ['localhost', '127.0.0.1', '::1'].includes(hostname);
+}
+
+function isPrivateOrLocalHost(hostname: string) {
+  const host = hostname.toLowerCase();
+  if (host === 'localhost' || host.endsWith('.localhost')) return true;
+  const version = isIP(host);
+  if (version === 4) {
+    const parts = host.split('.').map(Number);
+    return parts[0] === 10
+      || parts[0] === 127
+      || (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31)
+      || (parts[0] === 192 && parts[1] === 168)
+      || (parts[0] === 169 && parts[1] === 254)
+      || parts[0] === 0;
+  }
+  if (version === 6) {
+    return host === '::1'
+      || host.startsWith('fc')
+      || host.startsWith('fd')
+      || host.startsWith('fe80:')
+      || host === '::';
+  }
+  return false;
+}
+
+export function isAllowedWebhookUrl(input: string) {
+  try {
+    const parsed = new URL(input);
+    if (parsed.protocol === 'https:') return !isPrivateOrLocalHost(parsed.hostname);
+    return parsed.protocol === 'http:' && isLoopbackHost(parsed.hostname);
+  } catch {
+    return false;
+  }
+}
 
 export type WebhookEndpointConfig = {
   id: string;

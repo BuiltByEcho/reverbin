@@ -2,6 +2,7 @@ import { Worker, type Job } from 'bullmq';
 import { pool, query } from './db.js';
 import { buildWebhookDeliveryHeaders } from './webhooks.js';
 import { WEBHOOK_DELIVERY_QUEUE, redisConnectionOptions } from './webhook-delivery.js';
+import { webhookDeliveryTimeoutMs } from './http-hardening.js';
 
 type DeliveryRow = {
   id: string;
@@ -55,6 +56,8 @@ async function deliver(job: Job<{ delivery_id: string }>) {
 
   const payload = JSON.stringify(delivery.payload_json);
   try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), webhookDeliveryTimeoutMs());
     const response = await fetch(delivery.url, {
       method: 'POST',
       headers: buildWebhookDeliveryHeaders({
@@ -64,7 +67,8 @@ async function deliver(job: Job<{ delivery_id: string }>) {
         secret: delivery.secret,
       }),
       body: payload,
-    });
+      signal: controller.signal,
+    }).finally(() => clearTimeout(timeout));
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     await markDelivery(delivery.id, 'delivered');
   } catch (error) {

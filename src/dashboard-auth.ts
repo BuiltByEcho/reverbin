@@ -37,8 +37,8 @@ export function parseDashboardCookies(cookieHeader: string | string[] | undefine
 }
 
 export function isDashboardRequestAuthorized(headers: DashboardHeaders, configuredToken: string | undefined) {
-  const token = configuredToken ?? '';
-  if (!token) return true;
+  const token = configuredToken?.trim() ?? '';
+  if (!token) return false;
 
   const auth = firstHeader(headers.authorization) ?? '';
   const bearer = auth.startsWith('Bearer ') ? auth.slice('Bearer '.length).trim() : '';

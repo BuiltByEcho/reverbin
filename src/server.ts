@@ -8,10 +8,11 @@ import { pool, query, tx } from './db.js';
 import { defaultPolicy, evaluatePolicy, type Policy } from './policy.js';
 import { getEmailProvider } from './providers.js';
 import { fetchResendReceivedEmail, normalizeResendReceivedEmail, verifySvixSignature } from './resend.js';
-import { buildWebhookDeliveryHeaders, buildWebhookEventPayload, shouldDeliverWebhookEvent, type WebhookEventType } from './webhooks.js';
+import { buildWebhookDeliveryHeaders, buildWebhookEventPayload, isAllowedWebhookEvent, isAllowedWebhookUrl, shouldDeliverWebhookEvent, type WebhookEventType } from './webhooks.js';
 import { clearDashboardCookie, dashboardCookie, dashboardTokenFromEnv, isDashboardRequestAuthorized } from './dashboard-auth.js';
 import { renderDashboardLoginPage, renderDashboardPage, renderDashboardUnavailablePage, renderDocsPage, renderFaviconSvg, renderLandingPage, type DocsPageKey } from './public-pages.js';
 import { buildWebhookDeliveryJob, redisConnectionOptions, WEBHOOK_DELIVERY_QUEUE, webhookDeliveryMode } from './webhook-delivery.js';
+import { configuredSecret, internalErrorPayload, isCorsOriginAllowed, webhookDeliveryTimeoutMs } from './http-hardening.js';
 import { arrayify, id, normalizeEmail } from './util.js';
 
 const TENANT_ID = process.env.DEFAULT_TENANT_ID ?? 'ten_default';
@@ -26,7 +27,11 @@ const DOCS_MARKDOWN_PATHS: Record<Exclude<DocsPageKey, 'overview'>, URL> = {
 };
 
 const app = Fastify({ logger: true });
-await app.register(cors, { origin: true });
+await app.register(cors, {
+  origin(origin, callback) {
+    callback(null, isCorsOriginAllowed(origin));
+  },
+});
 await app.register(formbody);
 
 let webhookQueue: Queue | null = null;
@@ -56,8 +61,11 @@ function dashboardCookieIsSecure() {
 }
 
 function requireApiKey(req: FastifyRequest, reply: FastifyReply, done: () => void) {
-  const configured = process.env.ECHO_EMAIL_API_KEY;
-  if (!configured) return done();
+  const configured = configuredSecret(process.env.ECHO_EMAIL_API_KEY);
+  if (!configured) {
+    reply.code(503).send({ error: 'api_auth_not_configured' });
+    return;
+  }
   const auth = req.headers.authorization ?? '';
   if (auth !== `Bearer ${configured}`) {
     reply.code(401).send({ error: 'unauthorized' });
@@ -67,8 +75,11 @@ function requireApiKey(req: FastifyRequest, reply: FastifyReply, done: () => voi
 }
 
 function requireWebhookSecret(req: FastifyRequest, reply: FastifyReply, done: () => void) {
-  const configured = process.env.ECHO_EMAIL_WEBHOOK_SECRET;
-  if (!configured) return done();
+  const configured = configuredSecret(process.env.ECHO_EMAIL_WEBHOOK_SECRET);
+  if (!configured) {
+    reply.code(503).send({ error: 'internal_webhook_auth_not_configured' });
+    return;
+  }
   const header = req.headers['x-echo-email-webhook-secret'];
   if (header !== configured) {
     reply.code(401).send({ error: 'invalid webhook secret' });
@@ -115,11 +126,14 @@ async function publishWebhookEvent(eventType: WebhookEventType, data: Record<str
     }
 
     try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), webhookDeliveryTimeoutMs());
       const response = await fetch(endpoint.url, {
         method: 'POST',
         headers: buildWebhookDeliveryHeaders({ eventType, deliveryId, payload: payloadJson, secret: endpoint.secret }),
         body: payloadJson,
-      });
+        signal: controller.signal,
+      }).finally(() => clearTimeout(timeout));
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       await query(
         `UPDATE webhook_deliveries SET status = 'delivered', attempts = attempts + 1, delivered_at = now(), last_error = NULL WHERE id = $1`,
@@ -217,8 +231,8 @@ const ReplySchema = z.object({
 });
 
 const WebhookEndpointSchema = z.object({
-  url: z.string().url(),
-  events: z.array(z.string().min(1)).default(['*']),
+  url: z.string().url().refine(isAllowedWebhookUrl, 'webhook url must use https, except loopback http for local testing'),
+  events: z.array(z.string().min(1).refine(isAllowedWebhookEvent, 'unsupported webhook event')).default(['*']),
   secret: z.string().min(8).optional(),
 });
 
@@ -327,7 +341,11 @@ app.post('/dashboard/login', async (req, reply) => {
   const body = req.body as { token?: string } | undefined;
   const configuredToken = dashboardTokenFromEnv();
   const candidate = body?.token ?? '';
-  if (!configuredToken || isDashboardRequestAuthorized({ authorization: `Bearer ${candidate}` }, configuredToken)) {
+  if (!configuredToken) {
+    reply.code(503).type('text/html').send(renderDashboardLoginPage('Dashboard auth is not configured.'));
+    return;
+  }
+  if (isDashboardRequestAuthorized({ authorization: `Bearer ${candidate}` }, configuredToken)) {
     reply.header('set-cookie', dashboardCookie(candidate, { secure: dashboardCookieIsSecure() }));
     reply.redirect('/dashboard');
     return;
@@ -599,8 +617,7 @@ app.setErrorHandler((error, req, reply) => {
     reply.code(400).send({ error: 'validation_error', details: error.issues });
     return;
   }
-  const message = error instanceof Error ? error.message : 'unknown error';
-  reply.code(500).send({ error: 'internal_error', message });
+  reply.code(500).send(internalErrorPayload());
 });
 
 async function main() {

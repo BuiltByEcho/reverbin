@@ -3,6 +3,8 @@ import { test } from 'node:test';
 import {
   buildWebhookDeliveryHeaders,
   buildWebhookEventPayload,
+  isAllowedWebhookEvent,
+  isAllowedWebhookUrl,
   shouldDeliverWebhookEvent,
   signWebhookPayload,
   type WebhookEndpointConfig,
@@ -29,6 +31,26 @@ test('builds stable agent webhook payloads', () => {
   assert.equal(payload.type, 'email.received');
   assert.equal(payload.created_at, '2026-07-06T17:30:00.000Z');
   assert.deepEqual(payload.data, { inbox_id: 'inb_1', message_id: 'msg_1' });
+});
+
+test('validates webhook destination URLs and event names before storing endpoints', () => {
+  assert.equal(isAllowedWebhookUrl('https://agent.example/hook'), true);
+  assert.equal(isAllowedWebhookUrl('http://127.0.0.1:9911/hook'), true);
+  assert.equal(isAllowedWebhookUrl('http://localhost:9911/hook'), true);
+  assert.equal(isAllowedWebhookUrl('http://agent.example/hook'), false);
+  assert.equal(isAllowedWebhookUrl('ftp://agent.example/hook'), false);
+  assert.equal(isAllowedWebhookUrl('https://localhost/hook'), false);
+  assert.equal(isAllowedWebhookUrl('https://127.0.0.1/hook'), false);
+  assert.equal(isAllowedWebhookUrl('https://10.0.0.5/hook'), false);
+  assert.equal(isAllowedWebhookUrl('https://172.20.0.5/hook'), false);
+  assert.equal(isAllowedWebhookUrl('https://192.168.1.10/hook'), false);
+  assert.equal(isAllowedWebhookUrl('https://169.254.169.254/latest/meta-data'), false);
+
+  assert.equal(isAllowedWebhookEvent('*'), true);
+  assert.equal(isAllowedWebhookEvent('email.received'), true);
+  assert.equal(isAllowedWebhookEvent('email.sent'), true);
+  assert.equal(isAllowedWebhookEvent('approval.required'), true);
+  assert.equal(isAllowedWebhookEvent('unknown.event'), false);
 });
 
 test('signs webhook payloads and builds delivery headers without leaking the secret', () => {

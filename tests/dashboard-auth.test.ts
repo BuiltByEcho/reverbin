@@ -3,8 +3,8 @@ import { test } from 'node:test';
 import { dashboardCookie, isDashboardRequestAuthorized, parseDashboardCookies } from '../src/dashboard-auth.js';
 
 test('dashboard auth accepts bearer token or dashboard cookie only when a token is configured', () => {
-  assert.equal(isDashboardRequestAuthorized({}, undefined), true);
-  assert.equal(isDashboardRequestAuthorized({}, ''), true);
+  assert.equal(isDashboardRequestAuthorized({}, undefined), false);
+  assert.equal(isDashboardRequestAuthorized({}, ''), false);
 
   assert.equal(isDashboardRequestAuthorized({}, 'secret-token'), false);
   assert.equal(isDashboardRequestAuthorized({ authorization: 'Bearer secret-token' }, 'secret-token'), true);

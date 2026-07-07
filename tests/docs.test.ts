@@ -118,12 +118,32 @@ test('agent quickstart example uses the SDK without hardcoded secrets', () => {
   assertNoSecretExamples(example);
 });
 
-test('webhook worker service is documented for queued delivery mode', () => {
-  assert.equal(existsSync(new URL('deploy/agent-email-layer-webhook-worker.service', root)), true);
-  const service = read('deploy/agent-email-layer-webhook-worker.service');
+test('systemd services include restart limits and sandbox hardening', () => {
   const env = read('.env.example');
-
-  assert.match(service, /Description=BuiltByEcho Agent Email Layer Webhook Worker/);
-  assert.match(service, /ExecStart=\/usr\/local\/bin\/node \/opt\/agent-email-layer\/dist\/src\/webhook-worker\.js/);
   assert.match(env, /WEBHOOK_DELIVERY_MODE=sync/);
+
+  for (const file of ['deploy/agent-email-layer.service', 'deploy/agent-email-layer-webhook-worker.service']) {
+    const service = read(file);
+
+    assert.match(service, /Restart=always/);
+    assert.match(service, /RestartSec=5/);
+    assert.match(service, /StartLimitIntervalSec=120/);
+    assert.match(service, /StartLimitBurst=20/);
+    assert.match(service, /TimeoutStopSec=30/);
+    assert.match(service, /LimitNOFILE=65536/);
+    assert.match(service, /MemoryMax=512M/);
+    assert.match(service, /NoNewPrivileges=true/);
+    assert.match(service, /PrivateTmp=true/);
+    assert.match(service, /PrivateDevices=true/);
+    assert.match(service, /ProtectSystem=full/);
+    assert.match(service, /ProtectHome=true/);
+    assert.match(service, /ProtectKernelTunables=true/);
+    assert.match(service, /ProtectKernelModules=true/);
+    assert.match(service, /ProtectControlGroups=true/);
+    assert.match(service, /RestrictSUIDSGID=true/);
+    assert.match(service, /LockPersonality=true/);
+    assert.match(service, /SystemCallArchitectures=native/);
+    assert.match(service, /RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6/);
+    assert.match(service, /ReadWritePaths=\/var\/lib\/agent-email-layer/);
+  }
 });

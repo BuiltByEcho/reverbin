@@ -2,6 +2,8 @@
 Description=BuiltByEcho Agent Email Layer Webhook Worker
 After=network-online.target postgresql.service redis-server.service agent-email-layer.service
 Wants=network-online.target
+StartLimitIntervalSec=120
+StartLimitBurst=20
 
 [Service]
 Type=simple
@@ -12,10 +14,23 @@ EnvironmentFile=/etc/agent-email-layer/env
 ExecStart=/usr/local/bin/node /opt/agent-email-layer/dist/src/webhook-worker.js
 Restart=always
 RestartSec=5
+TimeoutStartSec=30
+TimeoutStopSec=30
+KillSignal=SIGTERM
+LimitNOFILE=65536
+MemoryMax=512M
 NoNewPrivileges=true
 PrivateTmp=true
+PrivateDevices=true
 ProtectSystem=full
 ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+SystemCallArchitectures=native
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 ReadWritePaths=/var/lib/agent-email-layer
 
 [Install]
