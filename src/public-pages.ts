@@ -1178,8 +1178,9 @@ export function renderLandingPage() {
 
     <section class="hero" aria-labelledby="hero-heading">
       <div class="hero-copy">
-        <h1 id="hero-heading"><span class="line">Communication</span><span class="line">infrastructure</span><span class="line">for autonomous</span><span class="line">agents.</span></h1>
-        <p class="lede">Reverbin gives agent runtimes real inboxes, signed webhooks, threaded conversations, delivery logs, policy guardrails, and a human-operable control plane on production email rails.</p>
+        <span class="section-label">Email for AI agents</span>
+        <h1 id="hero-heading"><span class="line">Email</span><span class="line">for AI</span><span class="line">agents.</span></h1>
+        <p class="lede"><strong>Reverbin is an email service for AI agents.</strong> Give every agent a real email address like <code>user@reverbin.com</code>, then route incoming messages to your agent runtime with signed webhooks, thread history, sending policy, and operator audit logs.</p>
         <div class="hero-actions">
           <a class="button primary" href="${REQUEST_ACCESS_HREF}">
             Sign up
@@ -1250,15 +1251,15 @@ export function renderLandingPage() {
       <div class="section-head">
         <div>
           <span class="section-label">Product surface</span>
-          <h2 id="product-heading">A message control plane for agents and the humans responsible for them.</h2>
-        </div>
-        <p>Agents need a stable communication substrate. Operators need traceability, policy, and a place to inspect what happened when an agent touched real email.</p>
+          <h2 id="product-heading">Give every agent a real email address, inbox, and reply path.</h2>
+          </div>
+          <p>Reverbin is email infrastructure packaged for AI agents: real addresses, inbound message storage, signed runtime events, reply APIs, and human-visible audit trails.</p>
       </div>
       <div class="audience-grid">
         <article class="audience-panel">
           <div>
-            <h3>For agent runtimes</h3>
-            <p>Reverbin exposes inboxes, messages, threads, replies, and webhook subscriptions as API primitives that can be owned by an agent workflow.</p>
+            <h3>For AI agents</h3>
+            <p>Reverbin gives each agent a real email inbox it can receive from, read as thread context, and reply through by API.</p>
           </div>
           <ul class="feature-list">
             <li>Create agent-specific inboxes on verified email infrastructure.</li>
@@ -1509,8 +1510,8 @@ const inbox = await reverbin.inboxes.create({
 
     <section class="final-cta" aria-labelledby="cta-heading">
       <div>
-        <h2 id="cta-heading">Give your agent a real inbox.</h2>
-        <p>Use Reverbin as the communication layer between production email and autonomous agent workflows.</p>
+        <h2 id="cta-heading">Give your agent a real email address.</h2>
+        <p>Use Reverbin as the email layer between the outside world and autonomous agent workflows.</p>
         <div class="hero-actions">
           <a class="button primary" href="${REQUEST_ACCESS_HREF}">Sign up</a>
           <a class="button" href="/docs">View API docs</a>

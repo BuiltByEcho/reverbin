@@ -6,6 +6,9 @@ test('landing page presents Reverbin as agent communication infrastructure', () 
   const html = renderLandingPage();
 
   assert.match(html, /Reverbin/);
+  assert.match(html, /Email for AI agents/);
+  assert.match(html, /Reverbin is an email service for AI agents/);
+  assert.match(html, /Give every agent a real email address/);
   assert.match(html, /Communication infrastructure for autonomous agents/);
   assert.match(html, /user@reverbin\.com/);
   assert.match(html, /support@reverbin\.com/);
