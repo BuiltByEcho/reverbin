@@ -12,6 +12,7 @@ import { buildWebhookDeliveryHeaders, buildWebhookEventPayload, isAllowedWebhook
 import { clearDashboardCookie, dashboardCookie, dashboardTokenFromEnv, isDashboardRequestAuthorized } from './dashboard-auth.js';
 import { renderDashboardLoginPage, renderDashboardPage, renderDashboardUnavailablePage, renderDocsPage, renderFaviconSvg, renderLandingPage, type DocsPageKey } from './public-pages.js';
 import { buildWebhookDeliveryJob, redisConnectionOptions, WEBHOOK_DELIVERY_QUEUE, webhookDeliveryMode } from './webhook-delivery.js';
+import { normalizeSignupRequestInput, summarizeSignupVerification, type SignupRequestStatus, type SignupVerificationCheck } from './signup-verification.js';
 import { configuredSecret, internalErrorPayload, isCorsOriginAllowed, webhookDeliveryTimeoutMs } from './http-hardening.js';
 import { arrayify, id, normalizeEmail } from './util.js';
 
@@ -236,6 +237,29 @@ const WebhookEndpointSchema = z.object({
   secret: z.string().min(8).optional(),
 });
 
+const SignupRequestSchema = z.object({
+  requester_email: z.string().email(),
+  requester_name: z.string().optional(),
+  agent_use_case: z.string().min(8).max(2000),
+  preferred_inbox_name: z.string().min(1).max(80).optional(),
+  webhook_url: z.string().url().refine(isAllowedWebhookUrl, 'webhook url must use https, except loopback http for local testing').optional(),
+  notes: z.string().max(2000).optional(),
+});
+
+const SignupVerificationCheckSchema = z.object({
+  key: z.string().min(1),
+  label: z.string().min(1),
+  required: z.boolean(),
+  status: z.enum(['pending', 'passed', 'failed']),
+  evidence: z.string().max(1000).optional(),
+});
+
+const SignupRequestUpdateSchema = z.object({
+  status: z.enum(['pending', 'approved', 'rejected', 'provisioned']).optional(),
+  verification: z.array(SignupVerificationCheckSchema).optional(),
+  notes: z.string().max(2000).optional(),
+});
+
 type WebhookEndpointRow = {
   id: string;
   url: string;
@@ -360,17 +384,19 @@ app.get('/dashboard/logout', async (_req, reply) => {
 
 app.get('/dashboard', { preHandler: requireDashboardAuth }, async (_req, reply) => {
   try {
-    const [inboxes, messages, deliveries, audits] = await Promise.all([
+    const [inboxes, messages, deliveries, audits, signupRequests] = await Promise.all([
       query<any>('SELECT id, email_address, display_name, status, created_at FROM inboxes ORDER BY created_at DESC LIMIT 20'),
       query<any>('SELECT id, inbox_id, thread_id, direction, from_email, subject, created_at FROM messages ORDER BY created_at DESC LIMIT 20'),
       query<any>('SELECT id, endpoint_id, event_type, status, attempts, created_at, delivered_at FROM webhook_deliveries ORDER BY created_at DESC LIMIT 20'),
       query<any>('SELECT action, target_type, target_id, created_at FROM audit_logs ORDER BY created_at DESC LIMIT 30'),
+      query<any>('SELECT id, requester_email, preferred_inbox_name, status, verification_json, created_at FROM signup_requests ORDER BY created_at DESC LIMIT 20'),
     ]);
     reply.type('text/html').send(renderDashboardPage({
       inboxes: inboxes.rows,
       messages: messages.rows,
       deliveries: deliveries.rows,
       audits: audits.rows,
+      signupRequests: signupRequests.rows.map((row: any) => ({ ...row, verification_summary: summarizeSignupVerification(row.verification_json ?? []) })),
     }));
   } catch (error) {
     _req.log.error(error, 'dashboard database query failed');
@@ -381,6 +407,49 @@ app.get('/dashboard', { preHandler: requireDashboardAuth }, async (_req, reply) 
 
 app.register(async (privateRoutes) => {
   privateRoutes.addHook('preHandler', requireApiKey);
+
+  privateRoutes.post('/v1/signup-requests', async (req, reply) => {
+    const normalized = normalizeSignupRequestInput(SignupRequestSchema.parse(req.body));
+    const signupId = id('sgr');
+    const summary = summarizeSignupVerification(normalized.verification_json);
+    const result = await query(
+      `INSERT INTO signup_requests (id, tenant_id, requester_email, requester_name, agent_use_case, preferred_inbox_name, webhook_url, status, verification_json, notes)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10)
+       RETURNING *`,
+      [signupId, TENANT_ID, normalized.requester_email, normalized.requester_name ?? null, normalized.agent_use_case,
+        normalized.preferred_inbox_name ?? null, normalized.webhook_url ?? null, normalized.status,
+        JSON.stringify(normalized.verification_json), normalized.notes ?? null],
+    );
+    await audit('signup.requested', 'signup_request', signupId, { requester_email: normalized.requester_email, summary }, 'api');
+    reply.code(201).send({ ...result.rows[0], verification_summary: summary });
+  });
+
+  privateRoutes.get('/v1/signup-requests', async () => {
+    const result = await query('SELECT * FROM signup_requests ORDER BY created_at DESC LIMIT 100');
+    return { data: result.rows.map((row: any) => ({ ...row, verification_summary: summarizeSignupVerification(row.verification_json ?? []) })) };
+  });
+
+  privateRoutes.patch<{ Params: { id: string } }>('/v1/signup-requests/:id', async (req, reply) => {
+    const body = SignupRequestUpdateSchema.parse(req.body);
+    const existing = await query<any>('SELECT * FROM signup_requests WHERE id = $1', [req.params.id]);
+    if (existing.rowCount === 0) return reply.code(404).send({ error: 'signup request not found' });
+    const nextVerification = (body.verification ?? existing.rows[0].verification_json) as SignupVerificationCheck[];
+    const nextStatus = (body.status ?? existing.rows[0].status) as SignupRequestStatus;
+    const summary = summarizeSignupVerification(nextVerification);
+    const result = await query(
+      `UPDATE signup_requests
+       SET status = $2,
+           verification_json = $3::jsonb,
+           notes = COALESCE($4, notes),
+           updated_at = now(),
+           decided_at = CASE WHEN $2 IN ('approved', 'rejected', 'provisioned') THEN COALESCE(decided_at, now()) ELSE decided_at END
+       WHERE id = $1
+       RETURNING *`,
+      [req.params.id, nextStatus, JSON.stringify(nextVerification), body.notes ?? null],
+    );
+    await audit('signup.verification_updated', 'signup_request', req.params.id, { status: nextStatus, summary }, 'api');
+    return { ...result.rows[0], verification_summary: summary };
+  });
 
   privateRoutes.post('/v1/inboxes', async (req, reply) => {
     const body = InboxCreateSchema.parse(req.body);

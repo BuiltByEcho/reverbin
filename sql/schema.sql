@@ -145,6 +145,24 @@ CREATE TABLE IF NOT EXISTS webhook_deliveries (
   delivered_at timestamptz
 );
 
+CREATE TABLE IF NOT EXISTS signup_requests (
+  id text PRIMARY KEY,
+  tenant_id text NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  requester_email text NOT NULL,
+  requester_name text,
+  agent_use_case text NOT NULL,
+  preferred_inbox_name text,
+  webhook_url text,
+  status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected', 'provisioned')),
+  verification_json jsonb NOT NULL DEFAULT '[]'::jsonb,
+  notes text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  decided_at timestamptz
+);
+
+CREATE INDEX IF NOT EXISTS idx_signup_requests_status_created ON signup_requests(status, created_at DESC);
+
 CREATE TABLE IF NOT EXISTS api_keys (
   id text PRIMARY KEY,
   tenant_id text NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,

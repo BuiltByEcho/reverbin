@@ -1608,11 +1608,27 @@ export type DashboardAuditView = {
   created_at: Date | string;
 };
 
+export type DashboardSignupRequestView = {
+  id: string;
+  requester_email: string;
+  preferred_inbox_name: string | null;
+  status: string;
+  verification_summary?: {
+    required: number;
+    passed: number;
+    failed: number;
+    pending: number;
+    ready_to_provision: boolean;
+  };
+  created_at: Date | string;
+};
+
 export type DashboardPageData = {
   inboxes: DashboardInboxView[];
   messages: DashboardMessageView[];
   deliveries: DashboardDeliveryView[];
   audits: DashboardAuditView[];
+  signupRequests?: DashboardSignupRequestView[];
 };
 
 function formatDate(value: Date | string | null | undefined) {
@@ -1633,6 +1649,20 @@ function statusPill(status: string) {
 }
 
 function renderDashboardRows(data: DashboardPageData) {
+  const signupRequests = data.signupRequests ?? [];
+  const signupRows = signupRequests.length
+    ? signupRequests.map((row) => {
+        const summary = row.verification_summary;
+        const progress = summary ? `${summary.passed}/${summary.required} passed${summary.ready_to_provision ? ' · ready_to_provision' : ''}` : 'verification pending';
+        return `<tr>
+          <td><strong>${escapeHtml(row.requester_email)}</strong><span>${escapeHtml(row.preferred_inbox_name || 'no inbox requested')}</span></td>
+          <td>${statusPill(row.status)}</td>
+          <td><span class="mono">${escapeHtml(progress)}</span></td>
+          <td>${formatDate(row.created_at)}</td>
+        </tr>`;
+      }).join('')
+    : emptyRow('No signup requests yet. Capture beta access requests through POST /v1/signup-requests.', 4);
+
   const inboxRows = data.inboxes.length
     ? data.inboxes.map((row) => `<tr>
         <td><strong>${escapeHtml(row.email_address)}</strong><span>${escapeHtml(row.display_name || row.id)}</span></td>
@@ -1669,12 +1699,14 @@ function renderDashboardRows(data: DashboardPageData) {
       </tr>`).join('')
     : emptyRow('No audit activity yet. Inbound, send, policy, and approval events will appear here.', 4);
 
-  return { inboxRows, messageRows, deliveryRows, auditRows };
+  return { signupRows, inboxRows, messageRows, deliveryRows, auditRows };
 }
 
 export function renderDashboardPage(data: DashboardPageData) {
   const rows = renderDashboardRows(data);
+  const signupRequests = data.signupRequests ?? [];
   const totals = {
+    signupRequests: signupRequests.length,
     inboxes: data.inboxes.length,
     messages: data.messages.length,
     deliveries: data.deliveries.length,
@@ -1798,7 +1830,7 @@ export function renderDashboardPage(data: DashboardPageData) {
     }
     .metric-grid {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-columns: repeat(5, minmax(0, 1fr));
       gap: 10px;
       margin: 18px 0 28px;
     }
@@ -1974,6 +2006,7 @@ export function renderDashboardPage(data: DashboardPageData) {
     </section>
 
     <section class="metric-grid" aria-label="Dashboard totals">
+      <div class="metric"><span>Signup requests</span><b>${totals.signupRequests}</b></div>
       <div class="metric"><span>Inboxes</span><b>${totals.inboxes}</b></div>
       <div class="metric"><span>Messages</span><b>${totals.messages}</b></div>
       <div class="metric"><span>Deliveries</span><b>${totals.deliveries}</b></div>
@@ -1981,6 +2014,10 @@ export function renderDashboardPage(data: DashboardPageData) {
     </section>
 
     <section class="dashboard-grid">
+      <article class="panel">
+        <div class="panel-head"><h2>Signup requests</h2><span>Beta access queue</span></div>
+        <div class="table-wrap"><table><thead><tr><th>Requester</th><th>Status</th><th>Verification</th><th>Created</th></tr></thead><tbody>${rows.signupRows}</tbody></table></div>
+      </article>
       <article class="panel">
         <div class="panel-head"><h2>Inboxes</h2><span>Latest 20</span></div>
         <div class="table-wrap"><table><thead><tr><th>Email</th><th>Status</th><th>ID</th><th>Created</th></tr></thead><tbody>${rows.inboxRows}</tbody></table></div>
