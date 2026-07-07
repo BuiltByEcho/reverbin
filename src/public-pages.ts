@@ -1235,7 +1235,7 @@ export function renderLandingPage() {
         <div class="live-inbox-card" aria-label="Live inbox proof">
           <div>
             <span>Live inbox</span>
-            <code>dustin@reverbin.com</code>
+            <code>user@reverbin.com</code>
             <span>Inbound mail lands as a stored thread and signed webhook event.</span>
           </div>
           <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
@@ -1324,7 +1324,7 @@ export function renderLandingPage() {
   -H "Authorization: Bearer $REVERBIN_API_KEY" \\
   -H "content-type: application/json" \\
   -d '{
-    <span class="key">"email_address"</span>: "dustin@reverbin.com",
+    <span class="key">"email_address"</span>: "user@reverbin.com",
     <span class="key">"display_name"</span>: "Support Agent"
   }'</pre>
         </div>

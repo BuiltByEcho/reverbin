@@ -98,7 +98,7 @@ curl -X POST https://api.reverbin.com/v1/inboxes \
   -H "Authorization: Bearer $REVERBIN_API_KEY" \
   -H "content-type: application/json" \
   -d '{
-    "email_address": "dustin@reverbin.com",
+    "email_address": "user@reverbin.com",
     "display_name": "Support Agent"
   }'
 ```
@@ -108,7 +108,7 @@ Response:
 ```json
 {
   "id": "inb_...",
-  "email_address": "dustin@reverbin.com",
+  "email_address": "user@reverbin.com",
   "display_name": "Support Agent",
   "status": "active",
   "policy": {
@@ -197,7 +197,7 @@ Response:
       "id": "msg_...",
       "direction": "inbound",
       "from_email": "sender@example.com",
-      "to_json": ["dustin@reverbin.com"],
+      "to_json": ["user@reverbin.com"],
       "subject": "Hello",
       "text_body": "Can you help?"
     }

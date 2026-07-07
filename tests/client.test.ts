@@ -23,10 +23,10 @@ function installFetchStub(response: unknown, status = 200) {
 }
 
 test('client creates inboxes with bearer auth and JSON body', async () => {
-  const stub = installFetchStub({ id: 'inb_123', email_address: 'dustin@reverbin.com' }, 201);
+  const stub = installFetchStub({ id: 'inb_123', email_address: 'user@reverbin.com' }, 201);
   try {
     const client = new ReverbinClient({ baseUrl: 'https://api.reverbin.com/', apiKey: 'key_test' });
-    const inbox = await client.inboxes.create({ email_address: 'dustin@reverbin.com', display_name: 'Agent' });
+    const inbox = await client.inboxes.create({ email_address: 'user@reverbin.com', display_name: 'Agent' });
 
     assert.equal(inbox.id, 'inb_123');
     assert.equal(stub.calls.length, 1);
@@ -35,7 +35,7 @@ test('client creates inboxes with bearer auth and JSON body', async () => {
     assert.equal((stub.calls[0].init.headers as Record<string, string>).authorization, 'Bearer key_test');
     assert.equal((stub.calls[0].init.headers as Record<string, string>)['content-type'], 'application/json');
     assert.deepEqual(JSON.parse(String(stub.calls[0].init.body)), {
-      email_address: 'dustin@reverbin.com',
+      email_address: 'user@reverbin.com',
       display_name: 'Agent',
     });
   } finally {

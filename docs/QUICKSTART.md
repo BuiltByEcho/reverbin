@@ -66,7 +66,7 @@ const reverbin = new ReverbinClient({
 
 ```ts
 const inbox = await reverbin.inboxes.create({
-  email_address: 'support-dustin@reverbin.com',
+  email_address: 'user@reverbin.com',
   display_name: 'Support Agent',
 });
 

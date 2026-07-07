@@ -25,7 +25,7 @@ test('README gives humans a clear product map and docs entry points', () => {
   assert.match(readme, /Five-minute agent flow/);
   assert.match(readme, /Webhook signing/);
   assert.match(readme, /DASHBOARD_TOKEN/);
-  assert.match(readme, /dustin@reverbin\.com/);
+  assert.match(readme, /user@reverbin\.com/);
   assert.equal(readme.includes('agents.reverbin.com'), false);
   assertNoSecretExamples(readme);
 });
@@ -41,7 +41,7 @@ test('human quickstart walks through the complete builder flow', () => {
   assert.match(docs, /Troubleshooting/);
   assert.match(docs, /REVERBIN_API_KEY/);
   assert.match(docs, /REVERBIN_WEBHOOK_SECRET/);
-  assert.match(docs, /support-dustin@reverbin\.com/);
+  assert.match(docs, /user@reverbin\.com/);
   assert.equal(docs.includes('agents.reverbin.com'), false);
   assertNoSecretExamples(docs);
 });
@@ -59,7 +59,7 @@ test('agent docs describe behavior contracts and safe handling', () => {
   assert.match(docs, /`200` with `message_id` means sent/);
   assert.match(docs, /`202` with `approval_id` means pending approval/);
   assert.match(docs, /`403` means blocked by policy/);
-  assert.match(docs, /dustin@reverbin\.com/);
+  assert.match(docs, /user@reverbin\.com/);
   assert.equal(docs.includes('agents.reverbin.com'), false);
   assertNoSecretExamples(docs);
 });
@@ -80,7 +80,7 @@ test('API docs describe endpoints, events, approvals, and SDK usage', () => {
   assert.match(docs, /approval\.required/);
   assert.match(docs, /x-echo-email-signature/);
   assert.match(docs, /process\.env\.REVERBIN_API_KEY/);
-  assert.match(docs, /dustin@reverbin\.com/);
+  assert.match(docs, /user@reverbin\.com/);
   assert.equal(docs.includes('agents.reverbin.com'), false);
   assertNoSecretExamples(docs);
 });
@@ -97,7 +97,7 @@ test('llms.txt is present, compact, and exposed by the public server route', () 
   assert.match(llms, /Authorization: Bearer \$REVERBIN_API_KEY/);
   assert.match(llms, /x-echo-email-signature/);
   assert.match(llms, /approval\.required/);
-  assert.match(llms, /dustin@reverbin\.com/);
+  assert.match(llms, /user@reverbin\.com/);
   assert.equal(llms.includes('agents.reverbin.com'), false);
   assert.match(server, /app\.get\('\/llms\.txt'/);
   assert.match(server, /text\/plain; charset=utf-8/);
@@ -113,7 +113,7 @@ test('agent quickstart example uses the SDK without hardcoded secrets', () => {
   assert.match(example, /inboxes\.create/);
   assert.match(example, /threads\.reply/);
   assert.match(example, /webhooks\.create/);
-  assert.match(example, /dustin@reverbin\.com/);
+  assert.match(example, /user@reverbin\.com/);
   assert.equal(example.includes('agents.reverbin.com'), false);
   assertNoSecretExamples(example);
 });

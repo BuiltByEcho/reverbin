@@ -7,7 +7,7 @@ test('landing page presents Reverbin as agent communication infrastructure', () 
 
   assert.match(html, /Reverbin/);
   assert.match(html, /Communication infrastructure for autonomous agents/);
-  assert.match(html, /dustin@reverbin\.com/);
+  assert.match(html, /user@reverbin\.com/);
   assert.match(html, /support@reverbin\.com/);
   assert.equal(html.includes('agents.reverbin.com'), false);
   assert.match(html, /href="\/docs"/);
