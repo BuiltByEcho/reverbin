@@ -128,7 +128,7 @@ Output directory: leave blank / default
 Install command: npm install
 ```
 
-`vercel.json` encodes the build command. The build emits Vercel's native Build Output API directory at `.vercel/output/static`, so Vercel should not be pointed at `vercel-static`. Backend paths such as `/dashboard`, `/v1/*`, `/health`, and `/readyz` redirect to `https://api.reverbin.com`.
+Do not set Output Directory to `vercel-static` or any other folder in Project Settings. If a previous failed attempt saved `vercel-static`, clear that field under Vercel → Project → Settings → Build & Development Settings. `vercel.json` encodes the build command. The build emits Vercel's native Build Output API directory at `.vercel/output/static`; Vercel discovers that directory automatically when Output Directory is blank. Backend paths such as `/dashboard`, `/v1/*`, `/health`, and `/readyz` redirect to `https://api.reverbin.com`.
 
 To verify locally:
 
