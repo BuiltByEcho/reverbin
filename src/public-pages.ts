@@ -1802,7 +1802,9 @@ function renderMailNotice(notice?: string | null) {
   const label = notice === 'reply_sent' ? 'Reply sent'
     : notice === 'approval_pending' ? 'Reply queued for approval'
       : notice === 'thread_deleted' ? 'Thread deleted'
-        : notice;
+        : notice === 'threads_deleted' ? 'Selected messages deleted'
+          : notice === 'no_threads_selected' ? 'Select at least one message to delete'
+            : notice;
   return `<div class="mail-notice" role="status">${escapeHtml(label)}</div>`;
 }
 
@@ -1811,16 +1813,31 @@ function renderMailThreads(data: MailPageData) {
     return `<div class="mail-empty">No threads yet. New inbound messages will appear here.</div>`;
   }
   const selectedThreadId = data.selectedThreadId ?? data.threads[0]?.id;
-  return data.threads.map((thread) => {
+  const selectedInboxId = data.selectedInboxId ?? data.threads[0]?.inbox_id ?? '';
+  const rows = data.threads.map((thread) => {
     const selected = thread.id === selectedThreadId;
     const subject = thread.subject || '(no subject)';
-    return `<a class="mail-thread ${selected ? 'selected' : ''}" href="/mail?inbox_id=${encodeURIComponent(thread.inbox_id)}&thread_id=${encodeURIComponent(thread.id)}" aria-current="${selected ? 'true' : 'false'}">
-      <span class="mail-thread-top"><strong>${escapeHtml(thread.last_from_email || 'unknown sender')}</strong><time>${formatDate(thread.last_message_at)}</time></span>
-      <span class="mail-thread-subject">${escapeHtml(subject)}</span>
-      <span class="mail-thread-preview">${escapeHtml(thread.last_preview || 'No preview available')}</span>
-      <span class="mail-thread-meta">${escapeHtml(thread.last_direction || 'message')} · ${escapeHtml(String(thread.message_count ?? 0))} messages</span>
-    </a>`;
+    const href = `/mail?inbox_id=${encodeURIComponent(thread.inbox_id)}&thread_id=${encodeURIComponent(thread.id)}`;
+    return `<div class="mail-thread-row ${selected ? 'selected' : ''}">
+      <label class="mail-thread-select">
+        <input type="checkbox" name="thread_ids" value="${escapeHtml(thread.id)}" aria-label="Select thread ${escapeHtml(subject)}" />
+      </label>
+      <a class="mail-thread ${selected ? 'selected' : ''}" href="${href}" aria-current="${selected ? 'true' : 'false'}">
+        <span class="mail-thread-top"><strong>${escapeHtml(thread.last_from_email || 'unknown sender')}</strong><time>${formatDate(thread.last_message_at)}</time></span>
+        <span class="mail-thread-subject">${escapeHtml(subject)}</span>
+        <span class="mail-thread-preview">${escapeHtml(thread.last_preview || 'No preview available')}</span>
+        <span class="mail-thread-meta">${escapeHtml(thread.last_direction || 'message')} · ${escapeHtml(String(thread.message_count ?? 0))} messages · <span class="thread-open-label">Open thread</span></span>
+      </a>
+    </div>`;
   }).join('');
+  return `<form class="mail-bulk-actions" method="post" action="/mail/threads/delete">
+    <input type="hidden" name="inbox_id" value="${escapeHtml(selectedInboxId)}" />
+    <div class="bulk-action-bar" aria-label="Bulk message actions">
+      <span>Select messages to manage them together.</span>
+      <button class="mail-action danger" type="submit">Delete selected</button>
+    </div>
+    ${rows}
+  </form>`;
 }
 
 function renderMailMessages(data: MailPageData) {
@@ -1916,8 +1933,15 @@ export function renderMailPage(data: MailPageData) {
     .thread-list-head { position:sticky; top:0; z-index:2; padding:18px; border-bottom:1px solid var(--line); background:rgba(16,18,20,.96); }
     .thread-list-head h2 { margin:0; font-size:20px; }
     .thread-list-head p { margin:5px 0 0; color:var(--soft); font-size:13px; }
-    .mail-thread { display:grid; gap:6px; padding:15px 18px; border-bottom:1px solid rgba(244,244,242,.075); }
-    .mail-thread.selected { background:rgba(185,255,45,.08); box-shadow:inset 3px 0 0 var(--signal); }
+    .mail-bulk-actions { margin:0; }
+    .bulk-action-bar { position:sticky; top:76px; z-index:1; display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 14px; border-bottom:1px solid rgba(244,244,242,.075); background:rgba(16,18,20,.94); color:var(--soft); font-size:12px; }
+    .mail-thread-row { display:grid; grid-template-columns:44px minmax(0, 1fr); border-bottom:1px solid rgba(244,244,242,.075); }
+    .mail-thread-row.selected { background:rgba(185,255,45,.08); box-shadow:inset 3px 0 0 var(--signal); }
+    .mail-thread-select { display:flex; align-items:flex-start; justify-content:center; padding-top:18px; }
+    .mail-thread-select input { width:18px; height:18px; accent-color:var(--signal); cursor:pointer; }
+    .mail-thread { display:grid; gap:6px; padding:15px 18px 15px 0; }
+    .mail-thread.selected { background:transparent; box-shadow:none; }
+    .thread-open-label { color:var(--signal); font-weight:800; }
     .mail-thread-top { display:flex; justify-content:space-between; gap:12px; color:var(--ivory); font-size:14px; }
     .mail-thread time, .mail-thread-meta { color:var(--soft); font-size:12px; }
     .mail-thread-subject { font-weight:750; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }

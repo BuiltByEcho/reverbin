@@ -67,6 +67,17 @@ POST /v1/approvals/:id/approve      Approve and send a pending reply
 POST /v1/approvals/:id/reject       Reject a pending reply
 ```
 
+## Human mail console actions
+
+Forward and delete are human-operator mail console actions exposed through the authenticated `/mail` surface, not through the public agent API. Operators can:
+
+- open `/mail` to read tenant-scoped inbox threads;
+- select one or more thread checkboxes and use **Delete selected** to **Bulk delete selected threads**;
+- open a thread and use **Forward** to send a quoted copy through Reverbin;
+- open a thread and use **Delete** to soft-delete that single thread.
+
+Deletes are soft deletes (`threads.deleted_at`) so stored messages, audit rows, and provider history remain available to operators. Reverbin does not expose API routes for agents to bulk-delete or forward mail; agent runtimes should use the public read/reply/webhook lifecycle and let humans handle cleanup or forwarding in `/mail`.
+
 ## TypeScript integration
 
 ```ts

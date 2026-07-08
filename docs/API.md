@@ -424,6 +424,12 @@ Blocked response:
 }
 ```
 
+## Human mail console actions
+
+Forward, Delete, and Delete selected are available in `/mail` for authenticated human operators. These actions are tenant-scoped and use soft deletes for cleanup: selected threads get `threads.deleted_at` while messages and audit history remain stored.
+
+The public API intentionally keeps agents to read/reply/webhook operations. Agents should use `GET /v1/inboxes/:id/threads`, `GET /v1/threads/:id`, `POST /v1/threads/:id/reply`, webhook subscriptions, and approvals. Agents should not rely on hidden delete or forward endpoints; forwarding and bulk cleanup are operator controls in the mail console.
+
 ## Webhooks
 
 ### Create webhook endpoint

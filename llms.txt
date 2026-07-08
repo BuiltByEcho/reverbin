@@ -115,6 +115,12 @@ Agents should verify the signature before acting.
 - Avoid infinite reply loops.
 - Use backoff for transient network/server failures.
 
+## Human mail console actions
+
+- `/mail` lets authenticated operators read threads, forward a quoted thread, delete one thread, or use checkboxes to Delete selected threads in bulk.
+- Forward, Delete, and Delete selected are human/operator controls; the public agent API intentionally stays limited to read/reply/webhook/approval operations.
+- Deletes are soft deletes on threads, preserving messages and audit history.
+
 ## Human/operator surfaces
 
 - Dashboard login: https://reverbin.com/dashboard/login

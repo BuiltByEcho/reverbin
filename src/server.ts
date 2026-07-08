@@ -446,6 +446,11 @@ const ForwardMessageSchema = z.object({
   attachments: z.array(z.unknown()).optional(),
 });
 
+const BulkDeleteThreadsSchema = z.object({
+  inbox_id: z.string().optional(),
+  thread_ids: z.array(z.string().min(1)).default([]),
+});
+
 const WebhookEndpointSchema = z.object({
   url: z.string().url().refine(isAllowedWebhookUrl, 'webhook url must use https, except loopback http for local testing'),
   events: z.array(z.string().min(1).refine(isAllowedWebhookEvent, 'unsupported webhook event')).default(['*']),
@@ -477,6 +482,11 @@ const MailWebhookFormSchema = z.object({
 function formField(value: unknown) {
   if (Array.isArray(value)) return String(value[0] ?? '').trim();
   return String(value ?? '').trim();
+}
+
+function formMulti(value: unknown) {
+  const raw = Array.isArray(value) ? value : [value];
+  return raw.flatMap((item) => String(item ?? '').split(',')).map((item) => item.trim()).filter(Boolean);
 }
 
 function formBool(value: unknown) {
@@ -545,6 +555,14 @@ function parseMailForwardForm(body: unknown) {
     subject: formField(input.subject),
     text: formField(input.text),
     html: html || undefined,
+  });
+}
+
+function parseBulkDeleteForm(body: unknown) {
+  const input = (body ?? {}) as Record<string, unknown>;
+  return BulkDeleteThreadsSchema.parse({
+    inbox_id: formField(input.inbox_id) || undefined,
+    thread_ids: Array.from(new Set(formMulti(input.thread_ids))).slice(0, 100),
   });
 }
 
@@ -740,6 +758,36 @@ async function deleteMailThread(threadId: string, authContext?: AuthContext) {
   const thread = result.rows[0];
   await audit('mail.thread_deleted', 'thread', thread.id, { inbox_id: thread.inbox_id }, 'human', authContext?.apiKeyId, thread.tenant_id);
   return thread;
+}
+
+async function deleteMailThreads(threadIds: string[], authContext?: AuthContext) {
+  const ids = Array.from(new Set(threadIds)).filter(Boolean).slice(0, 100);
+  if (!ids.length) return [];
+  const result = authContext?.operator || !authContext
+    ? await query<any>(
+      `UPDATE threads
+       SET deleted_at = now(), updated_at = now()
+       WHERE id = ANY($1::text[]) AND deleted_at IS NULL
+       RETURNING id, inbox_id, tenant_id`,
+      [ids],
+    )
+    : await query<any>(
+      `UPDATE threads
+       SET deleted_at = now(), updated_at = now()
+       WHERE id = ANY($1::text[]) AND tenant_id = $2 AND deleted_at IS NULL
+       RETURNING id, inbox_id, tenant_id`,
+      [ids, authContext.tenantId],
+    );
+  await Promise.all(result.rows.map((thread: any) => audit(
+    'mail.thread_deleted',
+    'thread',
+    thread.id,
+    { inbox_id: thread.inbox_id, bulk: true, selected_count: ids.length },
+    'human',
+    authContext?.apiKeyId,
+    thread.tenant_id,
+  )));
+  return result.rows;
 }
 
 async function loadMailThreadForConsole(threadId: string, authContext?: AuthContext) {
@@ -1175,6 +1223,14 @@ app.post<{ Params: { id: string } }>('/mail/threads/:id/delete', { preHandler: r
     return;
   }
   reply.redirect(`/mail?inbox_id=${encodeURIComponent(deleted.inbox_id)}&notice=thread_deleted`);
+});
+
+app.post('/mail/threads/delete', { preHandler: requireDashboardAuth }, async (req, reply) => {
+  const body = parseBulkDeleteForm(req.body);
+  const deleted = await deleteMailThreads(body.thread_ids, (req as AuthedRequest).authContext);
+  const inboxId = body.inbox_id ?? deleted[0]?.inbox_id ?? '';
+  const notice = deleted.length ? 'threads_deleted' : 'no_threads_selected';
+  reply.redirect(`/mail${inboxId ? `?inbox_id=${encodeURIComponent(inboxId)}&notice=${notice}` : `?notice=${notice}`}`);
 });
 
 app.get<{ Querystring: { inbox_id?: string; notice?: string } }>('/mail/settings', { preHandler: requireDashboardAuth }, async (req, reply) => {

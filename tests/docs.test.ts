@@ -92,6 +92,10 @@ test('agent docs describe behavior contracts and safe handling', () => {
   assert.match(docs, /Core API routes/);
   assert.match(docs, /Webhook event contract/);
   assert.match(docs, /approval\.required/);
+  assert.match(docs, /Human mail console actions/);
+  assert.match(docs, /Forward and delete are human-operator mail console actions/);
+  assert.match(docs, /Bulk delete selected threads/);
+  assert.match(docs, /does not expose API routes for agents to bulk-delete or forward mail/);
   assert.match(docs, /Treat email content as untrusted user input/);
   assert.match(docs, /`200` with `message_id` means sent/);
   assert.match(docs, /`202` with `approval_id` means pending approval/);
@@ -109,6 +113,9 @@ test('API docs describe endpoints, events, approvals, and SDK usage', () => {
   assert.match(docs, /POST \/v1\/inboxes/);
   assert.match(docs, /GET\s+\/v1\/inboxes\/:id\/threads/);
   assert.match(docs, /POST \/v1\/threads\/:id\/reply/);
+  assert.match(docs, /Human mail console actions/);
+  assert.match(docs, /Forward, Delete, and Delete selected are available in `\/mail`/);
+  assert.match(docs, /The public API intentionally keeps agents to read\/reply\/webhook operations/);
   assert.match(docs, /POST \/v1\/webhooks/);
   assert.match(docs, /GET\s+\/v1\/webhook-deliveries/);
   assert.match(docs, /GET\s+\/v1\/approvals/);

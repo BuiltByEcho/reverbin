@@ -24,6 +24,16 @@ test('human mail console renders a Gmail-style three-pane inbox with reply contr
         last_preview: 'Can a human read this in Reverbin?',
         message_count: 2,
       },
+      {
+        id: 'thr_2',
+        inbox_id: 'inb_1',
+        subject: 'Archive me',
+        last_message_at: new Date('2026-07-07T20:30:00Z'),
+        last_from_email: 'second@example.com',
+        last_direction: 'inbound',
+        last_preview: 'Second selectable thread.',
+        message_count: 1,
+      },
     ],
     selectedThreadId: 'thr_1',
     messages: [
@@ -77,6 +87,15 @@ test('human mail console renders a Gmail-style three-pane inbox with reply contr
   assert.doesNotMatch(html, /href="\/dashboard">Settings/);
   assert.match(html, /support@reverbin\.com/);
   assert.match(html, /customer@example\.com/);
+  assert.match(html, /Can a human read this in Reverbin\?/);
+  assert.match(html, /class="mail-bulk-actions"/);
+  assert.match(html, /method="post" action="\/mail\/threads\/delete"/);
+  assert.match(html, /type="checkbox" name="thread_ids" value="thr_1"/);
+  assert.match(html, /type="checkbox" name="thread_ids" value="thr_2"/);
+  assert.match(html, /aria-label="Select thread Need help &lt;now&gt;"/);
+  assert.match(html, /aria-label="Select thread Archive me"/);
+  assert.match(html, /Delete selected/);
+  assert.match(html, /Open thread/);
   assert.match(html, /Can a human read this in Reverbin\?/);
   assert.match(html, /Yes — the human mail console is live\./);
   assert.match(html, /data-reader-layout="email-thread"/);
@@ -183,6 +202,9 @@ test('mail console route contract keeps human mail separate from ops dashboard',
   assert.match(server, /app\.get<\{ Params: \{ id: string \}; Querystring: \{ notice\?: string \} \}>\('\/mail\/threads\/:id\/forward'/);
   assert.match(server, /app\.post<\{ Params: \{ id: string \} \}>\('\/mail\/threads\/:id\/forward'/);
   assert.match(server, /app\.post<\{ Params: \{ id: string \} \}>\('\/mail\/threads\/:id\/delete'/);
+  assert.match(server, /app\.post\('\/mail\/threads\/delete'/);
+  assert.match(server, /parseBulkDeleteForm/);
+  assert.match(server, /deleteMailThreads/);
   assert.match(server, /sendThreadForward/);
   assert.match(server, /deleteMailThread/);
   assert.match(server, /deleted_at IS NULL/);
@@ -201,6 +223,8 @@ test('mail thread actions are backed by tenant-scoped soft-delete and forward ro
   assert.match(schema, /deleted_at timestamptz/);
   assert.match(migrate, /ALTER TABLE threads\s+ADD COLUMN IF NOT EXISTS deleted_at timestamptz/);
   assert.match(server, /UPDATE threads\s+SET deleted_at = now\(\)/);
+  assert.match(server, /id = ANY\(\$1::text\[\]\)/);
+  assert.match(server, /thread_ids/);
   assert.match(server, /AND tenant_id = \$2/);
   assert.match(server, /mail\.thread_deleted/);
   assert.match(server, /email\.forwarded/);
