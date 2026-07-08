@@ -161,6 +161,87 @@ Response:
 
 A `409` means the requested root-domain inbox name is already taken. Pick a different `preferred_inbox_name`.
 
+## Billing and plan upgrades
+
+Reverbin uses hosted **Stripe Checkout** for paid subscriptions. Stripe displays **Link** inside Checkout when Link is enabled for the Stripe account, so Reverbin never collects card numbers, CVCs, or expiry fields.
+
+| Plan | Price | Inboxes | Emails/month | Webhooks |
+| --- | ---: | ---: | ---: | ---: |
+| Free | $0/month | 2 | 2,000 | 1 |
+| Developer | $19/month | 10 | 10,000 | 3 |
+| Startup Beta | $149/month | 100 | 100,000 | 10 |
+| Enterprise | Custom | Custom | Custom | Custom |
+
+### List plans
+
+```txt
+GET /v1/billing/plans
+```
+
+```sh
+curl https://api.reverbin.com/v1/billing/plans \
+  -H "Authorization: Bearer $REVERBIN_API_KEY"
+```
+
+### Create hosted Checkout session
+
+```txt
+POST /v1/billing/checkout
+```
+
+Request:
+
+```sh
+curl -X POST https://api.reverbin.com/v1/billing/checkout \
+  -H "Authorization: Bearer $REVERBIN_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "plan": "developer",
+    "success_url": "https://reverbin.com/docs/api?billing=success",
+    "cancel_url": "https://reverbin.com/#pricing"
+  }'
+```
+
+Response:
+
+```json
+{
+  "id": "cs_...",
+  "url": "https://checkout.stripe.com/c/pay/cs_...",
+  "plan": "developer",
+  "provider": "stripe_checkout",
+  "link_enabled_by_stripe": true
+}
+```
+
+Redirect the human buyer to `url`. On success, Stripe sends `checkout.session.completed`; Reverbin stores the Stripe customer/subscription ids and applies the paid plan quota.
+
+If Stripe is not configured yet, this route fails closed:
+
+```json
+{
+  "error": "stripe_checkout_not_configured",
+  "missing": ["STRIPE_DEVELOPER_PRICE_ID"]
+}
+```
+
+### Open billing portal
+
+```txt
+POST /v1/billing/portal
+```
+
+Creates a hosted Stripe Customer Portal session for card updates, cancellation, and subscription management.
+
+### Stripe webhook events
+
+Reverbin handles these Stripe events at `POST /internal/stripe/webhook`:
+
+- `checkout.session.completed` upgrades the tenant to the purchased plan.
+- `customer.subscription.updated` syncs plan/status/customer/subscription state.
+- `customer.subscription.deleted` downgrades the tenant to Free/canceled.
+- `invoice.payment_failed` marks billing status as `past_due`.
+
 ## Inboxes
 
 ### Create inbox

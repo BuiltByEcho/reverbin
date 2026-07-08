@@ -85,6 +85,35 @@ export type AgentSignupResult = {
   quickstart: { base_url: string; inbox_email: string; next_steps: string[] };
 };
 
+export type BillingPlanKey = 'free' | 'developer' | 'startup' | 'enterprise';
+
+export type BillingPlan = {
+  key: BillingPlanKey;
+  label: string;
+  price_monthly_usd: number | null;
+  max_inboxes: number;
+  emails_per_month: number | null;
+  max_webhooks: number;
+};
+
+export type CreateCheckoutInput = {
+  plan: 'developer' | 'startup';
+  success_url?: string;
+  cancel_url?: string;
+};
+
+export type BillingSession = {
+  id: string;
+  url: string | null;
+  provider: string;
+  plan?: 'developer' | 'startup';
+  link_enabled_by_stripe?: boolean;
+};
+
+export type CreateBillingPortalInput = {
+  return_url?: string;
+};
+
 export type WebhookEndpoint = {
   id: string;
   url: string;
@@ -144,6 +173,12 @@ export class ReverbinClient {
     create: (input: CreateWebhookInput) => this.request<WebhookEndpoint>('/v1/webhooks', { method: 'POST', body: input }),
     list: () => this.request<ListResponse<WebhookEndpoint>>('/v1/webhooks'),
     deliveries: () => this.request<ListResponse<Record<string, unknown>>>('/v1/webhook-deliveries'),
+  };
+
+  readonly billing = {
+    plans: () => this.request<ListResponse<BillingPlan>>('/v1/billing/plans'),
+    checkout: (input: CreateCheckoutInput) => this.request<BillingSession>('/v1/billing/checkout', { method: 'POST', body: input }),
+    portal: (input: CreateBillingPortalInput = {}) => this.request<BillingSession>('/v1/billing/portal', { method: 'POST', body: input }),
   };
 
   readonly auditLogs = {

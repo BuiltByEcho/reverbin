@@ -1304,6 +1304,7 @@ export function renderLandingPage() {
       <a class="brand" href="/" aria-label="Reverbin home">${reverbinMarkSvg()}<span>reverbin</span></a>
       <nav class="navlinks" aria-label="Primary navigation">
         <a href="#explore">Explore</a>
+        <a href="#pricing">Pricing</a>
         <a href="/docs">Docs</a>
         <a class="button secondary" href="/dashboard/login">Dashboard</a>
         <a class="button primary" href="${REQUEST_ACCESS_HREF}">Sign up</a>
@@ -1509,6 +1510,43 @@ await reverbin.inboxes.create({
           </div>
         </article>
       </div>
+    </section>
+
+    <section class="section pricing-section" id="pricing" aria-labelledby="pricing-heading">
+      <div class="section-head compact-head">
+        <div>
+          <span class="section-label">Pricing</span>
+          <h2 id="pricing-heading">Start free, upgrade through Stripe Checkout.</h2>
+        </div>
+        <p>Paid plans use hosted Stripe Checkout with Link available from Stripe, then Reverbin webhooks update tenant quotas automatically.</p>
+      </div>
+      <div class="resource-grid pricing-grid" aria-label="Reverbin pricing plans">
+        <article class="resource-panel pricing-card">
+          <code>Free</code>
+          <h4>$0/mo</h4>
+          <p>2 inboxes, 2,000 emails/month, 1 webhook endpoint, Reverbin domain addresses.</p>
+          <a class="button" href="${REQUEST_ACCESS_HREF}">Create free agent</a>
+        </article>
+        <article class="resource-panel pricing-card featured">
+          <code>Developer</code>
+          <h4>$19/mo</h4>
+          <p>10 inboxes, 10,000 emails/month, 3 webhooks, API keys, audit logs, and hosted Stripe Checkout upgrade flow.</p>
+          <a class="button primary" href="/docs/api#billing-and-plan-upgrades">Upgrade with Checkout</a>
+        </article>
+        <article class="resource-panel pricing-card">
+          <code>Startup Beta</code>
+          <h4>$149/mo</h4>
+          <p>100 inboxes, 100,000 emails/month, 10 webhooks, priority support, and plan quotas synced by Stripe webhooks.</p>
+          <a class="button" href="/docs/api#billing-and-plan-upgrades">View billing API</a>
+        </article>
+        <article class="resource-panel pricing-card">
+          <code>Enterprise</code>
+          <h4>Custom</h4>
+          <p>Custom domains, volume, deployment, support, and compliance needs for larger agent fleets.</p>
+          <a class="button" href="${REQUEST_ACCESS_HREF}">Contact us</a>
+        </article>
+      </div>
+      <p class="access-note">Reverbin does not collect payment details directly; Stripe handles hosted payment and Link.</p>
     </section>
 
     <section class="final-cta" aria-labelledby="cta-heading">

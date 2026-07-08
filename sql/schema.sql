@@ -3,6 +3,11 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 CREATE TABLE IF NOT EXISTS tenants (
   id text PRIMARY KEY,
   name text NOT NULL,
+  plan text NOT NULL DEFAULT 'free' CHECK (plan IN ('free', 'developer', 'startup', 'enterprise')),
+  billing_status text NOT NULL DEFAULT 'active',
+  stripe_customer_id text,
+  stripe_subscription_id text,
+  billing_current_period_end timestamptz,
   created_at timestamptz NOT NULL DEFAULT now()
 );
 

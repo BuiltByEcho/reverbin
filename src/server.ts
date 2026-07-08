@@ -15,6 +15,7 @@ import { clearDashboardCookie, dashboardCookie, dashboardTokenFromEnv, isDashboa
 import { renderDashboardLoginPage, renderDashboardPage, renderDashboardUnavailablePage, renderDocsPage, renderFaviconSvg, renderLandingPage, renderMailPage, type DocsPageKey } from './public-pages.js';
 import { buildWebhookDeliveryJob, redisConnectionOptions, WEBHOOK_DELIVERY_QUEUE, webhookDeliveryMode } from './webhook-delivery.js';
 import { buildPendingSignupVerification, normalizeSignupRequestInput, summarizeSignupVerification, type SignupRequestStatus, type SignupVerificationCheck } from './signup-verification.js';
+import { BILLING_PLANS, createStripeBillingPortalSession, createStripeCheckoutSession, maxInboxesForPlan, maxWebhookEndpointsForPlan, normalizePlan, priceIdForPlan, verifyStripeWebhookSignature, type BillingPlan } from './billing.js';
 import { checkReadiness } from './readiness.js';
 import { configuredSecret, internalErrorPayload, isCorsOriginAllowed, webhookDeliveryTimeoutMs } from './http-hardening.js';
 import { createFixedWindowRateLimiter } from './rate-limit.js';
@@ -152,6 +153,68 @@ function requireWebhookSecret(req: FastifyRequest, reply: FastifyReply, done: ()
 
 function tenantIdFor(req: FastifyRequest) {
   return (req as AuthedRequest).authContext?.tenantId ?? TENANT_ID;
+}
+
+type TenantBillingRow = {
+  id: string;
+  name: string;
+  plan: string;
+  billing_status: string;
+  stripe_customer_id: string | null;
+  stripe_subscription_id: string | null;
+};
+
+async function getTenantBilling(tenantId: string) {
+  const result = await query<TenantBillingRow>(
+    'SELECT id, name, plan, billing_status, stripe_customer_id, stripe_subscription_id FROM tenants WHERE id = $1',
+    [tenantId],
+  );
+  return result.rows[0] ?? null;
+}
+
+async function maxInboxesForTenant(tenantId: string) {
+  const tenant = await getTenantBilling(tenantId);
+  return maxInboxesForPlan(tenant?.plan ?? 'free');
+}
+
+async function maxWebhookEndpointsForTenant(tenantId: string) {
+  const tenant = await getTenantBilling(tenantId);
+  return maxWebhookEndpointsForPlan(tenant?.plan ?? 'free');
+}
+
+function defaultBillingSuccessUrl() {
+  return process.env.STRIPE_SUCCESS_URL ?? `${process.env.PUBLIC_BASE_URL ?? 'https://api.reverbin.com'}/docs/quickstart?billing=success`;
+}
+
+function defaultBillingCancelUrl() {
+  return process.env.STRIPE_CANCEL_URL ?? 'https://reverbin.com/#pricing';
+}
+
+function planFromStripePrice(priceId?: string | null): BillingPlan | null {
+  if (priceId && priceId === process.env.STRIPE_DEVELOPER_PRICE_ID) return 'developer';
+  if (priceId && priceId === process.env.STRIPE_STARTUP_PRICE_ID) return 'startup';
+  return null;
+}
+
+async function syncStripeSubscriptionEvent(subscription: any, deleted = false) {
+  const metadataPlan = normalizePlan(subscription?.metadata?.plan);
+  const pricePlan = planFromStripePrice(subscription?.items?.data?.[0]?.price?.id);
+  const tenantId = subscription?.metadata?.tenant_id;
+  if (!tenantId) return false;
+  const nextPlan = deleted ? 'free' : (pricePlan ?? metadataPlan);
+  const currentPeriodEnd = typeof subscription?.current_period_end === 'number' ? new Date(subscription.current_period_end * 1000) : null;
+  await query(
+    `UPDATE tenants
+     SET plan = $2,
+         billing_status = $3,
+         stripe_customer_id = COALESCE($4, stripe_customer_id),
+         stripe_subscription_id = COALESCE($5, stripe_subscription_id),
+         billing_current_period_end = $6
+     WHERE id = $1`,
+    [tenantId, nextPlan, deleted ? 'canceled' : String(subscription?.status ?? 'active'), subscription?.customer ?? null, subscription?.id ?? null, currentPeriodEnd],
+  );
+  await audit(deleted ? 'billing.subscription_deleted' : 'billing.subscription_updated', 'tenant', tenantId, { plan: nextPlan, stripe_subscription_id: subscription?.id, status: subscription?.status }, 'stripe', null, tenantId);
+  return true;
 }
 
 async function audit(action: string, targetType: string, targetId: string, metadata: Record<string, unknown> = {}, actorType = 'system', actorId?: string | null, tenantId = TENANT_ID) {
@@ -300,6 +363,16 @@ const WebhookEndpointSchema = z.object({
   url: z.string().url().refine(isAllowedWebhookUrl, 'webhook url must use https, except loopback http for local testing'),
   events: z.array(z.string().min(1).refine(isAllowedWebhookEvent, 'unsupported webhook event')).default(['*']),
   secret: z.string().min(8).optional(),
+});
+
+const BillingCheckoutSchema = z.object({
+  plan: z.enum(['developer', 'startup']),
+  success_url: z.string().url().optional(),
+  cancel_url: z.string().url().optional(),
+});
+
+const BillingPortalSchema = z.object({
+  return_url: z.string().url().optional(),
 });
 
 const SignupRequestSchema = z.object({
@@ -777,6 +850,61 @@ app.post('/v1/agent-signups', async (req, reply) => {
 app.register(async (privateRoutes) => {
   privateRoutes.addHook('preHandler', requireApiKey);
 
+  privateRoutes.get('/v1/billing/plans', async () => ({ data: Object.values(BILLING_PLANS) }));
+
+  privateRoutes.post('/v1/billing/checkout', async (req, reply) => {
+    const body = BillingCheckoutSchema.parse(req.body);
+    const tenantId = tenantIdFor(req);
+    const tenant = await getTenantBilling(tenantId);
+    if (!tenant) return reply.code(404).send({ error: 'tenant not found' });
+
+    const secretKey = configuredSecret(process.env.STRIPE_SECRET_KEY);
+    const priceId = priceIdForPlan(body.plan);
+    const missing = [
+      !secretKey ? 'STRIPE_SECRET_KEY' : null,
+      !priceId ? body.plan === 'developer' ? 'STRIPE_DEVELOPER_PRICE_ID' : 'STRIPE_STARTUP_PRICE_ID' : null,
+    ].filter(Boolean);
+    if (!secretKey || !priceId) {
+      return reply.code(503).send({ error: 'stripe_checkout_not_configured', missing });
+    }
+
+    const requester = await query<{ requester_email: string }>(
+      'SELECT requester_email FROM signup_requests WHERE tenant_id = $1 ORDER BY created_at ASC LIMIT 1',
+      [tenantId],
+    );
+    const session = await createStripeCheckoutSession({
+      secretKey,
+      plan: body.plan,
+      tenantId,
+      priceId,
+      customerId: tenant.stripe_customer_id,
+      customerEmail: requester.rows[0]?.requester_email ?? null,
+      successUrl: body.success_url ?? defaultBillingSuccessUrl(),
+      cancelUrl: body.cancel_url ?? defaultBillingCancelUrl(),
+    });
+    await audit('billing.checkout_created', 'tenant', tenantId, { plan: body.plan, stripe_checkout_session_id: session.id }, 'api', (req as AuthedRequest).authContext?.apiKeyId, tenantId);
+    if (session.customer) {
+      await query('UPDATE tenants SET stripe_customer_id = COALESCE(stripe_customer_id, $2) WHERE id = $1', [tenantId, session.customer]);
+    }
+    return { id: session.id, url: session.url, plan: body.plan, provider: 'stripe_checkout', link_enabled_by_stripe: true };
+  });
+
+  privateRoutes.post('/v1/billing/portal', async (req, reply) => {
+    const body = BillingPortalSchema.parse(req.body ?? {});
+    const tenantId = tenantIdFor(req);
+    const tenant = await getTenantBilling(tenantId);
+    const secretKey = configuredSecret(process.env.STRIPE_SECRET_KEY);
+    if (!secretKey) return reply.code(503).send({ error: 'stripe_portal_not_configured', missing: ['STRIPE_SECRET_KEY'] });
+    if (!tenant?.stripe_customer_id) return reply.code(409).send({ error: 'stripe_customer_missing' });
+    const session = await createStripeBillingPortalSession({
+      secretKey,
+      customerId: tenant.stripe_customer_id,
+      returnUrl: body.return_url ?? 'https://reverbin.com/docs',
+    });
+    await audit('billing.portal_created', 'tenant', tenantId, { stripe_portal_session_id: session.id }, 'api', (req as AuthedRequest).authContext?.apiKeyId, tenantId);
+    return { id: session.id, url: session.url, provider: 'stripe_customer_portal' };
+  });
+
   privateRoutes.post('/v1/signup-requests', async (req, reply) => {
     const normalized = normalizeSignupRequestInput(SignupRequestSchema.parse(req.body));
     const tenantId = tenantIdFor(req);
@@ -830,10 +958,11 @@ app.register(async (privateRoutes) => {
     if (!authContext?.operator) {
       const quota = await query<{ inbox_count: number }>('SELECT count(*)::int AS inbox_count FROM inboxes WHERE tenant_id = $1', [tenantId]);
       const inboxCount = Number(quota.rows[0]?.inbox_count ?? 0);
-      if (inboxCount >= SELF_SERVE_MAX_INBOXES_PER_AGENT) {
+      const maxInboxes = await maxInboxesForTenant(tenantId);
+      if (inboxCount >= maxInboxes) {
         return reply.code(403).send({
           error: 'inbox_quota_exceeded',
-          max_inboxes: SELF_SERVE_MAX_INBOXES_PER_AGENT,
+          max_inboxes: maxInboxes,
           current_inboxes: inboxCount,
         });
       }
@@ -947,6 +1076,19 @@ app.register(async (privateRoutes) => {
   privateRoutes.post('/v1/webhooks', async (req, reply) => {
     const body = WebhookEndpointSchema.parse(req.body);
     const tenantId = tenantIdFor(req);
+    const authContext = (req as AuthedRequest).authContext;
+    if (!authContext?.operator) {
+      const quota = await query<{ webhook_count: number }>("SELECT count(*)::int AS webhook_count FROM webhook_endpoints WHERE tenant_id = $1 AND status = 'active'", [tenantId]);
+      const webhookCount = Number(quota.rows[0]?.webhook_count ?? 0);
+      const maxWebhooks = await maxWebhookEndpointsForTenant(tenantId);
+      if (webhookCount >= maxWebhooks) {
+        return reply.code(403).send({
+          error: 'webhook_quota_exceeded',
+          max_webhooks: maxWebhooks,
+          current_webhooks: webhookCount,
+        });
+      }
+    }
     const webhookId = id('wh');
     await query(
       `INSERT INTO webhook_endpoints (id, tenant_id, url, secret, events_json)
@@ -965,6 +1107,51 @@ app.register(async (privateRoutes) => {
   privateRoutes.get('/v1/audit-logs', async (req) => {
     const result = await query('SELECT * FROM audit_logs WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 200', [tenantIdFor(req)]);
     return { data: result.rows };
+  });
+});
+
+// app.post('/internal/stripe/webhook' uses a scoped raw JSON parser so Stripe signature checks see the signed payload.
+app.register(async (stripeRoutes) => {
+  stripeRoutes.removeContentTypeParser('application/json');
+  stripeRoutes.addContentTypeParser('application/json', { parseAs: 'string' }, (_req, body, done) => {
+    done(null, body);
+  });
+
+  stripeRoutes.post('/internal/stripe/webhook', async (req, reply) => {
+    const webhookSecret = configuredSecret(process.env.STRIPE_WEBHOOK_SECRET);
+    if (!webhookSecret) return reply.code(503).send({ error: 'stripe_webhook_not_configured' });
+    const rawBody = typeof req.body === 'string' ? req.body : JSON.stringify(req.body ?? {});
+    if (!verifyStripeWebhookSignature({ rawBody, signatureHeader: req.headers['stripe-signature'], webhookSecret })) {
+      return reply.code(401).send({ error: 'invalid_stripe_signature' });
+    }
+    const event = JSON.parse(rawBody);
+    const object = event?.data?.object;
+    if (event?.type === 'checkout.session.completed') {
+      const tenantId = object?.metadata?.tenant_id ?? object?.client_reference_id;
+      const plan = normalizePlan(object?.metadata?.plan);
+      if (tenantId && (plan === 'developer' || plan === 'startup')) {
+        await query(
+          `UPDATE tenants
+           SET plan = $2,
+               billing_status = 'active',
+               stripe_customer_id = COALESCE($3, stripe_customer_id),
+               stripe_subscription_id = COALESCE($4, stripe_subscription_id)
+           WHERE id = $1`,
+          [tenantId, plan, object?.customer ?? null, object?.subscription ?? null],
+        );
+        await audit('billing.checkout_completed', 'tenant', tenantId, { plan, stripe_checkout_session_id: object?.id, stripe_subscription_id: object?.subscription }, 'stripe', null, tenantId);
+      }
+    } else if (event?.type === 'customer.subscription.updated') {
+      await syncStripeSubscriptionEvent(object, false);
+    } else if (event?.type === 'customer.subscription.deleted') {
+      await syncStripeSubscriptionEvent(object, true);
+    } else if (event?.type === 'invoice.payment_failed') {
+      const subscriptionId = object?.subscription;
+      if (subscriptionId) {
+        await query("UPDATE tenants SET billing_status = 'past_due' WHERE stripe_subscription_id = $1", [subscriptionId]);
+      }
+    }
+    reply.send({ received: true });
   });
 });
 

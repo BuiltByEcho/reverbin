@@ -10,6 +10,22 @@ async function main() {
   const schema = await fs.readFile(schemaPath, 'utf8');
   await pool.query(schema);
   await pool.query(`
+    ALTER TABLE tenants
+      ADD COLUMN IF NOT EXISTS plan text NOT NULL DEFAULT 'free',
+      ADD COLUMN IF NOT EXISTS billing_status text NOT NULL DEFAULT 'active',
+      ADD COLUMN IF NOT EXISTS stripe_customer_id text,
+      ADD COLUMN IF NOT EXISTS stripe_subscription_id text,
+      ADD COLUMN IF NOT EXISTS billing_current_period_end timestamptz;
+
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'tenants_plan_check'
+      ) THEN
+        ALTER TABLE tenants ADD CONSTRAINT tenants_plan_check CHECK (plan IN ('free', 'developer', 'startup', 'enterprise'));
+      END IF;
+    END $$;
+
     ALTER TABLE send_policies
       ALTER COLUMN require_approval_for_new_recipients SET DEFAULT false,
       ALTER COLUMN require_approval_for_external_domains SET DEFAULT false,
