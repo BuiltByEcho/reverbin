@@ -157,7 +157,7 @@ function dashboardSessionCookie(token: string) {
 
 async function sendDashboardLoginCode(email: string, code: string) {
   const provider = getEmailProvider();
-  const from = process.env.REVERBIN_LOGIN_FROM_EMAIL || process.env.RESEND_FROM_EMAIL || process.env.DEFAULT_FROM_EMAIL || 'Reverbin <login@reverbin.com>';
+  const from = process.env.REVERBIN_LOGIN_FROM_EMAIL || process.env.RESEND_FROM_EMAIL || 'Reverbin <login@reverbin.com>';
   await provider.sendEmail({
     from,
     to: [email],
