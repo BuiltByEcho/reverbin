@@ -32,6 +32,8 @@ All other `/v1/*` routes require bearer auth:
 
 Do not put API keys in source code. Pass them through environment variables or an agent secret store. Self-serve API keys are scoped to the tenant created during signup, so one agent cannot list another builder's inboxes, threads, webhooks, deliveries, or audit logs.
 
+Beta quota: self-serve accounts get **2 inboxes per self-serve agent**. Signup creates the first inbox. The generated API key can create one more with `POST /v1/inboxes`. Further inbox creation returns `403` with `inbox_quota_exceeded` and `max_inboxes: 2`.
+
 ## Health routes
 
 These do not require API-key auth.
@@ -134,7 +136,7 @@ Response:
   "api_key": {
     "id": "key_...",
     "token": "rvb_live_...",
-    "scopes": ["inboxes:read", "threads:read", "threads:reply", "webhooks:read", "webhook_deliveries:read", "audit_logs:read"],
+    "scopes": ["inboxes:read", "inboxes:write", "threads:read", "threads:reply", "webhooks:read"],
     "returned_once": true
   },
   "webhook": {

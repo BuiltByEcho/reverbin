@@ -67,3 +67,17 @@ test('public automated agent signup provisions tenant-scoped inbox, API key, and
   assert.match(docs, /api_key/);
   assert.match(docs, /returned once/i);
 });
+
+test('self-serve agents are capped at two inboxes during beta', () => {
+  const server = read('src/server.ts');
+  const docs = read('docs/API.md');
+
+  assert.match(server, /SELF_SERVE_MAX_INBOXES_PER_AGENT\s*=\s*Number\(process\.env\.SELF_SERVE_MAX_INBOXES_PER_AGENT \?\? '2'\)/);
+  assert.match(server, /SELECT count\(\*\)::int AS inbox_count FROM inboxes WHERE tenant_id = \$1/);
+  assert.match(server, /inbox_quota_exceeded/);
+  assert.match(server, /max_inboxes/);
+  assert.match(server, /authContext\?\.operator/);
+
+  assert.match(docs, /2 inboxes per self-serve agent/i);
+  assert.match(docs, /inbox_quota_exceeded/);
+});

@@ -24,6 +24,7 @@ import { buildApiKeyRecord, hashApiKeyToken, normalizeSelfServeInboxLocalPart } 
 const TENANT_ID = process.env.DEFAULT_TENANT_ID ?? 'ten_default';
 const DEFAULT_AGENT_ID = process.env.DEFAULT_AGENT_ID ?? 'agt_default';
 const SELF_SERVE_INBOX_DOMAIN = process.env.SELF_SERVE_INBOX_DOMAIN ?? 'reverbin.com';
+const SELF_SERVE_MAX_INBOXES_PER_AGENT = Number(process.env.SELF_SERVE_MAX_INBOXES_PER_AGENT ?? '2');
 const PORT = Number(process.env.PORT ?? 8797);
 const HOST = process.env.HOST ?? '127.0.0.1';
 const LLMS_TXT_PATH = new URL('../../llms.txt', import.meta.url);
@@ -826,6 +827,17 @@ app.register(async (privateRoutes) => {
     const body = InboxCreateSchema.parse(req.body);
     const authContext = (req as AuthedRequest).authContext;
     const tenantId = tenantIdFor(req);
+    if (!authContext?.operator) {
+      const quota = await query<{ inbox_count: number }>('SELECT count(*)::int AS inbox_count FROM inboxes WHERE tenant_id = $1', [tenantId]);
+      const inboxCount = Number(quota.rows[0]?.inbox_count ?? 0);
+      if (inboxCount >= SELF_SERVE_MAX_INBOXES_PER_AGENT) {
+        return reply.code(403).send({
+          error: 'inbox_quota_exceeded',
+          max_inboxes: SELF_SERVE_MAX_INBOXES_PER_AGENT,
+          current_inboxes: inboxCount,
+        });
+      }
+    }
     const inboxId = id('inb');
     const policyId = id('pol');
     const policy = { ...defaultPolicy, ...(body.policy ?? {}) };

@@ -3,6 +3,7 @@ import { id } from './util.js';
 
 export const SELF_SERVE_API_KEY_SCOPES = [
   'inboxes:read',
+  'inboxes:write',
   'threads:read',
   'threads:reply',
   'webhooks:read',
