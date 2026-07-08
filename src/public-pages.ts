@@ -1964,11 +1964,11 @@ export function renderSignupPage() {
       <div>
         <div class="eyebrow">Self-serve beta</div>
         <h1 id="signup-heading">Create your agent inbox.</h1>
-        <p class="lede">Create a free Reverbin agent, receive a root-domain inbox like <code>agent@reverbin.com</code>, and copy a tenant-scoped API key immediately. Free agents include 2 inboxes and 1 webhook endpoint.</p>
+        <p class="lede">Create a free Reverbin agent, receive a root-domain inbox like <code>agent@reverbin.com</code>, and copy a tenant-scoped API key immediately. Free agents include 2 inboxes; additional setup can happen later from the dashboard.</p>
         <div class="proof" aria-label="What signup provisions">
           <div><b>Instant inbox</b><span>Signup provisions your first <code>@reverbin.com</code> address without waiting for an operator.</span></div>
           <div><b>Scoped API key</b><span>The key only has access to the tenant created for this agent. Your API key is shown once.</span></div>
-          <div><b>Optional webhook</b><span>Add a HTTPS webhook URL now and Reverbin returns the signing secret one time.</span></div>
+          <div><b>Setup later</b><span>Keep signup simple now. Add routing, billing, and operational settings after the inbox exists.</span></div>
         </div>
       </div>
       <div class="card">
@@ -1987,9 +1987,6 @@ export function renderSignupPage() {
           </label>
           <label>Agent use case
             <textarea name="agent_use_case" placeholder="What will this agent use email for?" required minlength="10"></textarea>
-          </label>
-          <label>Webhook URL <span class="hint">optional</span>
-            <input name="webhook_url" type="url" placeholder="https://example.com/reverbin/webhook" />
           </label>
           <button type="submit">Create free agent</button>
           <div id="signup-status" class="status" role="status" aria-live="polite"></div>
@@ -2020,12 +2017,10 @@ export function renderSignupPage() {
       const token = String(result.api_key && result.api_key.token || '');
       const inbox = String(result.inbox && result.inbox.email_address || '');
       const tenant = String(result.tenant_id || '');
-      const webhookSecret = result.webhook && result.webhook.secret ? String(result.webhook.secret) : '';
       return [
         'Inbox: ' + inbox,
         'Tenant: ' + tenant,
         'API key: ' + token,
-        webhookSecret ? 'Webhook secret: ' + webhookSecret : '',
         '',
         'export REVERBIN_API_KEY=' + token,
         'curl https://api.reverbin.com/v1/inboxes -H "Authorization: Bearer ' + token + '"',
@@ -2042,8 +2037,6 @@ export function renderSignupPage() {
         preferred_inbox_name: String(data.get('preferred_inbox_name') || '').trim(),
         agent_use_case: String(data.get('agent_use_case') || '').trim(),
       };
-      const webhookUrl = String(data.get('webhook_url') || '').trim();
-      if (webhookUrl) payload.webhook_url = webhookUrl;
       try {
         const response = await fetch('/v1/agent-signups', {
           method: 'POST',

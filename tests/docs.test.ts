@@ -33,6 +33,10 @@ test('public signup CTAs open the self-serve agent signup page', () => {
   assert.match(signup, /id="agent-signup-form"/);
   assert.match(signup, /fetch\('\/v1\/agent-signups'/);
   assert.match(signup, /Your API key is shown once/);
+  assert.doesNotMatch(signup, /Webhook URL/);
+  assert.doesNotMatch(signup, /Optional webhook/);
+  assert.doesNotMatch(signup, /webhook_url/);
+  assert.doesNotMatch(signup, /Webhook secret/);
 });
 
 test('builder docs disclose live root-domain inboxes without legacy beta-domain caveats', () => {
