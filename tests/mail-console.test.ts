@@ -1,7 +1,7 @@
 import * as assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { renderMailComposePage, renderMailPage, renderMailSettingsPage, renderMailWebhooksPage } from '../src/public-pages.js';
+import { renderMailComposePage, renderMailForwardPage, renderMailPage, renderMailSettingsPage, renderMailWebhooksPage } from '../src/public-pages.js';
 
 const root = new URL('../', import.meta.url);
 const read = (path: string) => readFileSync(new URL(path, root), 'utf8');
@@ -88,6 +88,11 @@ test('human mail console renders a Gmail-style three-pane inbox with reply contr
   assert.doesNotMatch(html, /class="mail-message inbound"/);
   assert.doesNotMatch(html, /class="mail-message outbound"/);
   assert.doesNotMatch(html, /Agent connected · policy guarded/);
+  assert.match(html, /class="mail-action-bar"/);
+  assert.match(html, /href="\/mail\/threads\/thr_1\/forward"/);
+  assert.match(html, />Forward<\/a>/);
+  assert.match(html, /method="post" action="\/mail\/threads\/thr_1\/delete"/);
+  assert.match(html, />Delete<\/button>/);
   assert.match(html, /action="\/mail\/threads\/thr_1\/reply"/);
   assert.match(html, /name="text"/);
   assert.match(html, /Reply sent/);
@@ -97,6 +102,43 @@ test('human mail console renders a Gmail-style three-pane inbox with reply contr
   assert.equal(html.includes('webhook_deliveries'), false);
   assert.equal(html.includes('audit_logs'), false);
   assert.equal(html.includes('provider_events'), false);
+});
+
+test('mail forward page lets tenants forward an existing email thread', () => {
+  const html = renderMailForwardPage({
+    inboxes: [
+      { id: 'inb_1', email_address: 'support@reverbin.com', display_name: 'Support Team', status: 'active', thread_count: 2 },
+    ],
+    selectedInboxId: 'inb_1',
+    thread: { id: 'thr_1', inbox_id: 'inb_1', subject: 'Need help <now>', last_message_at: new Date('2026-07-07T21:00:00Z') },
+    messages: [
+      {
+        id: 'msg_1',
+        thread_id: 'thr_1',
+        direction: 'inbound',
+        from_email: 'customer@example.com',
+        from_name: 'Customer <Name>',
+        to_json: [{ email: 'support@reverbin.com' }],
+        subject: 'Need help <now>',
+        text_body: 'Please forward this email.',
+        created_at: new Date('2026-07-07T20:59:00Z'),
+      },
+    ],
+    notice: 'forward_sent',
+  });
+
+  assert.match(html, /data-surface-id="mail-forward"/);
+  assert.match(html, /Forward email/);
+  assert.match(html, /action="\/mail\/threads\/thr_1\/forward"/);
+  assert.match(html, /name="to"/);
+  assert.match(html, /name="subject"/);
+  assert.match(html, /value="Fwd: Need help &lt;now&gt;"/);
+  assert.match(html, /name="text"/);
+  assert.match(html, /Forwarded message/);
+  assert.match(html, /Please forward this email\./);
+  assert.match(html, /Forward sent/);
+  assert.doesNotMatch(html, /mailto:/);
+  assert.doesNotMatch(html, /Operations/);
 });
 
 test('mail compose page lets tenants start a new outbound thread in-app', () => {
@@ -138,11 +180,32 @@ test('mail console route contract keeps human mail separate from ops dashboard',
   assert.match(server, /sendNewThread/);
   assert.match(server, /isNewThread: true/);
   assert.match(server, /reply\.redirect\(`\/mail\?thread_id=\$\{encodeURIComponent\(String\(result\.payload\.thread_id\)\)\}&notice=compose_sent`\)/);
+  assert.match(server, /app\.get<\{ Params: \{ id: string \}; Querystring: \{ notice\?: string \} \}>\('\/mail\/threads\/:id\/forward'/);
+  assert.match(server, /app\.post<\{ Params: \{ id: string \} \}>\('\/mail\/threads\/:id\/forward'/);
+  assert.match(server, /app\.post<\{ Params: \{ id: string \} \}>\('\/mail\/threads\/:id\/delete'/);
+  assert.match(server, /sendThreadForward/);
+  assert.match(server, /deleteMailThread/);
+  assert.match(server, /deleted_at IS NULL/);
   assert.match(publicPages, /data-surface-id="human-mail-console"/);
   assert.match(publicPages, /Gmail-style/);
   assert.match(publicPages, /href="\/mail\/webhooks"/);
   assert.match(publicPages, /href="\/mail\/settings"/);
   assert.doesNotMatch(publicPages, /href="\/dashboard#webhooks"/);
+});
+
+test('mail thread actions are backed by tenant-scoped soft-delete and forward routes', () => {
+  const schema = read('sql/schema.sql');
+  const migrate = read('src/migrate.ts');
+  const server = read('src/server.ts');
+
+  assert.match(schema, /deleted_at timestamptz/);
+  assert.match(migrate, /ALTER TABLE threads\s+ADD COLUMN IF NOT EXISTS deleted_at timestamptz/);
+  assert.match(server, /UPDATE threads\s+SET deleted_at = now\(\)/);
+  assert.match(server, /AND tenant_id = \$2/);
+  assert.match(server, /mail\.thread_deleted/);
+  assert.match(server, /email\.forwarded/);
+  assert.match(server, /notice=thread_deleted/);
+  assert.match(server, /notice=forward_sent/);
 });
 
 test('mail settings page is simple, tenant scoped, and editable', () => {

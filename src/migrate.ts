@@ -17,6 +17,9 @@ async function main() {
       ADD COLUMN IF NOT EXISTS stripe_subscription_id text,
       ADD COLUMN IF NOT EXISTS billing_current_period_end timestamptz;
 
+    ALTER TABLE threads
+      ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
+
     DO $$
     BEGIN
       IF NOT EXISTS (

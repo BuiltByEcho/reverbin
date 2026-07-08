@@ -1763,6 +1763,14 @@ export type MailComposePageData = {
   notice?: string | null;
 };
 
+export type MailForwardPageData = {
+  inboxes: MailInboxView[];
+  selectedInboxId?: string | null;
+  thread: MailThreadView;
+  messages: MailMessageView[];
+  notice?: string | null;
+};
+
 function formatDate(value: Date | string | null | undefined) {
   if (!value) return 'pending';
   const date = value instanceof Date ? value : new Date(value);
@@ -1791,7 +1799,10 @@ function renderMailRecipients(value: unknown) {
 
 function renderMailNotice(notice?: string | null) {
   if (!notice) return '';
-  const label = notice === 'reply_sent' ? 'Reply sent' : notice === 'approval_pending' ? 'Reply queued for approval' : notice;
+  const label = notice === 'reply_sent' ? 'Reply sent'
+    : notice === 'approval_pending' ? 'Reply queued for approval'
+      : notice === 'thread_deleted' ? 'Thread deleted'
+        : notice;
   return `<div class="mail-notice" role="status">${escapeHtml(label)}</div>`;
 }
 
@@ -1842,6 +1853,12 @@ function renderMailMessages(data: MailPageData) {
       <p class="eyebrow">Email thread</p>
       <h1>${escapeHtml(selectedThread.subject || '(no subject)')}</h1>
       <p class="mail-thread-summary">${escapeHtml(String(data.messages.length || selectedThread.message_count || 0))} emails in this conversation</p>
+      <div class="mail-action-bar" aria-label="Email actions">
+        <a class="mail-action" href="/mail/threads/${encodeURIComponent(selectedThread.id)}/forward">Forward</a>
+        <form method="post" action="/mail/threads/${escapeHtml(selectedThread.id)}/delete">
+          <button class="mail-action danger" type="submit">Delete</button>
+        </form>
+      </div>
     </div>
     <div class="mail-messages" data-reader-layout="email-thread">${messages}</div>
     <form class="mail-reply" method="post" action="/mail/threads/${escapeHtml(selectedThread.id)}/reply">
@@ -1910,6 +1927,10 @@ export function renderMailPage(data: MailPageData) {
     .eyebrow { margin:0 0 8px; color:var(--signal); text-transform:uppercase; font-size:11px; font-weight:900; letter-spacing:.16em; }
     .mail-reader h1 { margin:0; font-size:28px; line-height:1.15; }
     .mail-thread-summary { margin:10px 0 0; color:var(--muted); font-size:13px; }
+    .mail-action-bar { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:16px; }
+    .mail-action-bar form { margin:0; }
+    .mail-action { display:inline-flex; align-items:center; justify-content:center; min-height:36px; border:1px solid var(--line); border-radius:999px; padding:0 14px; background:rgba(244,244,242,.045); color:var(--ivory); font-weight:850; font-size:13px; cursor:pointer; }
+    .mail-action.danger { color:var(--danger); border-color:rgba(255,123,123,.32); background:rgba(255,123,123,.07); }
     .mail-messages { display:grid; gap:14px; padding:22px 28px; }
     .email-message-card { border:1px solid var(--line); border-radius:14px; background:#0f1113; box-shadow:0 16px 35px rgba(0,0,0,.18); overflow:hidden; }
     .email-message-header { display:flex; justify-content:space-between; gap:16px; padding:16px 18px; border-bottom:1px solid var(--line); background:rgba(244,244,242,.035); }
@@ -1973,7 +1994,9 @@ function renderSettingsNotice(notice?: string | null) {
     : notice === 'webhook_created' ? 'Webhook added'
       : notice === 'compose_sent' ? 'Message sent'
         : notice === 'compose_pending' ? 'Message queued for approval'
-          : notice;
+          : notice === 'forward_sent' ? 'Forward sent'
+            : notice === 'forward_pending' ? 'Forward queued for approval'
+              : notice;
   return `<div class="settings-notice" role="status">${escapeHtml(label)}</div>`;
 }
 
@@ -2078,6 +2101,59 @@ export function renderMailSettingsPage(data: MailSettingsPageData) {
             </div>
           </details>
           <div class="settings-actions"><button type="submit">Save settings</button></div>
+        </form>
+      </section>
+    </section>
+  </main>
+</body>
+</html>`;
+}
+
+function defaultForwardSubject(subject?: string | null) {
+  const value = subject || '(no subject)';
+  return /^fwd?:/i.test(value) ? value : `Fwd: ${value}`;
+}
+
+function defaultForwardBody(thread: MailThreadView, messages: MailMessageView[]) {
+  const quoted = messages.map((message) => {
+    const fromLabel = [message.from_name, message.from_email].filter(Boolean).join(' <') + (message.from_name && message.from_email ? '>' : '') || 'unknown sender';
+    const recipients = renderMailRecipients(message.to_json);
+    return `From: ${fromLabel}\nTo: ${recipients}\nDate: ${formatDate(message.created_at)}\nSubject: ${message.subject || thread.subject || '(no subject)'}\n\n${message.text_body || message.html_body || ''}`;
+  }).join('\n\n---\n\n');
+  return `\n\n---------- Forwarded message ---------\nSubject: ${thread.subject || '(no subject)'}\n\n${quoted}`;
+}
+
+export function renderMailForwardPage(data: MailForwardPageData) {
+  const selectedInboxId = data.selectedInboxId ?? data.thread.inbox_id ?? data.inboxes[0]?.id ?? '';
+  const selectedInbox = data.inboxes.find((inbox) => inbox.id === selectedInboxId) ?? data.inboxes[0] ?? null;
+  const subject = defaultForwardSubject(data.thread.subject);
+  const body = defaultForwardBody(data.thread, data.messages);
+  return `<!doctype html>
+<html lang="en">
+<head>
+  ${baseHead}
+  <title>Reverbin Mail Forward</title>
+  <meta name="description" content="Forward a Reverbin email thread from the human mail console." />
+  <style>${mailSettingsCss()}</style>
+</head>
+<body>
+  <main class="mail-shell" data-surface-id="mail-forward">
+    <header class="mail-topbar">
+      <a class="brand" href="/mail">${reverbinMarkSvg()}<span>Reverbin Mail</span></a>
+      <div class="mail-search"><input type="search" placeholder="Search mail" aria-label="Search mail" disabled /></div>
+      <div class="top-actions"><a href="/mail/settings">Settings</a><a href="/mail/webhooks">Webhooks</a><a href="/docs">Docs</a><a href="/dashboard/logout">Logout</a></div>
+    </header>
+    <section class="settings-layout" aria-label="Forward email thread">
+      ${renderMailSettingsSidebar(data.inboxes, 'inbox', selectedInboxId)}
+      <section class="settings-main">
+        <div class="settings-hero"><div><p class="eyebrow">Forward</p><h1>Forward email</h1><p>Forward this email thread from ${escapeHtml(selectedInbox?.email_address ?? 'your Reverbin inbox')} without leaving the mail console.</p></div></div>
+        ${renderSettingsNotice(data.notice)}
+        <form class="settings-card" method="post" action="/mail/threads/${escapeHtml(data.thread.id)}/forward">
+          <label>To<input type="text" name="to" placeholder="recipient@example.com" autocomplete="email" required /></label>
+          <label>Subject<input type="text" name="subject" value="${escapeHtml(subject)}" required /></label>
+          <label>Message<textarea name="text" rows="16" required>${escapeHtml(body)}</textarea></label>
+          <p class="form-note">Forwarded message content is prefilled so you can edit it before sending. Sent forwards are saved to the original email thread.</p>
+          <div class="settings-actions"><a class="button" href="/mail?thread_id=${encodeURIComponent(data.thread.id)}">Cancel</a><button type="submit">Send forward</button></div>
         </form>
       </section>
     </section>

@@ -12,7 +12,7 @@ import { getEmailProvider } from './providers.js';
 import { fetchResendReceivedEmail, normalizeResendReceivedEmail, verifySvixSignature } from './resend.js';
 import { buildWebhookDeliveryHeaders, buildWebhookEventPayload, isAllowedWebhookEvent, isAllowedWebhookUrl, shouldDeliverWebhookEvent, type WebhookEventType } from './webhooks.js';
 import { clearDashboardCookie, dashboardCookie, dashboardTokenFromEnv, isDashboardRequestAuthorized, parseDashboardCookies } from './dashboard-auth.js';
-import { renderDashboardLoginPage, renderDashboardPage, renderDashboardUnavailablePage, renderDocsPage, renderFaviconSvg, renderLandingPage, renderMailComposePage, renderMailPage, renderMailSettingsPage, renderMailWebhooksPage, renderSignupPage, type DocsPageKey } from './public-pages.js';
+import { renderDashboardLoginPage, renderDashboardPage, renderDashboardUnavailablePage, renderDocsPage, renderFaviconSvg, renderLandingPage, renderMailComposePage, renderMailForwardPage, renderMailPage, renderMailSettingsPage, renderMailWebhooksPage, renderSignupPage, type DocsPageKey } from './public-pages.js';
 import { buildWebhookDeliveryJob, redisConnectionOptions, WEBHOOK_DELIVERY_QUEUE, webhookDeliveryMode } from './webhook-delivery.js';
 import { buildPendingSignupVerification, normalizeSignupRequestInput, summarizeSignupVerification, type SignupRequestStatus, type SignupVerificationCheck } from './signup-verification.js';
 import { BILLING_PLANS, createStripeBillingPortalSession, createStripeCheckoutSession, maxInboxesForPlan, maxWebhookEndpointsForPlan, normalizePlan, priceIdForPlan, verifyStripeWebhookSignature, type BillingPlan } from './billing.js';
@@ -438,6 +438,14 @@ const ComposeMessageSchema = z.object({
   attachments: z.array(z.unknown()).optional(),
 });
 
+const ForwardMessageSchema = z.object({
+  to: z.array(z.string().email()).min(1),
+  subject: z.string().trim().min(1).max(240),
+  text: z.string().trim().min(1),
+  html: z.string().nullable().optional(),
+  attachments: z.array(z.unknown()).optional(),
+});
+
 const WebhookEndpointSchema = z.object({
   url: z.string().url().refine(isAllowedWebhookUrl, 'webhook url must use https, except loopback http for local testing'),
   events: z.array(z.string().min(1).refine(isAllowedWebhookEvent, 'unsupported webhook event')).default(['*']),
@@ -522,6 +530,17 @@ function parseMailComposeForm(body: unknown) {
   const html = formField(input.html);
   return ComposeMessageSchema.parse({
     inbox_id: formField(input.inbox_id),
+    to: formRecipients(input.to),
+    subject: formField(input.subject),
+    text: formField(input.text),
+    html: html || undefined,
+  });
+}
+
+function parseMailForwardForm(body: unknown) {
+  const input = (body ?? {}) as Record<string, unknown>;
+  const html = formField(input.html);
+  return ForwardMessageSchema.parse({
     to: formRecipients(input.to),
     subject: formField(input.subject),
     text: formField(input.text),
@@ -622,6 +641,7 @@ async function storeInboundEmail(body: InboundEmail) {
 
 type ThreadReplyBody = z.infer<typeof ReplySchema>;
 type ComposeMessageBody = z.infer<typeof ComposeMessageSchema>;
+type ForwardMessageBody = z.infer<typeof ForwardMessageSchema>;
 type ThreadReplyResult = {
   statusCode: 200 | 202 | 400 | 403 | 404;
   payload: Record<string, unknown>;
@@ -629,8 +649,8 @@ type ThreadReplyResult = {
 
 async function sendThreadReply(threadId: string, body: ThreadReplyBody, authContext?: AuthContext): Promise<ThreadReplyResult> {
   const threadResult = authContext?.operator || !authContext
-    ? await query<any>('SELECT * FROM threads WHERE id = $1', [threadId])
-    : await query<any>('SELECT * FROM threads WHERE id = $1 AND tenant_id = $2', [threadId, authContext.tenantId]);
+    ? await query<any>('SELECT * FROM threads WHERE id = $1 AND deleted_at IS NULL', [threadId])
+    : await query<any>('SELECT * FROM threads WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL', [threadId, authContext.tenantId]);
   if (threadResult.rowCount === 0) return { statusCode: 404, payload: { error: 'thread not found' } };
   const thread = threadResult.rows[0];
   const inboxResult = await query<any>('SELECT * FROM inboxes WHERE id = $1', [thread.inbox_id]);
@@ -689,6 +709,54 @@ async function sendThreadReply(threadId: string, body: ThreadReplyBody, authCont
   await audit('email.sent', 'message', messageId, { provider_result: sendResult }, authContext ? 'api' : 'human', authContext?.apiKeyId, tenantId);
   await publishWebhookEvent('email.sent', { inbox_id: inbox.id, thread_id: thread.id, message_id: messageId, to: recipients, subject: body.subject ?? `Re: ${thread.subject}`, risk_flags: decision.risk_flags }, inbox.tenant_id);
   return { statusCode: 200, payload: { message_id: messageId, provider_result: sendResult } };
+}
+
+async function sendThreadForward(threadId: string, body: ForwardMessageBody, authContext?: AuthContext): Promise<ThreadReplyResult> {
+  const result = await sendThreadReply(threadId, { to: body.to, subject: body.subject, text: body.text, html: body.html, attachments: body.attachments }, authContext);
+  if (result.statusCode === 200) {
+    const tenantId = authContext?.tenantId;
+    await audit('email.forwarded', 'thread', threadId, { message_id: result.payload.message_id, to: body.to, subject: body.subject }, 'human', authContext?.apiKeyId, tenantId);
+  }
+  return result;
+}
+
+async function deleteMailThread(threadId: string, authContext?: AuthContext) {
+  const result = authContext?.operator || !authContext
+    ? await query<any>(
+      `UPDATE threads
+       SET deleted_at = now(), updated_at = now()
+       WHERE id = $1 AND deleted_at IS NULL
+       RETURNING id, inbox_id, tenant_id`,
+      [threadId],
+    )
+    : await query<any>(
+      `UPDATE threads
+       SET deleted_at = now(), updated_at = now()
+       WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL
+       RETURNING id, inbox_id, tenant_id`,
+      [threadId, authContext.tenantId],
+    );
+  if (result.rowCount === 0) return null;
+  const thread = result.rows[0];
+  await audit('mail.thread_deleted', 'thread', thread.id, { inbox_id: thread.inbox_id }, 'human', authContext?.apiKeyId, thread.tenant_id);
+  return thread;
+}
+
+async function loadMailThreadForConsole(threadId: string, authContext?: AuthContext) {
+  const threadResult = authContext?.operator || !authContext
+    ? await query<any>('SELECT id, inbox_id, subject, last_message_at FROM threads WHERE id = $1 AND deleted_at IS NULL', [threadId])
+    : await query<any>('SELECT id, inbox_id, subject, last_message_at FROM threads WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL', [threadId, authContext.tenantId]);
+  if (threadResult.rowCount === 0) return null;
+  const thread = threadResult.rows[0];
+  const tenantId = authContext?.operator || !authContext ? undefined : authContext.tenantId;
+  const messages = await query<any>(
+    `SELECT id, thread_id, direction, from_email, from_name, to_json, subject, text_body, html_body, coalesce(sent_at, received_at, created_at) AS created_at
+     FROM messages
+     WHERE thread_id = $1${tenantId ? ' AND tenant_id = $2' : ''}
+     ORDER BY created_at ASC`,
+    tenantId ? [threadId, tenantId] : [threadId],
+  );
+  return { thread, messages: messages.rows };
 }
 
 async function sendNewThread(body: ComposeMessageBody, authContext?: AuthContext): Promise<ThreadReplyResult> {
@@ -938,7 +1006,7 @@ app.get<{ Querystring: { inbox_id?: string; thread_id?: string; notice?: string 
     const inboxes = mailTenantId ? await query<any>(
       `SELECT i.id, i.email_address, i.display_name, i.status, count(t.id)::int AS thread_count
        FROM inboxes i
-       LEFT JOIN threads t ON t.inbox_id = i.id AND t.tenant_id = i.tenant_id
+       LEFT JOIN threads t ON t.inbox_id = i.id AND t.tenant_id = i.tenant_id AND t.deleted_at IS NULL
        WHERE i.tenant_id = $1
        GROUP BY i.id, i.email_address, i.display_name, i.status, i.created_at
        ORDER BY i.created_at DESC
@@ -947,7 +1015,7 @@ app.get<{ Querystring: { inbox_id?: string; thread_id?: string; notice?: string 
     ) : await query<any>(
       `SELECT i.id, i.email_address, i.display_name, i.status, count(t.id)::int AS thread_count
        FROM inboxes i
-       LEFT JOIN threads t ON t.inbox_id = i.id
+       LEFT JOIN threads t ON t.inbox_id = i.id AND t.deleted_at IS NULL
        GROUP BY i.id, i.email_address, i.display_name, i.status, i.created_at
        ORDER BY i.created_at DESC
        LIMIT 50`,
@@ -955,8 +1023,8 @@ app.get<{ Querystring: { inbox_id?: string; thread_id?: string; notice?: string 
 
     const threadFromQuery = req.query.thread_id
       ? mailTenantId
-        ? await query<any>('SELECT id, inbox_id, subject, last_message_at FROM threads WHERE id = $1 AND tenant_id = $2', [req.query.thread_id, mailTenantId])
-        : await query<any>('SELECT id, inbox_id, subject, last_message_at FROM threads WHERE id = $1', [req.query.thread_id])
+        ? await query<any>('SELECT id, inbox_id, subject, last_message_at FROM threads WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL', [req.query.thread_id, mailTenantId])
+        : await query<any>('SELECT id, inbox_id, subject, last_message_at FROM threads WHERE id = $1 AND deleted_at IS NULL', [req.query.thread_id])
       : null;
     const selectedThreadFromQuery = threadFromQuery?.rows[0] ?? null;
     const selectedInboxId = req.query.inbox_id ?? selectedThreadFromQuery?.inbox_id ?? inboxes.rows[0]?.id ?? null;
@@ -980,7 +1048,7 @@ app.get<{ Querystring: { inbox_id?: string; thread_id?: string; notice?: string 
            LIMIT 1
          ) lm ON true
          LEFT JOIN messages m ON m.thread_id = t.id${mailTenantId ? ' AND m.tenant_id = t.tenant_id' : ''}
-         WHERE t.inbox_id = $1${mailTenantId ? ' AND t.tenant_id = $2' : ''}
+         WHERE t.inbox_id = $1 AND t.deleted_at IS NULL${mailTenantId ? ' AND t.tenant_id = $2' : ''}
          GROUP BY t.id, t.inbox_id, t.subject, t.last_message_at, lm.from_email, lm.direction, lm.text_body, lm.html_body
          ORDER BY t.last_message_at DESC
          LIMIT 100`,
@@ -1021,7 +1089,7 @@ app.get<{ Querystring: { inbox_id?: string; notice?: string } }>('/mail/compose'
     const inboxes = await query<any>(
       `SELECT i.id, i.email_address, i.display_name, i.status, count(t.id)::int AS thread_count
        FROM inboxes i
-       LEFT JOIN threads t ON t.inbox_id = i.id AND t.tenant_id = i.tenant_id
+       LEFT JOIN threads t ON t.inbox_id = i.id AND t.tenant_id = i.tenant_id AND t.deleted_at IS NULL
        WHERE i.tenant_id = $1
        GROUP BY i.id, i.email_address, i.display_name, i.status, i.created_at
        ORDER BY i.created_at DESC
@@ -1054,13 +1122,68 @@ app.post('/mail/compose', { preHandler: requireDashboardAuth }, async (req, repl
   reply.code(result.statusCode).type('text/html').send(renderDashboardUnavailablePage('compose unavailable'));
 });
 
+app.get<{ Params: { id: string }; Querystring: { notice?: string } }>('/mail/threads/:id/forward', { preHandler: requireDashboardAuth }, async (req, reply) => {
+  try {
+    const authContext = (req as AuthedRequest).authContext;
+    const loaded = await loadMailThreadForConsole(req.params.id, authContext);
+    if (!loaded) {
+      reply.code(404).type('text/html').send(renderDashboardUnavailablePage('thread not found'));
+      return;
+    }
+    const tenantId = tenantIdFor(req);
+    const inboxes = await query<any>(
+      `SELECT i.id, i.email_address, i.display_name, i.status, count(t.id)::int AS thread_count
+       FROM inboxes i
+       LEFT JOIN threads t ON t.inbox_id = i.id AND t.tenant_id = i.tenant_id AND t.deleted_at IS NULL
+       WHERE i.tenant_id = $1
+       GROUP BY i.id, i.email_address, i.display_name, i.status, i.created_at
+       ORDER BY i.created_at DESC
+       LIMIT 50`,
+      [tenantId],
+    );
+    reply.type('text/html').send(renderMailForwardPage({
+      inboxes: inboxes.rows,
+      selectedInboxId: loaded.thread.inbox_id,
+      thread: loaded.thread,
+      messages: loaded.messages,
+      notice: req.query.notice,
+    }));
+  } catch (error) {
+    req.log.error(error, 'mail forward database query failed');
+    reply.code(503).type('text/html').send(renderDashboardUnavailablePage('mail forward unavailable'));
+  }
+});
+
+app.post<{ Params: { id: string } }>('/mail/threads/:id/forward', { preHandler: requireDashboardAuth }, async (req, reply) => {
+  const body = parseMailForwardForm(req.body);
+  const result = await sendThreadForward(req.params.id, body, (req as AuthedRequest).authContext);
+  if (result.statusCode === 200) {
+    reply.redirect(`/mail?thread_id=${encodeURIComponent(req.params.id)}&notice=forward_sent`);
+    return;
+  }
+  if (result.statusCode === 202) {
+    reply.redirect(`/mail/threads/${encodeURIComponent(req.params.id)}/forward?notice=forward_pending`);
+    return;
+  }
+  reply.code(result.statusCode).type('text/html').send(renderDashboardUnavailablePage('forward unavailable'));
+});
+
+app.post<{ Params: { id: string } }>('/mail/threads/:id/delete', { preHandler: requireDashboardAuth }, async (req, reply) => {
+  const deleted = await deleteMailThread(req.params.id, (req as AuthedRequest).authContext);
+  if (!deleted) {
+    reply.code(404).type('text/html').send(renderDashboardUnavailablePage('thread not found'));
+    return;
+  }
+  reply.redirect(`/mail?inbox_id=${encodeURIComponent(deleted.inbox_id)}&notice=thread_deleted`);
+});
+
 app.get<{ Querystring: { inbox_id?: string; notice?: string } }>('/mail/settings', { preHandler: requireDashboardAuth }, async (req, reply) => {
   try {
     const tenantId = tenantIdFor(req);
     const inboxes = await query<any>(
       `SELECT i.id, i.email_address, i.display_name, i.status, count(t.id)::int AS thread_count
        FROM inboxes i
-       LEFT JOIN threads t ON t.inbox_id = i.id AND t.tenant_id = i.tenant_id
+       LEFT JOIN threads t ON t.inbox_id = i.id AND t.tenant_id = i.tenant_id AND t.deleted_at IS NULL
        WHERE i.tenant_id = $1
        GROUP BY i.id, i.email_address, i.display_name, i.status, i.created_at
        ORDER BY i.created_at DESC
@@ -1130,7 +1253,7 @@ app.get<{ Querystring: { notice?: string } }>('/mail/webhooks', { preHandler: re
     const inboxes = await query<any>(
       `SELECT i.id, i.email_address, i.display_name, i.status, count(t.id)::int AS thread_count
        FROM inboxes i
-       LEFT JOIN threads t ON t.inbox_id = i.id AND t.tenant_id = i.tenant_id
+       LEFT JOIN threads t ON t.inbox_id = i.id AND t.tenant_id = i.tenant_id AND t.deleted_at IS NULL
        WHERE i.tenant_id = $1
        GROUP BY i.id, i.email_address, i.display_name, i.status, i.created_at
        ORDER BY i.created_at DESC

@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS threads (
   inbox_id text NOT NULL REFERENCES inboxes(id) ON DELETE CASCADE,
   subject text NOT NULL DEFAULT '(no subject)',
   last_message_at timestamptz NOT NULL DEFAULT now(),
+  deleted_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
