@@ -1,5 +1,6 @@
-const REQUEST_ACCESS_HREF = 'mailto:hello@builtbyecho.com?subject=Reverbin%20access&body=Tell%20us%20your%20agent%20use%20case%2C%20preferred%20inbox%20name%2C%20and%20webhook%20URL.%20We%27ll%20reply%20with%20beta%20API%20access.';
-const ACCESS_REQUEST_NOTE = 'Opens a prefilled email. We reply with beta API key access and the verified receiving-domain details.';
+const SIGNUP_HREF = '/signup';
+const CONTACT_HREF = 'mailto:hello@builtbyecho.com?subject=Reverbin%20enterprise&body=Tell%20us%20about%20your%20agent%20email%20volume%2C%20custom%20domain%20needs%2C%20and%20deployment%20requirements.';
+const ACCESS_REQUEST_NOTE = 'Create a free agent in the browser. Reverbin generates your inbox and tenant-scoped API key instantly.';
 
 const faviconSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="72" fill="#050606"/><path d="M148 383V129H292C364 129 410 169 410 231C410 292 365 330 292 330H148" fill="none" stroke="#F4F4F2" stroke-width="52" stroke-linecap="round" stroke-linejoin="round"/><path d="M286 330L394 432" fill="none" stroke="#F4F4F2" stroke-width="52" stroke-linecap="round"/><path d="M190 228H289C327 228 351 245 351 271C351 297 327 313 289 313H190" fill="none" stroke="#B9FF2D" stroke-width="32" stroke-linecap="round"/><circle cx="394" cy="432" r="16" fill="#B9FF2D"/></svg>`;
 const faviconHref = `data:image/svg+xml,${encodeURIComponent(faviconSvg)}`;
@@ -1307,7 +1308,7 @@ export function renderLandingPage() {
         <a href="#pricing">Pricing</a>
         <a href="/docs">Docs</a>
         <a class="button secondary" href="/dashboard/login">Dashboard</a>
-        <a class="button primary" href="${REQUEST_ACCESS_HREF}">Sign up</a>
+        <a class="button primary" href="${SIGNUP_HREF}">Sign up</a>
       </nav>
     </header>
 
@@ -1317,7 +1318,7 @@ export function renderLandingPage() {
         <h1 id="hero-heading"><span class="line">Email</span><span class="line">for AI</span><span class="line">agents.</span></h1>
         <p class="lede"><strong>Reverbin is an email service for AI agents.</strong> Give every agent a real email address like <code>user@reverbin.com</code>, then route incoming messages to your agent runtime with signed webhooks, thread history, sending policy, and operator audit logs.</p>
         <div class="hero-actions">
-          <a class="button primary" href="${REQUEST_ACCESS_HREF}">
+          <a class="button primary" href="${SIGNUP_HREF}">
             Sign up
             <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M5 12h13m-5-5 5 5-5 5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </a>
@@ -1525,7 +1526,7 @@ await reverbin.inboxes.create({
           <code>Free</code>
           <h4>$0/mo</h4>
           <p>2 inboxes, 2,000 emails/month, 1 webhook endpoint, Reverbin domain addresses.</p>
-          <a class="button" href="${REQUEST_ACCESS_HREF}">Create free agent</a>
+          <a class="button" href="${SIGNUP_HREF}">Create free agent</a>
         </article>
         <article class="resource-panel pricing-card featured">
           <code>Developer</code>
@@ -1543,7 +1544,7 @@ await reverbin.inboxes.create({
           <code>Enterprise</code>
           <h4>Custom</h4>
           <p>Custom domains, volume, deployment, support, and compliance needs for larger agent fleets.</p>
-          <a class="button" href="${REQUEST_ACCESS_HREF}">Contact us</a>
+          <a class="button" href="${CONTACT_HREF}">Contact us</a>
         </article>
       </div>
       <p class="access-note">Reverbin does not collect payment details directly; Stripe handles hosted payment and Link.</p>
@@ -1554,7 +1555,7 @@ await reverbin.inboxes.create({
         <h2 id="cta-heading">Give your agent a real email address.</h2>
         <p>Use Reverbin as the email layer between the outside world and autonomous agent workflows.</p>
         <div class="hero-actions">
-          <a class="button primary" href="${REQUEST_ACCESS_HREF}">Sign up</a>
+          <a class="button primary" href="${SIGNUP_HREF}">Sign up</a>
           <a class="button" href="/docs">View API docs</a>
         </div>
         <p class="access-note">${ACCESS_REQUEST_NOTE}</p>
@@ -1902,6 +1903,169 @@ export function renderMailPage(data: MailPageData) {
       </section>
     </section>
   </main>
+</body>
+</html>`;
+}
+
+export function renderSignupPage() {
+  return `<!doctype html>
+<html lang="en">
+<head>
+  ${baseHead}
+  <title>Sign up for Reverbin - Email for AI agents</title>
+  <meta name="description" content="Create a free Reverbin agent, provision a root-domain inbox, and receive a tenant-scoped API key instantly." />
+  <link rel="canonical" href="https://reverbin.com/signup" />
+  <style>
+    :root { color-scheme: dark; --black: #0A0A0A; --charcoal: #121417; --ivory: #F4F4F2; --mint: #BDE6D3; --signal: #C6FF6E; --muted: rgba(244,244,242,.72); --line: rgba(244,244,242,.16); --danger: #ff8a8a; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; color: var(--ivory); font-family: 'Geist', Inter, ui-sans-serif, system-ui, sans-serif; background: radial-gradient(circle at 18% 10%, rgba(198,255,110,.12), transparent 30%), linear-gradient(180deg, #050606 0%, var(--black) 100%); }
+    a { color: inherit; text-decoration: none; }
+    .shell { width: min(1120px, calc(100% - 36px)); margin: 0 auto; padding: 26px 0 64px; }
+    .topbar { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: clamp(44px, 7vw, 96px); }
+    .brand { display: inline-flex; align-items: center; gap: 12px; font-weight: 800; font-size: 20px; }
+    .brand svg { width: 38px; height: 38px; }
+    .nav { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+    .button, button { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; border-radius: 8px; border: 1px solid var(--line); padding: 0 16px; background: rgba(244,244,242,.04); color: var(--ivory); font-weight: 750; cursor: pointer; }
+    .button.primary, button[type="submit"] { background: var(--ivory); color: #050606; border-color: var(--ivory); }
+    .button.secondary { color: var(--signal); border-color: rgba(198,255,110,.34); background: rgba(198,255,110,.07); }
+    .layout { display: grid; grid-template-columns: minmax(0, .88fr) minmax(360px, 1.12fr); gap: clamp(28px, 6vw, 76px); align-items: start; }
+    .eyebrow { color: var(--signal); font: 700 12px/1 'Geist Mono', ui-monospace, monospace; letter-spacing: .16em; text-transform: uppercase; }
+    h1 { margin: 18px 0 0; font-size: clamp(48px, 7vw, 92px); line-height: .9; letter-spacing: -.055em; max-width: 720px; }
+    .lede { margin: 26px 0 0; color: var(--muted); font-size: 18px; line-height: 1.65; max-width: 650px; }
+    .proof { display: grid; gap: 12px; margin-top: 30px; }
+    .proof div, .card { border: 1px solid var(--line); background: rgba(244,244,242,.045); border-radius: 14px; padding: 18px; box-shadow: 0 24px 80px rgba(0,0,0,.28); }
+    .proof b { display: block; margin-bottom: 6px; }
+    .proof span { color: var(--muted); line-height: 1.5; }
+    .card h2 { margin: 0 0 8px; font-size: 28px; }
+    .card p { color: var(--muted); line-height: 1.55; }
+    form { display: grid; gap: 16px; margin-top: 22px; }
+    label { display: grid; gap: 7px; color: rgba(244,244,242,.82); font-size: 14px; font-weight: 700; }
+    input, textarea { width: 100%; border: 1px solid var(--line); border-radius: 10px; background: rgba(10,10,10,.72); color: var(--ivory); min-height: 46px; padding: 12px 13px; font: inherit; }
+    textarea { min-height: 108px; resize: vertical; }
+    .hint { color: rgba(244,244,242,.52); font-size: 13px; line-height: 1.45; }
+    .status { min-height: 24px; color: var(--muted); font-size: 14px; }
+    .status.error { color: var(--danger); }
+    .result { margin-top: 20px; border-color: rgba(198,255,110,.38); background: rgba(198,255,110,.07); }
+    .result[hidden] { display: none; }
+    pre { overflow-x: auto; white-space: pre-wrap; word-break: break-word; border: 1px solid rgba(244,244,242,.14); border-radius: 10px; padding: 14px; background: rgba(0,0,0,.38); color: var(--ivory); font-family: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; }
+    @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } h1 { font-size: clamp(42px, 14vw, 68px); } .topbar { align-items: flex-start; } }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="Reverbin home">${reverbinMarkSvg()}<span>reverbin</span></a>
+      <nav class="nav" aria-label="Signup navigation">
+        <a class="button" href="/docs">Docs</a>
+        <a class="button secondary" href="/dashboard/login">Dashboard</a>
+      </nav>
+    </header>
+    <section class="layout" aria-labelledby="signup-heading">
+      <div>
+        <div class="eyebrow">Self-serve beta</div>
+        <h1 id="signup-heading">Create your agent inbox.</h1>
+        <p class="lede">Create a free Reverbin agent, receive a root-domain inbox like <code>agent@reverbin.com</code>, and copy a tenant-scoped API key immediately. Free agents include 2 inboxes and 1 webhook endpoint.</p>
+        <div class="proof" aria-label="What signup provisions">
+          <div><b>Instant inbox</b><span>Signup provisions your first <code>@reverbin.com</code> address without waiting for an operator.</span></div>
+          <div><b>Scoped API key</b><span>The key only has access to the tenant created for this agent. Your API key is shown once.</span></div>
+          <div><b>Optional webhook</b><span>Add a HTTPS webhook URL now and Reverbin returns the signing secret one time.</span></div>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Free agent signup</h2>
+        <p>Use a real email address so you can recover account context later. The preferred inbox name becomes <code>name@reverbin.com</code>.</p>
+        <form id="agent-signup-form">
+          <label>Email
+            <input name="requester_email" type="email" autocomplete="email" placeholder="you@example.com" required />
+          </label>
+          <label>Agent name
+            <input name="agent_name" type="text" autocomplete="organization-title" placeholder="Support Agent" required minlength="2" />
+          </label>
+          <label>Preferred inbox name
+            <input name="preferred_inbox_name" type="text" inputmode="latin" autocomplete="off" placeholder="support-agent" required minlength="3" maxlength="48" pattern="[a-zA-Z0-9._-]+" />
+            <span class="hint">Letters, numbers, dots, underscores, and hyphens. Reverbin normalizes this to lowercase.</span>
+          </label>
+          <label>Agent use case
+            <textarea name="agent_use_case" placeholder="What will this agent use email for?" required minlength="10"></textarea>
+          </label>
+          <label>Webhook URL <span class="hint">optional</span>
+            <input name="webhook_url" type="url" placeholder="https://example.com/reverbin/webhook" />
+          </label>
+          <button type="submit">Create free agent</button>
+          <div id="signup-status" class="status" role="status" aria-live="polite"></div>
+        </form>
+        <section id="signup-result" class="result card" hidden aria-label="Signup result">
+          <h2>Agent created</h2>
+          <p>Your API key is shown once. Copy it now before leaving this page.</p>
+          <pre id="signup-output"></pre>
+          <div class="nav">
+            <button type="button" id="copy-signup-output">Copy quickstart</button>
+            <a class="button secondary" href="/docs/api#billing-and-plan-upgrades">Upgrade with Checkout</a>
+          </div>
+        </section>
+      </div>
+    </section>
+  </main>
+  <script>
+    const form = document.getElementById('agent-signup-form');
+    const statusEl = document.getElementById('signup-status');
+    const resultEl = document.getElementById('signup-result');
+    const outputEl = document.getElementById('signup-output');
+    const copyButton = document.getElementById('copy-signup-output');
+    function setStatus(message, isError) {
+      statusEl.textContent = message;
+      statusEl.classList.toggle('error', Boolean(isError));
+    }
+    function quickstartText(result) {
+      const token = String(result.api_key && result.api_key.token || '');
+      const inbox = String(result.inbox && result.inbox.email_address || '');
+      const tenant = String(result.tenant_id || '');
+      const webhookSecret = result.webhook && result.webhook.secret ? String(result.webhook.secret) : '';
+      return [
+        'Inbox: ' + inbox,
+        'Tenant: ' + tenant,
+        'API key: ' + token,
+        webhookSecret ? 'Webhook secret: ' + webhookSecret : '',
+        '',
+        'export REVERBIN_API_KEY=' + token,
+        'curl https://api.reverbin.com/v1/inboxes -H "Authorization: Bearer ' + token + '"',
+      ].filter(Boolean).join('\\n');
+    }
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      setStatus('Creating your agent...', false);
+      resultEl.hidden = true;
+      const data = new FormData(form);
+      const payload = {
+        requester_email: String(data.get('requester_email') || '').trim(),
+        agent_name: String(data.get('agent_name') || '').trim(),
+        preferred_inbox_name: String(data.get('preferred_inbox_name') || '').trim(),
+        agent_use_case: String(data.get('agent_use_case') || '').trim(),
+      };
+      const webhookUrl = String(data.get('webhook_url') || '').trim();
+      if (webhookUrl) payload.webhook_url = webhookUrl;
+      try {
+        const response = await fetch('/v1/agent-signups', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(result.error || 'Signup failed. Please check the form and try again.');
+        }
+        outputEl.textContent = quickstartText(result);
+        resultEl.hidden = false;
+        setStatus('Agent created. Copy the one-time API key below.', false);
+      } catch (error) {
+        setStatus(error instanceof Error ? error.message : 'Signup failed. Please try again.', true);
+      }
+    });
+    copyButton.addEventListener('click', async () => {
+      await navigator.clipboard.writeText(outputEl.textContent || '');
+      setStatus('Copied quickstart to clipboard.', false);
+    });
+  </script>
 </body>
 </html>`;
 }
@@ -3129,7 +3293,7 @@ export function renderDocsPage(page: DocsPageKey = 'overview', markdown?: string
       <nav class="top-actions" aria-label="Docs actions">
         <a class="button" href="/">Product</a>
         <a class="button" href="/dashboard/login">Dashboard</a>
-        <a class="button primary" href="${REQUEST_ACCESS_HREF}">Sign up</a>
+        <a class="button primary" href="${SIGNUP_HREF}">Sign up</a>
       </nav>
     </header>
     <section class="docs-hero" aria-label="${escapeHtml(meta.title)}">
@@ -3147,7 +3311,7 @@ export function renderDocsPage(page: DocsPageKey = 'overview', markdown?: string
         <p>Start from the quickstart or wire the REST API directly.</p>
       </div>
       <div class="top-actions">
-        <a class="button primary" href="${REQUEST_ACCESS_HREF}">Sign up</a>
+        <a class="button primary" href="${SIGNUP_HREF}">Sign up</a>
         <a class="button" href="/docs/api">API reference</a>
       </div>
       <p class="access-note">${ACCESS_REQUEST_NOTE}</p>

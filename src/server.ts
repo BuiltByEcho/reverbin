@@ -12,7 +12,7 @@ import { getEmailProvider } from './providers.js';
 import { fetchResendReceivedEmail, normalizeResendReceivedEmail, verifySvixSignature } from './resend.js';
 import { buildWebhookDeliveryHeaders, buildWebhookEventPayload, isAllowedWebhookEvent, isAllowedWebhookUrl, shouldDeliverWebhookEvent, type WebhookEventType } from './webhooks.js';
 import { clearDashboardCookie, dashboardCookie, dashboardTokenFromEnv, isDashboardRequestAuthorized } from './dashboard-auth.js';
-import { renderDashboardLoginPage, renderDashboardPage, renderDashboardUnavailablePage, renderDocsPage, renderFaviconSvg, renderLandingPage, renderMailPage, type DocsPageKey } from './public-pages.js';
+import { renderDashboardLoginPage, renderDashboardPage, renderDashboardUnavailablePage, renderDocsPage, renderFaviconSvg, renderLandingPage, renderMailPage, renderSignupPage, type DocsPageKey } from './public-pages.js';
 import { buildWebhookDeliveryJob, redisConnectionOptions, WEBHOOK_DELIVERY_QUEUE, webhookDeliveryMode } from './webhook-delivery.js';
 import { buildPendingSignupVerification, normalizeSignupRequestInput, summarizeSignupVerification, type SignupRequestStatus, type SignupVerificationCheck } from './signup-verification.js';
 import { BILLING_PLANS, createStripeBillingPortalSession, createStripeCheckoutSession, maxInboxesForPlan, maxWebhookEndpointsForPlan, normalizePlan, priceIdForPlan, verifyStripeWebhookSignature, type BillingPlan } from './billing.js';
@@ -550,6 +550,10 @@ app.get('/readyz', async (req, reply) => {
 
 app.get('/', async (_req, reply) => {
   reply.type('text/html').send(renderLandingPage());
+});
+
+app.get('/signup', async (_req, reply) => {
+  reply.type('text/html').send(renderSignupPage());
 });
 
 app.get('/favicon.ico', async (_req, reply) => {

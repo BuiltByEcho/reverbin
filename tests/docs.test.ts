@@ -1,7 +1,7 @@
 import * as assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { renderDocsPage, renderLandingPage } from '../src/public-pages.js';
+import { renderDocsPage, renderLandingPage, renderSignupPage } from '../src/public-pages.js';
 
 const root = new URL('../', import.meta.url);
 const read = (path: string) => readFileSync(new URL(path, root), 'utf8');
@@ -15,16 +15,24 @@ function assertNoSecretExamples(content: string) {
   assert.doesNotMatch(content, /apiKey:\s*proces\.\.\.KEY/);
 }
 
-test('public signup CTAs explain the beta access request flow', () => {
+test('public signup CTAs open the self-serve agent signup page', () => {
   const landing = renderLandingPage();
   const docs = renderDocsPage('overview');
+  const signup = renderSignupPage();
+  const server = read('src/server.ts');
 
   for (const html of [landing, docs]) {
     assert.match(html, /Sign up/);
-    assert.match(html, /mailto:hello@builtbyecho\.com\?subject=Reverbin%20access/);
-    assert.match(html, /Opens a prefilled email/);
+    assert.match(html, /href="\/signup"/);
+    assert.doesNotMatch(html, /mailto:hello@builtbyecho\.com\?subject=Reverbin%20access/);
+    assert.doesNotMatch(html, /Opens a prefilled email/);
     assert.match(html, /API key/);
   }
+
+  assert.match(server, /app\.get\('\/signup'/);
+  assert.match(signup, /id="agent-signup-form"/);
+  assert.match(signup, /fetch\('\/v1\/agent-signups'/);
+  assert.match(signup, /Your API key is shown once/);
 });
 
 test('builder docs disclose live root-domain inboxes without legacy beta-domain caveats', () => {
