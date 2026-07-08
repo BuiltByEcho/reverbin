@@ -1,5 +1,7 @@
 import { createHash, randomBytes, randomInt } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
+import { createReadStream } from 'node:fs';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import * as path from 'node:path';
 import Fastify, { type FastifyReply, type FastifyRequest } from 'fastify';
 import cors from '@fastify/cors';
 import formbody from '@fastify/formbody';
@@ -28,6 +30,8 @@ const SELF_SERVE_INBOX_DOMAIN = process.env.SELF_SERVE_INBOX_DOMAIN ?? 'reverbin
 const SELF_SERVE_MAX_INBOXES_PER_AGENT = Number(process.env.SELF_SERVE_MAX_INBOXES_PER_AGENT ?? '2');
 const PORT = Number(process.env.PORT ?? 8797);
 const HOST = process.env.HOST ?? '127.0.0.1';
+const ATTACHMENT_STORAGE_DIR = process.env.ATTACHMENT_STORAGE_DIR ?? '/var/lib/agent-email-layer/attachments';
+const MAX_INBOUND_ATTACHMENT_BYTES = Number(process.env.MAX_INBOUND_ATTACHMENT_BYTES ?? String(15 * 1024 * 1024));
 const LLMS_TXT_PATH = new URL('../../llms.txt', import.meta.url);
 const DOCS_MARKDOWN_PATHS: Record<Exclude<DocsPageKey, 'overview'>, URL> = {
   quickstart: new URL('../../docs/QUICKSTART.md', import.meta.url),
@@ -405,6 +409,18 @@ const InboxCreateSchema = z.object({
   }).optional(),
 });
 
+const InboundAttachmentSchema = z.object({
+  provider_attachment_id: z.string().optional(),
+  filename: z.string().min(1).max(255),
+  content_type: z.string().min(1).max(255).default('application/octet-stream'),
+  content_disposition: z.string().nullable().optional(),
+  content_id: z.string().nullable().optional(),
+  size_bytes: z.number().int().nonnegative().nullable().optional(),
+  download_url: z.string().url().optional(),
+  expires_at: z.string().optional(),
+  content_base64: z.string().optional(),
+});
+
 const InboundSchema = z.object({
   inbox_id: z.string().optional(),
   email_address: z.string().email().optional(),
@@ -419,6 +435,7 @@ const InboundSchema = z.object({
   html: z.string().nullable().optional(),
   headers: z.record(z.string(), z.unknown()).optional(),
   raw_mime_storage_key: z.string().optional(),
+  attachments: z.array(InboundAttachmentSchema).optional(),
 });
 
 const ReplySchema = z.object({
@@ -625,6 +642,91 @@ type WebhookEndpointRow = {
 };
 
 type InboundEmail = z.infer<typeof InboundSchema>;
+type InboundAttachment = z.infer<typeof InboundAttachmentSchema>;
+
+type StoredAttachment = {
+  attachmentId: string;
+  storageKey: string;
+  absolutePath: string;
+  sizeBytes: number;
+  sha256: string;
+};
+
+function safeAttachmentFilename(filename: string) {
+  const cleaned = filename.replace(/[^a-zA-Z0-9._-]+/g, '_').replace(/^\.+/, '').slice(0, 120);
+  return cleaned || 'attachment.bin';
+}
+
+function attachmentHref(attachmentId: string) {
+  return `/mail/attachments/${encodeURIComponent(attachmentId)}`;
+}
+
+async function downloadAttachmentToStorage(attachment: InboundAttachment, context: { tenantId: string; messageId: string; attachmentId: string }): Promise<StoredAttachment> {
+  let bytes: Buffer;
+  if (attachment.content_base64) {
+    bytes = Buffer.from(attachment.content_base64, 'base64');
+  } else if (attachment.download_url) {
+    const response = await fetch(attachment.download_url);
+    if (!response.ok) throw new Error(`attachment download failed: ${response.status}`);
+    const buffer = Buffer.from(await response.arrayBuffer());
+    bytes = buffer;
+  } else {
+    bytes = Buffer.alloc(0);
+  }
+  if (bytes.length > MAX_INBOUND_ATTACHMENT_BYTES) throw new Error(`attachment too large: ${bytes.length}`);
+  const sha256 = createHash('sha256').update(bytes).digest('hex');
+  const filename = safeAttachmentFilename(attachment.filename);
+  const storageKey = path.posix.join(context.tenantId, context.messageId, `${context.attachmentId}-${filename}`);
+  const absolutePath = path.join(ATTACHMENT_STORAGE_DIR, context.tenantId, context.messageId, `${context.attachmentId}-${filename}`);
+  await mkdir(path.dirname(absolutePath), { recursive: true });
+  await writeFile(absolutePath, bytes);
+  return { attachmentId: context.attachmentId, storageKey, absolutePath, sizeBytes: bytes.length, sha256 };
+}
+
+async function storeInboundAttachments(params: { tenantId: string; inboxId: string; threadId: string; messageId: string; attachments?: InboundAttachment[] }) {
+  const attachments = params.attachments ?? [];
+  for (const attachment of attachments) {
+    const attachmentId = id('att');
+    const stored = await downloadAttachmentToStorage(attachment, { tenantId: params.tenantId, messageId: params.messageId, attachmentId });
+    await query(
+      `INSERT INTO message_attachments (id, tenant_id, inbox_id, thread_id, message_id, provider_attachment_id, filename, content_type, content_disposition, content_id, size_bytes, storage_key, sha256, metadata_json)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb)`,
+      [attachmentId, params.tenantId, params.inboxId, params.threadId, params.messageId, attachment.provider_attachment_id ?? null,
+        attachment.filename, attachment.content_type, attachment.content_disposition ?? null, attachment.content_id ?? null,
+        attachment.size_bytes ?? stored.sizeBytes, stored.storageKey, stored.sha256,
+        JSON.stringify({ download_url_expires_at: attachment.expires_at ?? null })],
+    );
+  }
+}
+
+async function attachMailAttachments(messages: any[], authContext?: AuthContext) {
+  const messageIds = messages.map((message) => message.id).filter(Boolean);
+  if (messageIds.length === 0) return messages;
+  const tenantId = authContext?.operator ? undefined : authContext?.tenantId;
+  const result = tenantId
+    ? await query<any>(
+      `SELECT id, message_id, filename, content_type, content_disposition, content_id, size_bytes, '/mail/attachments/' || id AS href
+       FROM message_attachments
+       WHERE message_id = ANY($1::text[]) AND tenant_id = $2
+       ORDER BY created_at ASC`,
+      [messageIds, tenantId],
+    )
+    : await query<any>(
+      `SELECT id, message_id, filename, content_type, content_disposition, content_id, size_bytes, '/mail/attachments/' || id AS href
+       FROM message_attachments
+       WHERE message_id = ANY($1::text[])
+       ORDER BY created_at ASC`,
+      [messageIds],
+    );
+  const byMessage = new Map<string, any[]>();
+  for (const row of result.rows) {
+    row.href = attachmentHref(row.id);
+    const current = byMessage.get(row.message_id) ?? [];
+    current.push(row);
+    byMessage.set(row.message_id, current);
+  }
+  return messages.map((message) => ({ ...message, attachments: byMessage.get(message.id) ?? [] }));
+}
 
 async function storeInboundEmail(body: InboundEmail) {
   const inboxResult = body.inbox_id
@@ -652,8 +754,9 @@ async function storeInboundEmail(body: InboundEmail) {
         body.html ?? null, body.raw_mime_storage_key ?? null, JSON.stringify(body.headers ?? {})],
     );
   });
-  await audit('email.received', 'message', messageId, { inbox_id: inbox.id, thread_id: threadId, from: body.from.email }, 'system', null, tenantId);
-  await publishWebhookEvent('email.received', { inbox_id: inbox.id, thread_id: threadId, message_id: messageId, from: normalizeEmail(body.from.email), subject: body.subject }, inbox.tenant_id);
+  await storeInboundAttachments({ tenantId, inboxId: inbox.id, threadId, messageId, attachments: body.attachments });
+  await audit('email.received', 'message', messageId, { inbox_id: inbox.id, thread_id: threadId, from: body.from.email, attachment_count: body.attachments?.length ?? 0 }, 'system', null, tenantId);
+  await publishWebhookEvent('email.received', { inbox_id: inbox.id, thread_id: threadId, message_id: messageId, from: normalizeEmail(body.from.email), subject: body.subject, attachment_count: body.attachments?.length ?? 0 }, inbox.tenant_id);
   return { inbox_id: inbox.id, thread_id: threadId, message_id: messageId, event: 'email.received' };
 }
 
@@ -1047,6 +1150,41 @@ app.get('/dashboard/logout', async (_req, reply) => {
   reply.redirect('/dashboard/login');
 });
 
+app.get<{ Params: { id: string } }>('/mail/attachments/:id', { preHandler: requireDashboardAuth }, async (req, reply) => {
+  const authContext = (req as AuthedRequest).authContext;
+  const tenantId = authContext?.operator ? undefined : authContext?.tenantId;
+  const result = tenantId
+    ? await query<any>(
+      `SELECT id, tenant_id, filename, content_type, content_disposition, storage_key
+       FROM message_attachments
+       WHERE id = $1 AND tenant_id = $2`,
+      [req.params.id, tenantId],
+    )
+    : await query<any>(
+      `SELECT id, tenant_id, filename, content_type, content_disposition, storage_key
+       FROM message_attachments
+       WHERE id = $1`,
+      [req.params.id],
+    );
+  if (result.rowCount === 0) {
+    reply.code(404).type('text/html').send(renderDashboardUnavailablePage('attachment not found'));
+    return;
+  }
+  const attachment = result.rows[0];
+  const absolutePath = path.resolve(ATTACHMENT_STORAGE_DIR, attachment.storage_key);
+  const storageRoot = path.resolve(ATTACHMENT_STORAGE_DIR);
+  if (!absolutePath.startsWith(storageRoot)) {
+    reply.code(404).type('text/html').send(renderDashboardUnavailablePage('attachment not found'));
+    return;
+  }
+  const disposition = attachment.content_disposition === 'inline' ? 'inline' : 'attachment';
+  reply
+    .header('cache-control', 'private, max-age=300')
+    .header('content-disposition', `${disposition}; filename="${String(attachment.filename).replace(/["\\]/g, '_')}"`)
+    .type(attachment.content_type || 'application/octet-stream')
+    .send(createReadStream(absolutePath));
+});
+
 app.get<{ Querystring: { inbox_id?: string; thread_id?: string; notice?: string } }>('/mail', { preHandler: requireDashboardAuth }, async (req, reply) => {
   try {
     const authContext = (req as AuthedRequest).authContext;
@@ -1106,7 +1244,7 @@ app.get<{ Querystring: { inbox_id?: string; thread_id?: string; notice?: string 
 
     const selectedThreadId = req.query.thread_id ?? threads.rows[0]?.id ?? null;
     const selectedThread = threads.rows.find((thread: any) => thread.id === selectedThreadId) ?? selectedThreadFromQuery;
-    const messages = selectedThreadId
+    const rawMessages = selectedThreadId
       ? await query<any>(
         `SELECT id, thread_id, direction, from_email, from_name, to_json, subject, text_body, html_body, coalesce(sent_at, received_at, created_at) AS created_at
          FROM messages
@@ -1115,6 +1253,7 @@ app.get<{ Querystring: { inbox_id?: string; thread_id?: string; notice?: string 
         mailTenantId ? [selectedThreadId, mailTenantId] : [selectedThreadId],
       )
       : { rows: [] };
+    const messages = { rows: await attachMailAttachments(rawMessages.rows, authContext) };
 
     reply.type('text/html').send(renderMailPage({
       inboxes: inboxes.rows,

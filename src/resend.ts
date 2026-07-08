@@ -5,6 +5,18 @@ export type InternalAddress = {
   name?: string;
 };
 
+export type NormalizedInboundAttachment = {
+  provider_attachment_id?: string;
+  filename: string;
+  content_type: string;
+  content_disposition?: string | null;
+  content_id?: string | null;
+  size_bytes?: number | null;
+  download_url?: string;
+  expires_at?: string;
+  content_base64?: string;
+};
+
 export type NormalizedInboundEmail = {
   email_address: string;
   provider: 'resend';
@@ -18,6 +30,7 @@ export type NormalizedInboundEmail = {
   html?: string | null;
   headers?: Record<string, unknown>;
   raw_mime_storage_key?: string;
+  attachments?: NormalizedInboundAttachment[];
 };
 
 type ResendReceivedEvent = {
@@ -73,6 +86,33 @@ function addressList(values: string[] | undefined): InternalAddress[] {
   return (values ?? []).filter(Boolean).map(parseEmailAddress);
 }
 
+function normalizeResendAttachment(value: unknown): NormalizedInboundAttachment | null {
+  if (!value || typeof value !== 'object') return null;
+  const raw = value as Record<string, unknown>;
+  const filename = String(raw.filename ?? raw.name ?? '').trim();
+  if (!filename) return null;
+  const contentType = String(raw.content_type ?? raw.contentType ?? 'application/octet-stream').trim() || 'application/octet-stream';
+  const sizeValue = raw.size ?? raw.size_bytes ?? raw.sizeBytes;
+  const sizeBytes = typeof sizeValue === 'number' && Number.isFinite(sizeValue) ? Math.max(0, Math.trunc(sizeValue)) : null;
+  const attachment: NormalizedInboundAttachment = {
+    filename,
+    content_type: contentType,
+    content_disposition: raw.content_disposition == null ? null : String(raw.content_disposition),
+    content_id: raw.content_id == null ? null : String(raw.content_id),
+    size_bytes: sizeBytes,
+  };
+  if (raw.id) attachment.provider_attachment_id = String(raw.id);
+  if (raw.download_url) attachment.download_url = String(raw.download_url);
+  if (raw.expires_at) attachment.expires_at = String(raw.expires_at);
+  const contentBase64 = typeof raw.content === 'string' ? raw.content : typeof raw.content_base64 === 'string' ? raw.content_base64 : undefined;
+  if (contentBase64) attachment.content_base64 = contentBase64;
+  return attachment;
+}
+
+function normalizeResendAttachments(values: unknown[] | undefined): NormalizedInboundAttachment[] {
+  return (values ?? []).map(normalizeResendAttachment).filter((item): item is NormalizedInboundAttachment => Boolean(item));
+}
+
 export function normalizeResendReceivedEmail(
   event: ResendReceivedEvent,
   details?: ResendReceivedEmailDetails,
@@ -88,7 +128,8 @@ export function normalizeResendReceivedEmail(
   const headers = { ...(details?.headers ?? {}) } as Record<string, unknown>;
   const emailId = String(data.email_id ?? data.id ?? '');
   const messageId = details?.message_id ?? data.message_id;
-  const attachments = details?.attachments ?? data.attachments ?? [];
+  const rawAttachments = details?.attachments ?? data.attachments ?? [];
+  const attachments = normalizeResendAttachments(rawAttachments);
 
   if (emailId) headers['x-resend-email-id'] = emailId;
   if (messageId) headers['message-id'] = messageId;
@@ -109,6 +150,7 @@ export function normalizeResendReceivedEmail(
     html: details?.html ?? null,
     headers,
     raw_mime_storage_key: details?.raw?.download_url,
+    attachments,
   };
 }
 

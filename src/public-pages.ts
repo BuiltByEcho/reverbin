@@ -1698,6 +1698,16 @@ export type MailThreadView = {
   message_count?: number | string | null;
 };
 
+export type MailAttachmentView = {
+  id: string;
+  filename: string;
+  content_type: string;
+  content_disposition?: string | null;
+  content_id?: string | null;
+  size_bytes?: number | string | null;
+  href?: string | null;
+};
+
 export type MailMessageView = {
   id: string;
   thread_id: string;
@@ -1708,6 +1718,7 @@ export type MailMessageView = {
   subject: string | null;
   text_body?: string | null;
   html_body?: string | null;
+  attachments?: MailAttachmentView[];
   created_at: Date | string;
 };
 
@@ -1808,6 +1819,34 @@ function renderMailNotice(notice?: string | null) {
   return `<div class="mail-notice" role="status">${escapeHtml(label)}</div>`;
 }
 
+function formatBytes(value: number | string | null | undefined) {
+  const bytes = Number(value ?? 0);
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
+  if (bytes < 1024) return `${bytes} B`;
+  const kb = bytes / 1024;
+  if (kb < 1024) return `${Math.round(kb)} KB`;
+  return `${(kb / 1024).toFixed(1)} MB`;
+}
+
+function renderMailAttachments(attachments?: MailAttachmentView[]) {
+  if (!attachments?.length) return '';
+  const items = attachments.map((attachment) => {
+    const href = attachment.href || `/mail/attachments/${encodeURIComponent(attachment.id)}`;
+    const isImage = attachment.content_type.toLowerCase().startsWith('image/');
+    const preview = isImage
+      ? `<a class="mail-attachment-thumb" href="${escapeHtml(href)}"><img src="${escapeHtml(href)}" alt="${escapeHtml(attachment.filename)}" loading="lazy" /></a>`
+      : `<a class="mail-attachment-icon" href="${escapeHtml(href)}" aria-label="Download ${escapeHtml(attachment.filename)}">↧</a>`;
+    return `<li class="mail-attachment ${isImage ? 'image' : 'file'}">
+      ${preview}
+      <a class="mail-attachment-details" href="${escapeHtml(href)}">
+        <strong>${escapeHtml(attachment.filename)}</strong>
+        <span>${escapeHtml(attachment.content_type)} · ${escapeHtml(formatBytes(attachment.size_bytes))}</span>
+      </a>
+    </li>`;
+  }).join('');
+  return `<ul class="mail-attachments" aria-label="Message attachments">${items}</ul>`;
+}
+
 function renderMailThreads(data: MailPageData) {
   if (!data.threads.length) {
     return `<div class="mail-empty">No threads yet. New inbound messages will appear here.</div>`;
@@ -1863,6 +1902,7 @@ function renderMailMessages(data: MailPageData) {
             <div><dt>Date</dt><dd>${formatDate(message.created_at)}</dd></div>
           </dl>
           <div class="email-message-body"><pre>${escapeHtml(message.text_body || message.html_body || '')}</pre></div>
+          ${renderMailAttachments(message.attachments)}
         </article>`;
       }).join('')
     : `<div class="mail-empty">This thread has no stored emails yet.</div>`;
@@ -1968,6 +2008,13 @@ export function renderMailPage(data: MailPageData) {
     .email-message-meta dd { margin:0; overflow-wrap:anywhere; }
     .email-message-body { padding:16px 18px 18px; }
     .email-message-body pre { margin:0; white-space:pre-wrap; overflow-wrap:anywhere; color:rgba(244,244,242,.86); line-height:1.58; font-family:'Geist', Inter, ui-sans-serif, system-ui, sans-serif; }
+    .mail-attachments { display:grid; gap:10px; list-style:none; margin:0; padding:0 18px 18px; }
+    .mail-attachment { display:grid; grid-template-columns:72px minmax(0, 1fr); align-items:center; gap:12px; border:1px solid var(--line); border-radius:14px; padding:10px; background:rgba(244,244,242,.035); }
+    .mail-attachment-thumb, .mail-attachment-icon { width:72px; min-height:54px; display:flex; align-items:center; justify-content:center; border-radius:10px; overflow:hidden; background:rgba(189,230,211,.08); color:var(--signal); font-weight:900; }
+    .mail-attachment-thumb img { width:100%; height:54px; object-fit:cover; display:block; }
+    .mail-attachment-details { display:grid; gap:4px; min-width:0; }
+    .mail-attachment-details strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .mail-attachment-details span { color:var(--soft); font-size:12px; overflow-wrap:anywhere; }
     .mail-reply { margin:0 28px 28px; padding:16px; border:1px solid var(--line-strong); border-radius:20px; background:#0b0d0e; display:grid; gap:10px; }
 
     .mail-reply textarea { width:100%; resize:vertical; border:1px solid var(--line); border-radius:14px; padding:12px; background:rgba(244,244,242,.045); color:var(--ivory); }

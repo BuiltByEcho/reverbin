@@ -430,6 +430,12 @@ Forward, Delete, and Delete selected are available in `/mail` for authenticated 
 
 The public API intentionally keeps agents to read/reply/webhook operations. Agents should use `GET /v1/inboxes/:id/threads`, `GET /v1/threads/:id`, `POST /v1/threads/:id/reply`, webhook subscriptions, and approvals. Agents should not rely on hidden delete or forward endpoints; forwarding and bulk cleanup are operator controls in the mail console.
 
+## Attachment and image storage
+
+Inbound attachment bytes are not stored directly in Postgres. Reverbin stores attachment metadata in `message_attachments` and writes file bytes to the configured attachment storage root. The authenticated mail console serves attachments through GET `/mail/attachments/:id`; there are no public unauthenticated attachment URLs.
+
+Images render inline in the authenticated mail console, while PDFs and other files render as download cards. The storage layer records filename, content type, disposition, content ID, size, storage key, and SHA-256 hash so future S3/R2-compatible storage can keep the same database contract.
+
 ## Webhooks
 
 ### Create webhook endpoint

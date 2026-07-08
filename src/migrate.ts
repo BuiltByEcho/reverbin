@@ -20,6 +20,27 @@ async function main() {
     ALTER TABLE threads
       ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
 
+    CREATE TABLE IF NOT EXISTS message_attachments (
+      id text PRIMARY KEY,
+      tenant_id text NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      inbox_id text NOT NULL REFERENCES inboxes(id) ON DELETE CASCADE,
+      thread_id text NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
+      message_id text NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+      provider_attachment_id text,
+      filename text NOT NULL,
+      content_type text NOT NULL,
+      content_disposition text,
+      content_id text,
+      size_bytes integer NOT NULL DEFAULT 0,
+      storage_key text NOT NULL,
+      sha256 text,
+      metadata_json jsonb NOT NULL DEFAULT '{}'::jsonb,
+      created_at timestamptz NOT NULL DEFAULT now()
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_message_attachments_message ON message_attachments(message_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_message_attachments_thread ON message_attachments(thread_id, created_at);
+
     DO $$
     BEGIN
       IF NOT EXISTS (

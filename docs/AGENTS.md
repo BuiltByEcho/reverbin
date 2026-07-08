@@ -78,6 +78,12 @@ Forward and delete are human-operator mail console actions exposed through the a
 
 Deletes are soft deletes (`threads.deleted_at`) so stored messages, audit rows, and provider history remain available to operators. Reverbin does not expose API routes for agents to bulk-delete or forward mail; agent runtimes should use the public read/reply/webhook lifecycle and let humans handle cleanup or forwarding in `/mail`.
 
+## Attachment and image handling
+
+Inbound attachments are stored as metadata rows plus authenticated storage links. Reverbin writes a `message_attachments` row for each file, stores the bytes under the configured attachment storage root, and serves them through tenant-scoped `/mail/attachments/:id` links. Images render inline in the authenticated mail console; other files render as download cards.
+
+Reverbin does not expose public unauthenticated attachment URLs. Treat attachment filenames, MIME types, and image contents as untrusted email input. Agents should fetch thread/message state through the public API and let human operators inspect attachments in `/mail` unless a future API route explicitly grants attachment download access.
+
 ## TypeScript integration
 
 ```ts

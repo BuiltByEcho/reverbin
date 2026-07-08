@@ -47,6 +47,25 @@ test('human mail console renders a Gmail-style three-pane inbox with reply contr
         subject: 'Need help <now>',
         text_body: 'Can a human read this in Reverbin?',
         created_at: new Date('2026-07-07T20:59:00Z'),
+        attachments: [
+          {
+            id: 'att_1',
+            filename: 'receipt.png',
+            content_type: 'image/png',
+            content_disposition: 'inline',
+            content_id: 'receipt-image',
+            size_bytes: 4096,
+            href: '/mail/attachments/att_1',
+          },
+          {
+            id: 'att_2',
+            filename: 'invoice.pdf',
+            content_type: 'application/pdf',
+            content_disposition: 'attachment',
+            size_bytes: 8192,
+            href: '/mail/attachments/att_2',
+          },
+        ],
       },
       {
         id: 'msg_2',
@@ -88,6 +107,16 @@ test('human mail console renders a Gmail-style three-pane inbox with reply contr
   assert.match(html, /support@reverbin\.com/);
   assert.match(html, /customer@example\.com/);
   assert.match(html, /Can a human read this in Reverbin\?/);
+  assert.match(html, /class="mail-attachments"/);
+  assert.match(html, /href="\/mail\/attachments\/att_1"/);
+  assert.match(html, /<img[^>]+src="\/mail\/attachments\/att_1"[^>]+alt="receipt\.png"/);
+  assert.match(html, /receipt\.png/);
+  assert.match(html, /image\/png/);
+  assert.match(html, /4 KB/);
+  assert.match(html, /href="\/mail\/attachments\/att_2"/);
+  assert.match(html, /invoice\.pdf/);
+  assert.match(html, /application\/pdf/);
+  assert.match(html, /8 KB/);
   assert.match(html, /class="mail-bulk-actions"/);
   assert.match(html, /method="post" action="\/mail\/threads\/delete"/);
   assert.match(html, /type="checkbox" name="thread_ids" value="thr_1"/);
@@ -230,6 +259,29 @@ test('mail thread actions are backed by tenant-scoped soft-delete and forward ro
   assert.match(server, /email\.forwarded/);
   assert.match(server, /notice=thread_deleted/);
   assert.match(server, /notice=forward_sent/);
+});
+
+test('mail attachments are backed by metadata rows and authenticated storage routes', () => {
+  const schema = read('sql/schema.sql');
+  const migrate = read('src/migrate.ts');
+  const server = read('src/server.ts');
+  const publicPages = read('src/public-pages.ts');
+
+  assert.match(schema, /CREATE TABLE IF NOT EXISTS message_attachments/);
+  assert.match(schema, /message_id text NOT NULL REFERENCES messages\(id\) ON DELETE CASCADE/);
+  assert.match(schema, /content_type text NOT NULL/);
+  assert.match(schema, /storage_key text NOT NULL/);
+  assert.match(schema, /sha256 text/);
+  assert.match(schema, /idx_message_attachments_message/);
+  assert.match(migrate, /CREATE TABLE IF NOT EXISTS message_attachments/);
+  assert.match(server, /storeInboundAttachments/);
+  assert.match(server, /message_attachments/);
+  assert.match(server, /downloadAttachmentToStorage/);
+  assert.match(server, /app\.get<\{ Params: \{ id: string \} \}>\('\/mail\/attachments\/:id'/);
+  assert.match(server, /createReadStream/);
+  assert.match(server, /AND tenant_id = \$2/);
+  assert.match(publicPages, /renderMailAttachments/);
+  assert.match(publicPages, /mail-attachments/);
 });
 
 test('mail settings page is simple, tenant scoped, and editable', () => {

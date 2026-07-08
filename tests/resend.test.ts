@@ -26,6 +26,9 @@ const receivedEvent = {
         content_type: 'application/pdf',
         content_disposition: 'attachment',
         content_id: null,
+        size: 4096,
+        download_url: 'https://inbound-cdn.resend.com/email/attachments/att_123?signature=test',
+        expires_at: '2026-10-17T14:29:41.521Z',
       },
     ],
   },
@@ -52,6 +55,18 @@ test('normalizes a Resend email.received event into internal inbound shape', () 
   assert.equal(normalized.html, '<p>Hello from the received email API</p>');
   assert.equal(normalized.headers?.['message-id'], '<111-222-333@email.example.com>');
   assert.equal(normalized.headers?.['x-resend-attachment-count'], 1);
+  assert.deepEqual(normalized.attachments, [
+    {
+      provider_attachment_id: 'att_123',
+      filename: 'receipt.pdf',
+      content_type: 'application/pdf',
+      content_disposition: 'attachment',
+      content_id: null,
+      size_bytes: 4096,
+      download_url: 'https://inbound-cdn.resend.com/email/attachments/att_123?signature=test',
+      expires_at: '2026-10-17T14:29:41.521Z',
+    },
+  ]);
 });
 
 test('Resend normalization falls back to webhook metadata when body fetch is unavailable', () => {
