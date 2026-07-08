@@ -1,5 +1,7 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
+export const STRIPE_MANAGED_PAYMENTS_API_VERSION = '2026-02-25.preview';
+
 export type BillingPlan = 'free' | 'developer' | 'startup' | 'enterprise';
 
 export type BillingPlanDefinition = {
@@ -85,6 +87,7 @@ export function buildStripeCheckoutSessionForm(input: CheckoutFormInput) {
   form.set('success_url', input.successUrl);
   form.set('cancel_url', input.cancelUrl);
   form.set('allow_promotion_codes', 'true');
+  form.set('managed_payments[enabled]', 'true');
   form.set('metadata[tenant_id]', input.tenantId);
   form.set('metadata[plan]', input.plan);
   form.set('subscription_data[metadata][tenant_id]', input.tenantId);
@@ -107,6 +110,7 @@ export async function createStripeCheckoutSession(input: CheckoutFormInput & { s
     headers: {
       authorization: `Bearer ${input.secretKey}`,
       'content-type': 'application/x-www-form-urlencoded',
+      'stripe-version': STRIPE_MANAGED_PAYMENTS_API_VERSION,
     },
     body: buildStripeCheckoutSessionForm(input),
   });

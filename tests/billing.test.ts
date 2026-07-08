@@ -56,7 +56,35 @@ test('Stripe Checkout session form is subscription metadata-first and Link-compa
   assert.equal(form.get('subscription_data[metadata][tenant_id]'), 'ten_123');
   assert.equal(form.get('subscription_data[metadata][plan]'), 'developer');
   assert.equal(form.get('allow_promotion_codes'), 'true');
+  assert.equal(form.get('managed_payments[enabled]'), 'true');
   assert.equal(form.has('payment_method_data[card][number]'), false);
+});
+
+test('Stripe API calls use the Managed Payments preview version specified by the blueprint', async () => {
+  const calls: Array<{ url: string; headers: Record<string, string>; body: URLSearchParams }> = [];
+  const fetchImpl = async (url: string | URL | Request, init?: RequestInit) => {
+    calls.push({
+      url: String(url),
+      headers: init?.headers as Record<string, string>,
+      body: init?.body as URLSearchParams,
+    });
+    return new Response(JSON.stringify({ id: 'cs_test_123', url: 'https://checkout.stripe.com/c/pay/cs_test_123' }), { status: 200 });
+  };
+
+  const { createStripeCheckoutSession } = await import('../src/billing.js');
+  await createStripeCheckoutSession({
+    secretKey: 'STRIPE_SECRET_KEY_PLACEHOLDER',
+    plan: 'developer',
+    tenantId: 'ten_123',
+    priceId: 'price_developer_123',
+    successUrl: 'https://reverbin.com/mail/billing?notice=billing_success',
+    cancelUrl: 'https://reverbin.com/mail/billing?notice=billing_canceled',
+    fetchImpl: fetchImpl as typeof fetch,
+  });
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].headers['stripe-version'], '2026-02-25.preview');
+  assert.equal(calls[0].body.get('managed_payments[enabled]'), 'true');
 });
 
 test('Stripe webhook signature verifier accepts signed raw payloads and rejects tampering', () => {
@@ -77,6 +105,7 @@ test('billing routes, schema, docs, and landing page expose paid checkout withou
   const docs = read('docs/API.md');
   const publicPages = read('src/public-pages.ts');
   const envExample = read('.env.example');
+  const setupProductsScript = read('scripts/setup-stripe-products.mjs');
 
   assert.match(schema, /plan text NOT NULL DEFAULT 'free'/);
   assert.match(schema, /stripe_customer_id text/);
@@ -110,4 +139,13 @@ test('billing routes, schema, docs, and landing page expose paid checkout withou
   for (const key of ['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET', 'STRIPE_DEVELOPER_PRICE_ID', 'STRIPE_STARTUP_PRICE_ID']) {
     assert.match(envExample, new RegExp(`${key}=`));
   }
+
+  assert.match(setupProductsScript, /STRIPE_SECRET_KEY/);
+  assert.match(setupProductsScript, /STRIPE_PUBLISHABLE_KEY/);
+  assert.match(setupProductsScript, /txcd_10103100/);
+  assert.match(setupProductsScript, /2026-02-25\.preview/);
+  assert.match(setupProductsScript, /default_price_data\[recurring\]\[interval\]/);
+  assert.match(setupProductsScript, /STRIPE_DEVELOPER_PRICE_ID/);
+  assert.match(setupProductsScript, /STRIPE_STARTUP_PRICE_ID/);
+  assert.doesNotMatch(setupProductsScript, /sk_live_|pk_live_/);
 });
