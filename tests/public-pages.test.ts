@@ -208,7 +208,7 @@ test('dashboard unavailable page explains database readiness without leaking int
   assert.equal(html.includes('127.0.0.1'), false);
 });
 
-test('dashboard login page includes password-manager friendly username context', () => {
+test('dashboard login page starts with one email field and keeps code entry separate', () => {
   const html = renderDashboardLoginPage();
 
   assert.match(html, /Email me a sign-in code/);
@@ -216,9 +216,9 @@ test('dashboard login page includes password-manager friendly username context',
   assert.match(html, /action="\/dashboard\/login\/request-code"/);
   assert.match(html, /name="email"/);
   assert.match(html, /autocomplete="email"/);
-  assert.match(html, /action="\/dashboard\/login\/verify"/);
-  assert.match(html, /name="code"/);
-  assert.match(html, /autocomplete="one-time-code"/);
+  assert.doesNotMatch(html, /action="\/dashboard\/login\/verify"/);
+  assert.doesNotMatch(html, /autocomplete="one-time-code"/);
+  assert.equal((html.match(/name="email"/g) ?? []).length, 1);
   assert.match(html, /Advanced: API key or operator token/);
   assert.match(html, /API key or operator token/);
   assert.match(html, /autocomplete="username"/);
@@ -226,4 +226,19 @@ test('dashboard login page includes password-manager friendly username context',
   assert.doesNotMatch(html, /Operational dashboard access/);
   assert.doesNotMatch(html, /Enter the dashboard token configured for this deployment/);
   assert.doesNotMatch(html, /app token/);
+});
+
+test('dashboard login code page reuses the submitted email so users only type numbers', () => {
+  const html = renderDashboardLoginPage('', 'We sent a sign-in code.', 'Builder+Smoke@Example.com');
+
+  assert.match(html, /Check your email/);
+  assert.match(html, /Builder\+Smoke@Example\.com/);
+  assert.match(html, /action="\/dashboard\/login\/verify"/);
+  assert.match(html, /type="hidden" name="email" value="Builder\+Smoke@Example\.com"/);
+  assert.match(html, /name="code"/);
+  assert.match(html, /autocomplete="one-time-code"/);
+  assert.match(html, /autofocus required/);
+  assert.doesNotMatch(html, /id="code-email"/);
+  assert.doesNotMatch(html, /type="email" name="email"/);
+  assert.equal((html.match(/name="email"/g) ?? []).length, 1);
 });

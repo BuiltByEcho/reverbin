@@ -2735,9 +2735,27 @@ export function renderDashboardUnavailablePage(_reason = '') {
 </html>`;
 }
 
-export function renderDashboardLoginPage(error = '', notice = '') {
+export function renderDashboardLoginPage(error = '', notice = '', email = '') {
   const errorHtml = error ? `<p class="error">${escapeHtml(error)}</p>` : '';
   const noticeHtml = notice ? `<p class="notice">${escapeHtml(notice)}</p>` : '';
+  const stickyEmail = email.trim();
+  const escapedEmail = escapeHtml(stickyEmail);
+  const cardHeading = stickyEmail ? 'Check your email' : 'Email me a sign-in code';
+  const cardCopy = stickyEmail
+    ? `We sent a six-digit code to <strong>${escapedEmail}</strong>. Enter only the numbers from that email to open your inbox dashboard.`
+    : 'Use the email you signed up with. We will send a six-digit code that opens your inbox dashboard.';
+  const emailCodeFormHtml = stickyEmail
+    ? `<form method="post" action="/dashboard/login/verify">
+          <input type="hidden" name="email" value="${escapedEmail}" />
+          <label for="code">Sign-in code</label>
+          <input id="code" type="text" name="code" autocomplete="one-time-code" inputmode="numeric" pattern="[0-9]{6}" placeholder="123456" autofocus required />
+          <button type="submit">Open dashboard</button>
+        </form>`
+    : `<form method="post" action="/dashboard/login/request-code">
+          <label for="email">Signup email</label>
+          <input id="email" type="email" name="email" autocomplete="email" placeholder="you@example.com" autofocus required />
+          <button type="submit">Send sign-in code</button>
+        </form>`;
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -2934,22 +2952,11 @@ export function renderDashboardLoginPage(error = '', notice = '') {
         </ul>
       </div>
       <div class="card">
-        <h2>Email me a sign-in code</h2>
-        <p>Use the email you signed up with. We will send a six-digit code that opens your inbox dashboard.</p>
+        <h2>${cardHeading}</h2>
+        <p>${cardCopy}</p>
         ${errorHtml}
         ${noticeHtml}
-        <form method="post" action="/dashboard/login/request-code">
-          <label for="email">Signup email</label>
-          <input id="email" type="email" name="email" autocomplete="email" placeholder="you@example.com" autofocus required />
-          <button type="submit">Send sign-in code</button>
-        </form>
-        <form method="post" action="/dashboard/login/verify">
-          <label for="code-email">Signup email</label>
-          <input id="code-email" type="email" name="email" autocomplete="email" placeholder="you@example.com" required />
-          <label for="code">Sign-in code</label>
-          <input id="code" type="text" name="code" autocomplete="one-time-code" inputmode="numeric" pattern="[0-9]{6}" placeholder="123456" required />
-          <button type="submit">Open dashboard</button>
-        </form>
+        ${emailCodeFormHtml}
         <details class="advanced-login">
           <summary>Advanced: API key or operator token</summary>
           <p class="form-note">If you already have an API key or internal operator token, you can still paste it here.</p>

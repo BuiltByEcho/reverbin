@@ -700,7 +700,7 @@ app.post('/dashboard/login/request-code', async (req, reply) => {
     await sendDashboardLoginCode(email, code);
     await audit('dashboard.login_code_requested', 'tenant', tenantId, { requester_email: email }, 'human', null, tenantId);
   }
-  reply.type('text/html').send(renderDashboardLoginPage('', 'If that email has a Reverbin account, we sent a sign-in code.'));
+  reply.type('text/html').send(renderDashboardLoginPage('', 'If that email has a Reverbin account, we sent a sign-in code.', email));
 });
 
 app.post('/dashboard/login/verify', async (req, reply) => {
@@ -723,13 +723,13 @@ app.post('/dashboard/login/verify', async (req, reply) => {
     [email, codeHash],
   );
   if (codeResult.rows.length === 0) {
-    reply.code(401).type('text/html').send(renderDashboardLoginPage('Invalid or expired sign-in code.'));
+    reply.code(401).type('text/html').send(renderDashboardLoginPage('Invalid or expired sign-in code.', '', email));
     return;
   }
   const codeRow = codeResult.rows[0];
   const used = await query('UPDATE dashboard_login_codes SET used_at = now() WHERE id = $1 AND used_at IS NULL', [codeRow.id]);
   if (used.rowCount !== 1) {
-    reply.code(401).type('text/html').send(renderDashboardLoginPage('Invalid or expired sign-in code.'));
+    reply.code(401).type('text/html').send(renderDashboardLoginPage('Invalid or expired sign-in code.', '', email));
     return;
   }
   const sessionToken = generateDashboardSessionToken();
