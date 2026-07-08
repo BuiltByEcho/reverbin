@@ -88,7 +88,8 @@ test('human mail console renders a Gmail-style three-pane inbox with reply contr
   assert.match(html, /class="mail-sidebar"/);
   assert.match(html, /class="mail-thread-list"/);
   assert.match(html, /class="mail-reader"/);
-  assert.match(html, /aria-label="Inbox folders"/);
+  assert.match(html, /aria-label="Mail navigation"/);
+  assert.doesNotMatch(html, /aria-label="Inbox folders"/);
   assert.match(html, /aria-label="Thread list"/);
   assert.match(html, /aria-label="Thread conversation"/);
   assert.match(html, /Search mail/);
@@ -96,6 +97,8 @@ test('human mail console renders a Gmail-style three-pane inbox with reply contr
   assert.match(html, /href="\/mail\/compose\?inbox_id=inb_1"/);
   assert.doesNotMatch(html, /mailto:/);
   assert.match(html, /Inbox/);
+  assert.match(html, /Mailboxes/);
+  assert.doesNotMatch(html, />Inboxes<|>INBOXES</);
   assert.match(html, /Sent/);
   assert.match(html, /Webhooks/);
   assert.match(html, /href="\/mail\/webhooks"/);
@@ -311,6 +314,8 @@ test('mail settings page is simple, tenant scoped, and editable', () => {
   assert.match(html, /Settings/);
   assert.match(html, /Simple inbox settings/);
   assert.match(html, /support@reverbin\.com/);
+  assert.match(html, /Mailboxes/);
+  assert.doesNotMatch(html, />Inboxes<|>INBOXES|Inbox settings navigation/);
   assert.match(html, /action="\/mail\/settings"/);
   assert.match(html, /name="display_name"/);
   assert.match(html, /value="Support Team"/);

@@ -2034,7 +2034,7 @@ export function renderMailPage(data: MailPageData) {
       <div class="top-actions"><a href="/mail/settings">Settings</a><a href="/mail/webhooks">Webhooks</a><a href="/docs">Docs</a><a href="/dashboard/logout">Logout</a></div>
     </header>
     <section class="mail-layout" aria-label="Gmail-style human mail management console">
-      <aside class="mail-sidebar" aria-label="Inbox folders">
+      <aside class="mail-sidebar" aria-label="Mail navigation">
         <a class="compose" href="/mail/compose${selectedInboxId ? `?inbox_id=${encodeURIComponent(selectedInboxId)}` : ''}">Compose</a>
         <nav class="mail-nav" aria-label="Mail folders">
           <a href="/mail">Inbox</a>
@@ -2042,7 +2042,7 @@ export function renderMailPage(data: MailPageData) {
           <a href="/mail/webhooks">Webhooks</a>
           <a href="/mail/settings">Settings</a>
         </nav>
-        <div class="section-label">Inboxes</div>
+        <div class="section-label">Mailboxes</div>
         ${inboxLinks}
       </aside>
       <section class="mail-thread-list" aria-label="Thread list">
@@ -2087,12 +2087,12 @@ function renderMailSettingsSidebar(inboxes: MailInboxView[], active: 'inbox' | '
     ['webhooks', '/mail/webhooks', 'Webhooks'],
     ['settings', '/mail/settings', 'Settings'],
   ] as const;
-  return `<aside class="mail-sidebar" aria-label="Inbox settings navigation">
+  return `<aside class="mail-sidebar" aria-label="Mailbox settings navigation">
     <a class="compose" href="/mail/compose${selectedId ? `?inbox_id=${encodeURIComponent(selectedId)}` : ''}">Compose</a>
     <nav class="mail-nav" aria-label="Mail folders">
       ${nav.map(([key, href, label]) => `<a class="${active === key ? 'selected' : ''}" href="${href}">${label}</a>`).join('')}
     </nav>
-    <div class="section-label">Inboxes</div>
+    <div class="section-label">Mailboxes</div>
     ${inboxLinks}
   </aside>`;
 }
