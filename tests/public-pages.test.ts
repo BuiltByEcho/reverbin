@@ -213,4 +213,10 @@ test('dashboard login page includes password-manager friendly username context',
 
   assert.match(html, /autocomplete="username"/);
   assert.match(html, /autocomplete="current-password"/);
+  assert.match(html, /Sign in with your API key/);
+  assert.match(html, /Paste the API key Reverbin showed after signup/);
+  assert.match(html, /API key or operator token/);
+  assert.doesNotMatch(html, /Operational dashboard access/);
+  assert.doesNotMatch(html, /Enter the dashboard token configured for this deployment/);
+  assert.doesNotMatch(html, /app token/);
 });

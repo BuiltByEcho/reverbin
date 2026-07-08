@@ -81,3 +81,20 @@ test('self-serve agents are capped at two inboxes during beta', () => {
   assert.match(docs, /2 inboxes per self-serve agent/i);
   assert.match(docs, /inbox_quota_exceeded/);
 });
+
+test('dashboard login accepts self-serve API keys and tenant-scopes dashboard data', () => {
+  const server = read('src/server.ts');
+  const publicPages = read('src/public-pages.ts');
+
+  assert.match(server, /authenticateApiToken/);
+  assert.match(server, /app\.post\('\/dashboard\/login'/);
+  assert.match(server, /validateDashboardLoginToken\(candidate\)/);
+  assert.match(server, /dashboardCookie\(candidate/);
+  assert.match(server, /authContext\?\.operator \? undefined : authContext\?\.tenantId/);
+  assert.match(server, /SELECT id, email_address, display_name, status, created_at FROM inboxes WHERE tenant_id = \$1 ORDER BY created_at DESC LIMIT 20/);
+  assert.match(server, /SELECT id, inbox_id, thread_id, direction, from_email, subject, created_at FROM messages WHERE tenant_id = \$1 ORDER BY created_at DESC LIMIT 20/);
+  assert.match(server, /SELECT id, endpoint_id, event_type, status, attempts, created_at, delivered_at FROM webhook_deliveries WHERE tenant_id = \$1 ORDER BY created_at DESC LIMIT 20/);
+  assert.match(server, /SELECT action, target_type, target_id, created_at FROM audit_logs WHERE tenant_id = \$1 ORDER BY created_at DESC LIMIT 30/);
+  assert.match(server, /SELECT id, requester_email, preferred_inbox_name, status, verification_json, created_at FROM signup_requests WHERE tenant_id = \$1 ORDER BY created_at DESC LIMIT 20/);
+  assert.match(publicPages, /Sign in with your API key/);
+});

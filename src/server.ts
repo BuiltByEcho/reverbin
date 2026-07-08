@@ -11,7 +11,7 @@ import { defaultPolicy, evaluatePolicy, type Policy } from './policy.js';
 import { getEmailProvider } from './providers.js';
 import { fetchResendReceivedEmail, normalizeResendReceivedEmail, verifySvixSignature } from './resend.js';
 import { buildWebhookDeliveryHeaders, buildWebhookEventPayload, isAllowedWebhookEvent, isAllowedWebhookUrl, shouldDeliverWebhookEvent, type WebhookEventType } from './webhooks.js';
-import { clearDashboardCookie, dashboardCookie, dashboardTokenFromEnv, isDashboardRequestAuthorized } from './dashboard-auth.js';
+import { clearDashboardCookie, dashboardCookie, dashboardTokenFromEnv, isDashboardRequestAuthorized, parseDashboardCookies } from './dashboard-auth.js';
 import { renderDashboardLoginPage, renderDashboardPage, renderDashboardUnavailablePage, renderDocsPage, renderFaviconSvg, renderLandingPage, renderMailPage, renderSignupPage, type DocsPageKey } from './public-pages.js';
 import { buildWebhookDeliveryJob, redisConnectionOptions, WEBHOOK_DELIVERY_QUEUE, webhookDeliveryMode } from './webhook-delivery.js';
 import { buildPendingSignupVerification, normalizeSignupRequestInput, summarizeSignupVerification, type SignupRequestStatus, type SignupVerificationCheck } from './signup-verification.js';
@@ -81,10 +81,46 @@ function getWebhookQueue() {
   return webhookQueue;
 }
 
-function requireDashboardAuth(req: FastifyRequest, reply: FastifyReply, done: () => void) {
+async function authenticateApiToken(token: string): Promise<AuthContext | null> {
+  if (!token) return null;
+  const tokenHash = hashApiKeyToken(token);
+  const apiKey = await query<{ id: string; tenant_id: string; name: string; scopes_json: unknown }>(
+    'SELECT id, tenant_id, name, scopes_json FROM api_keys WHERE key_hash = $1 AND revoked_at IS NULL',
+    [tokenHash],
+  );
+  if (apiKey.rows.length === 0) return null;
+  const row = apiKey.rows[0];
+  return {
+    tenantId: row.tenant_id,
+    apiKeyId: row.id,
+    scopes: arrayify(row.scopes_json as string[]).map(String),
+    operator: false,
+  };
+}
+
+async function validateDashboardLoginToken(candidate: string): Promise<AuthContext | null> {
+  const token = candidate.trim();
+  if (!token) return null;
+  const configuredToken = dashboardTokenFromEnv();
+  if (configuredToken && isDashboardRequestAuthorized({ authorization: `Bearer ${token}` }, configuredToken)) {
+    return { tenantId: TENANT_ID, scopes: ['*'], operator: true };
+  }
+  return authenticateApiToken(token);
+}
+
+async function requireDashboardAuth(req: FastifyRequest, reply: FastifyReply) {
   const token = dashboardTokenFromEnv();
   if (isDashboardRequestAuthorized({ authorization: req.headers.authorization, cookie: req.headers.cookie }, token)) {
-    return done();
+    (req as AuthedRequest).authContext = { tenantId: TENANT_ID, scopes: ['*'], operator: true };
+    return;
+  }
+  const auth = req.headers.authorization ?? '';
+  const bearer = auth.startsWith('Bearer ') ? auth.slice('Bearer '.length).trim() : '';
+  const cookieToken = parseDashboardCookies(req.headers.cookie).reverbin_dashboard ?? '';
+  const authContext = await authenticateApiToken(bearer || cookieToken);
+  if (authContext) {
+    (req as AuthedRequest).authContext = authContext;
+    return;
   }
   const acceptsHtml = String(req.headers.accept ?? '').includes('text/html');
   if (acceptsHtml) {
@@ -108,19 +144,9 @@ async function requireApiKey(req: FastifyRequest, reply: FastifyReply) {
   }
 
   if (token) {
-    const tokenHash = hashApiKeyToken(token);
-    const apiKey = await query<{ id: string; tenant_id: string; name: string; scopes_json: unknown }>(
-      'SELECT id, tenant_id, name, scopes_json FROM api_keys WHERE key_hash = $1 AND revoked_at IS NULL',
-      [tokenHash],
-    );
-    if (apiKey.rows.length > 0) {
-      const row = apiKey.rows[0];
-      (req as AuthedRequest).authContext = {
-        tenantId: row.tenant_id,
-        apiKeyId: row.id,
-        scopes: arrayify(row.scopes_json as string[]).map(String),
-        operator: false,
-      };
+    const authContext = await authenticateApiToken(token);
+    if (authContext) {
+      (req as AuthedRequest).authContext = authContext;
       return;
     }
   }
@@ -596,15 +622,11 @@ app.get('/dashboard/login', async (_req, reply) => {
 
 app.post('/dashboard/login', async (req, reply) => {
   const body = req.body as { token?: string } | undefined;
-  const configuredToken = dashboardTokenFromEnv();
   const candidate = body?.token ?? '';
-  if (!configuredToken) {
-    reply.code(503).type('text/html').send(renderDashboardLoginPage('Dashboard auth is not configured.'));
-    return;
-  }
-  if (isDashboardRequestAuthorized({ authorization: `Bearer ${candidate}` }, configuredToken)) {
+  const authContext = await validateDashboardLoginToken(candidate);
+  if (authContext) {
     reply.header('set-cookie', dashboardCookie(candidate, { secure: dashboardCookieIsSecure() }));
-    reply.redirect('/dashboard');
+    reply.redirect(authContext.operator ? '/dashboard' : '/mail');
     return;
   }
   const limit = dashboardLoginLimiter.check(rateLimitKey(req, 'dashboard-login'));
@@ -612,7 +634,7 @@ app.post('/dashboard/login', async (req, reply) => {
     sendRateLimited(reply, limit.retry_after_seconds, true);
     return;
   }
-  reply.code(401).type('text/html').send(renderDashboardLoginPage('Invalid dashboard token.'));
+  reply.code(401).type('text/html').send(renderDashboardLoginPage('Invalid API key or operator token.'));
 });
 
 app.get('/dashboard/logout', async (_req, reply) => {
@@ -622,7 +644,18 @@ app.get('/dashboard/logout', async (_req, reply) => {
 
 app.get<{ Querystring: { inbox_id?: string; thread_id?: string; notice?: string } }>('/mail', { preHandler: requireDashboardAuth }, async (req, reply) => {
   try {
-    const inboxes = await query<any>(
+    const authContext = (req as AuthedRequest).authContext;
+    const mailTenantId = authContext?.operator ? undefined : authContext?.tenantId;
+    const inboxes = mailTenantId ? await query<any>(
+      `SELECT i.id, i.email_address, i.display_name, i.status, count(t.id)::int AS thread_count
+       FROM inboxes i
+       LEFT JOIN threads t ON t.inbox_id = i.id AND t.tenant_id = i.tenant_id
+       WHERE i.tenant_id = $1
+       GROUP BY i.id, i.email_address, i.display_name, i.status, i.created_at
+       ORDER BY i.created_at DESC
+       LIMIT 50`,
+      [mailTenantId],
+    ) : await query<any>(
       `SELECT i.id, i.email_address, i.display_name, i.status, count(t.id)::int AS thread_count
        FROM inboxes i
        LEFT JOIN threads t ON t.inbox_id = i.id
@@ -632,7 +665,9 @@ app.get<{ Querystring: { inbox_id?: string; thread_id?: string; notice?: string 
     );
 
     const threadFromQuery = req.query.thread_id
-      ? await query<any>('SELECT id, inbox_id, subject, last_message_at FROM threads WHERE id = $1', [req.query.thread_id])
+      ? mailTenantId
+        ? await query<any>('SELECT id, inbox_id, subject, last_message_at FROM threads WHERE id = $1 AND tenant_id = $2', [req.query.thread_id, mailTenantId])
+        : await query<any>('SELECT id, inbox_id, subject, last_message_at FROM threads WHERE id = $1', [req.query.thread_id])
       : null;
     const selectedThreadFromQuery = threadFromQuery?.rows[0] ?? null;
     const selectedInboxId = req.query.inbox_id ?? selectedThreadFromQuery?.inbox_id ?? inboxes.rows[0]?.id ?? null;
@@ -651,16 +686,16 @@ app.get<{ Querystring: { inbox_id?: string; thread_id?: string; notice?: string 
          LEFT JOIN LATERAL (
            SELECT from_email, direction, text_body, html_body, created_at
            FROM messages
-           WHERE thread_id = t.id
+           WHERE thread_id = t.id${mailTenantId ? ' AND tenant_id = $2' : ''}
            ORDER BY created_at DESC
            LIMIT 1
          ) lm ON true
-         LEFT JOIN messages m ON m.thread_id = t.id
-         WHERE t.inbox_id = $1
+         LEFT JOIN messages m ON m.thread_id = t.id${mailTenantId ? ' AND m.tenant_id = t.tenant_id' : ''}
+         WHERE t.inbox_id = $1${mailTenantId ? ' AND t.tenant_id = $2' : ''}
          GROUP BY t.id, t.inbox_id, t.subject, t.last_message_at, lm.from_email, lm.direction, lm.text_body, lm.html_body
          ORDER BY t.last_message_at DESC
          LIMIT 100`,
-        [selectedInboxId],
+        mailTenantId ? [selectedInboxId, mailTenantId] : [selectedInboxId],
       )
       : { rows: [] };
 
@@ -670,9 +705,9 @@ app.get<{ Querystring: { inbox_id?: string; thread_id?: string; notice?: string 
       ? await query<any>(
         `SELECT id, thread_id, direction, from_email, from_name, to_json, subject, text_body, html_body, coalesce(sent_at, received_at, created_at) AS created_at
          FROM messages
-         WHERE thread_id = $1
+         WHERE thread_id = $1${mailTenantId ? ' AND tenant_id = $2' : ''}
          ORDER BY created_at ASC`,
-        [selectedThreadId],
+        mailTenantId ? [selectedThreadId, mailTenantId] : [selectedThreadId],
       )
       : { rows: [] };
 
@@ -693,7 +728,7 @@ app.get<{ Querystring: { inbox_id?: string; thread_id?: string; notice?: string 
 
 app.post<{ Params: { id: string } }>('/mail/threads/:id/reply', { preHandler: requireDashboardAuth }, async (req, reply) => {
   const body = req.body as { text?: string } | undefined;
-  const result = await sendThreadReply(req.params.id, ReplySchema.parse({ text: body?.text ?? '' }));
+  const result = await sendThreadReply(req.params.id, ReplySchema.parse({ text: body?.text ?? '' }), (req as AuthedRequest).authContext);
   if (result.statusCode === 200) {
     reply.redirect(`/mail?thread_id=${encodeURIComponent(req.params.id)}&notice=reply_sent`);
     return;
@@ -707,6 +742,11 @@ app.post<{ Params: { id: string } }>('/mail/threads/:id/reply', { preHandler: re
 
 app.post<{ Params: { id: string } }>('/dashboard/signup-requests/:id/checks', { preHandler: requireDashboardAuth }, async (req, reply) => {
   const body = req.body as { check_key?: string; check_status?: string; status?: string } | undefined;
+  const authContext = (req as AuthedRequest).authContext;
+  if (!authContext?.operator) {
+    reply.code(403).type('text/html').send(renderDashboardUnavailablePage('operator access required'));
+    return;
+  }
   const existing = await query<any>('SELECT * FROM signup_requests WHERE id = $1', [req.params.id]);
   if (existing.rowCount === 0) {
     reply.code(404).type('text/html').send(renderDashboardUnavailablePage('signup request not found'));
@@ -742,9 +782,17 @@ app.post<{ Params: { id: string } }>('/dashboard/signup-requests/:id/checks', { 
   reply.redirect('/dashboard');
 });
 
-app.get('/dashboard', { preHandler: requireDashboardAuth }, async (_req, reply) => {
+app.get('/dashboard', { preHandler: requireDashboardAuth }, async (req, reply) => {
   try {
-    const [inboxes, messages, deliveries, audits, signupRequests] = await Promise.all([
+    const authContext = (req as AuthedRequest).authContext;
+    const dashboardTenantId = authContext?.operator ? undefined : authContext?.tenantId;
+    const [inboxes, messages, deliveries, audits, signupRequests] = dashboardTenantId ? await Promise.all([
+      query<any>('SELECT id, email_address, display_name, status, created_at FROM inboxes WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 20', [dashboardTenantId]),
+      query<any>('SELECT id, inbox_id, thread_id, direction, from_email, subject, created_at FROM messages WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 20', [dashboardTenantId]),
+      query<any>('SELECT id, endpoint_id, event_type, status, attempts, created_at, delivered_at FROM webhook_deliveries WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 20', [dashboardTenantId]),
+      query<any>('SELECT action, target_type, target_id, created_at FROM audit_logs WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 30', [dashboardTenantId]),
+      query<any>('SELECT id, requester_email, preferred_inbox_name, status, verification_json, created_at FROM signup_requests WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 20', [dashboardTenantId]),
+    ]) : await Promise.all([
       query<any>('SELECT id, email_address, display_name, status, created_at FROM inboxes ORDER BY created_at DESC LIMIT 20'),
       query<any>('SELECT id, inbox_id, thread_id, direction, from_email, subject, created_at FROM messages ORDER BY created_at DESC LIMIT 20'),
       query<any>('SELECT id, endpoint_id, event_type, status, attempts, created_at, delivered_at FROM webhook_deliveries ORDER BY created_at DESC LIMIT 20'),
@@ -759,7 +807,7 @@ app.get('/dashboard', { preHandler: requireDashboardAuth }, async (_req, reply) 
       signupRequests: signupRequests.rows.map((row: any) => ({ ...row, verification_summary: summarizeSignupVerification(row.verification_json ?? []) })),
     }));
   } catch (error) {
-    _req.log.error(error, 'dashboard database query failed');
+    req.log.error(error, 'dashboard database query failed');
     const message = error instanceof Error ? error.message : 'dashboard unavailable';
     reply.code(503).type('text/html').send(renderDashboardUnavailablePage(message));
   }

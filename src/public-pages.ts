@@ -2906,22 +2906,22 @@ export function renderDashboardLoginPage(error = '') {
     <a class="brand" href="/" aria-label="Reverbin home">${reverbinMarkSvg()}<span>reverbin</span></a>
     <section class="login-grid">
       <div class="copy">
-        <h1>Operational dashboard access.</h1>
-        <p>Use the app token to inspect inboxes, recent messages, webhook deliveries, and audit activity for the Reverbin control plane.</p>
+        <h1>Sign in with your API key.</h1>
+        <p>Paste the API key Reverbin showed after signup to open your inbox dashboard. Operator tokens still work for internal admin access.</p>
         <ul class="mini-list">
-          <li><span>Authentication</span><span>app token</span></li>
-          <li><span>Surface</span><span>ops view</span></li>
-          <li><span>Scope</span><span>inboxes + audit</span></li>
+          <li><span>Authentication</span><span>API key or operator token</span></li>
+          <li><span>Surface</span><span>mail + settings</span></li>
+          <li><span>Scope</span><span>your inboxes + activity</span></li>
         </ul>
       </div>
       <div class="card">
         <h2>Sign in</h2>
-        <p>Enter the dashboard token configured for this deployment.</p>
+        <p>Use the API key from signup. You can copy it from the one-time success screen after creating an agent.</p>
         ${errorHtml}
         <form method="post" action="/dashboard/login">
           <input type="text" name="username" value="reverbin-dashboard" autocomplete="username" hidden />
-          <label for="token">Dashboard token</label>
-          <input id="token" type="password" name="token" autocomplete="current-password" placeholder="Enter token" autofocus required />
+          <label for="token">API key or operator token</label>
+          <input id="token" type="password" name="token" autocomplete="current-password" placeholder="rvb_live_..." autofocus required />
           <button type="submit">Open dashboard</button>
         </form>
       </div>
