@@ -166,6 +166,16 @@ test('mail settings page is simple, tenant scoped, and editable', () => {
   assert.match(html, /action="\/mail\/settings"/);
   assert.match(html, /name="display_name"/);
   assert.match(html, /value="Support Team"/);
+  assert.match(html, /<details class="advanced-settings">/);
+  assert.match(html, /<summary>Advanced policy controls<\/summary>/);
+  assert.doesNotMatch(html, /<details class="advanced-settings" open>/);
+  const basicSettings = html.split('<details class="advanced-settings">')[0];
+  assert.doesNotMatch(basicSettings, /Max outbound per hour/);
+  assert.doesNotMatch(basicSettings, /Max outbound per day/);
+  assert.doesNotMatch(basicSettings, /Risk threshold/);
+  assert.doesNotMatch(basicSettings, /Allowed domains/);
+  assert.doesNotMatch(basicSettings, /Blocked domains/);
+  assert.doesNotMatch(basicSettings, /Blocked recipients/);
   assert.match(html, /name="max_outbound_per_hour"/);
   assert.match(html, /value="20"/);
   assert.match(html, /name="max_outbound_per_day"/);
