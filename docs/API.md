@@ -22,13 +22,15 @@ Public examples use the live root-domain address shape, such as `user@reverbin.c
 
 ## Authentication
 
-All `/v1/*` routes require bearer auth:
+`POST /v1/agent-signups` is the public self-serve provisioning route. It returns a tenant-scoped API key once.
+
+All other `/v1/*` routes require bearer auth:
 
 ```sh
 -H "Authorization: Bearer $REVERBIN_API_KEY"
 ```
 
-Do not put API keys in source code. Pass them through environment variables or an agent secret store.
+Do not put API keys in source code. Pass them through environment variables or an agent secret store. Self-serve API keys are scoped to the tenant created during signup, so one agent cannot list another builder's inboxes, threads, webhooks, deliveries, or audit logs.
 
 ## Health routes
 
@@ -79,13 +81,83 @@ Common statuses:
 
 ## Five-minute agent flow
 
-1. `POST /v1/inboxes` creates an agent inbox.
-2. `POST /v1/webhooks` registers the agent runtime endpoint.
-3. Provider inbound mail creates a thread and emits `email.received`.
-4. `GET /v1/threads/:id` fetches the thread and messages.
-5. `POST /v1/threads/:id/reply` replies.
-6. Reverbin emits `email.sent` or `approval.required`.
-7. `GET /v1/webhook-deliveries` and `GET /v1/audit-logs` support operations.
+1. `POST /v1/agent-signups` self-serves a tenant, root-domain inbox, API key, and optional webhook.
+2. Store the returned `api_key.token` and webhook secret immediately; secrets are returned once.
+3. Send mail to the returned `inbox.email_address`.
+4. `GET /v1/inboxes/:id/threads` lists threads for that tenant-scoped API key.
+5. `GET /v1/threads/:id` fetches the thread and messages.
+6. `POST /v1/threads/:id/reply` replies.
+7. Reverbin emits `email.received`, `email.sent`, or `approval.required` to registered webhooks.
+8. `GET /v1/webhook-deliveries` and `GET /v1/audit-logs` support operations.
+
+## Self-serve agent signup
+
+### Provision an agent inbox
+
+```txt
+POST /v1/agent-signups
+```
+
+This route is public and automated. It creates a tenant, agent, root-domain inbox, tenant-scoped API key, default send policy, signup audit row, and optional webhook endpoint. The API key token and webhook secret are returned once; store them in the agent's secret store.
+
+Request:
+
+```sh
+curl -X POST https://api.reverbin.com/v1/agent-signups \
+  -H "content-type: application/json" \
+  -d '{
+    "requester_email": "builder@example.com",
+    "agent_name": "Support Agent",
+    "agent_use_case": "Handle customer support replies and escalate unusual requests.",
+    "preferred_inbox_name": "support-agent",
+    "webhook_url": "https://agent.example.com/reverbin/webhook"
+  }'
+```
+
+Response:
+
+```json
+{
+  "status": "provisioned",
+  "signup_request_id": "sgr_...",
+  "tenant_id": "ten_...",
+  "agent": {
+    "id": "agt_...",
+    "name": "Support Agent"
+  },
+  "inbox": {
+    "id": "inb_...",
+    "email_address": "support-agent@reverbin.com",
+    "display_name": "Support Agent",
+    "status": "active"
+  },
+  "api_key": {
+    "id": "key_...",
+    "token": "rvb_live_...",
+    "scopes": ["inboxes:read", "threads:read", "threads:reply", "webhooks:read", "webhook_deliveries:read", "audit_logs:read"],
+    "returned_once": true
+  },
+  "webhook": {
+    "id": "wh_...",
+    "url": "https://agent.example.com/reverbin/webhook",
+    "events": ["email.received", "email.sent", "approval.required"],
+    "secret": "rvb_whsec_...",
+    "secret_returned_once": true,
+    "status": "active"
+  },
+  "quickstart": {
+    "base_url": "https://api.reverbin.com",
+    "inbox_email": "support-agent@reverbin.com",
+    "next_steps": [
+      "Store the API key in your agent secret store.",
+      "Send an email to the inbox.",
+      "Use GET /v1/inboxes/:id/threads and POST /v1/threads/:id/reply."
+    ]
+  }
+}
+```
+
+A `409` means the requested root-domain inbox name is already taken. Pick a different `preferred_inbox_name`.
 
 ## Inboxes
 

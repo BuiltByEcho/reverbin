@@ -66,6 +66,25 @@ export type CreateWebhookInput = {
   secret?: string;
 };
 
+export type AgentSignupInput = {
+  requester_email: string;
+  agent_name: string;
+  agent_use_case: string;
+  preferred_inbox_name: string;
+  webhook_url?: string;
+};
+
+export type AgentSignupResult = {
+  status: 'provisioned';
+  signup_request_id: string;
+  tenant_id: string;
+  agent: { id: string; name: string };
+  inbox: Inbox;
+  api_key: { id: string; token: string; scopes: string[]; returned_once: boolean };
+  webhook?: (WebhookEndpoint & { secret?: string; secret_returned_once?: boolean }) | null;
+  quickstart: { base_url: string; inbox_email: string; next_steps: string[] };
+};
+
 export type WebhookEndpoint = {
   id: string;
   url: string;
@@ -104,6 +123,10 @@ export class ReverbinClient {
     this.fetchImpl = options.fetch ?? globalThis.fetch;
     if (!this.fetchImpl) throw new Error('fetch is not available; pass ReverbinClient({ fetch })');
   }
+
+  readonly signups = {
+    create: (input: AgentSignupInput) => this.request<AgentSignupResult>('/v1/agent-signups', { method: 'POST', body: input }),
+  };
 
   readonly inboxes = {
     create: (input: CreateInboxInput) => this.request<Inbox>('/v1/inboxes', { method: 'POST', body: input }),

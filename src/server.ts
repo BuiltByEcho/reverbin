@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import Fastify, { type FastifyReply, type FastifyRequest } from 'fastify';
 import cors from '@fastify/cors';
@@ -13,14 +14,16 @@ import { buildWebhookDeliveryHeaders, buildWebhookEventPayload, isAllowedWebhook
 import { clearDashboardCookie, dashboardCookie, dashboardTokenFromEnv, isDashboardRequestAuthorized } from './dashboard-auth.js';
 import { renderDashboardLoginPage, renderDashboardPage, renderDashboardUnavailablePage, renderDocsPage, renderFaviconSvg, renderLandingPage, renderMailPage, type DocsPageKey } from './public-pages.js';
 import { buildWebhookDeliveryJob, redisConnectionOptions, WEBHOOK_DELIVERY_QUEUE, webhookDeliveryMode } from './webhook-delivery.js';
-import { normalizeSignupRequestInput, summarizeSignupVerification, type SignupRequestStatus, type SignupVerificationCheck } from './signup-verification.js';
+import { buildPendingSignupVerification, normalizeSignupRequestInput, summarizeSignupVerification, type SignupRequestStatus, type SignupVerificationCheck } from './signup-verification.js';
 import { checkReadiness } from './readiness.js';
 import { configuredSecret, internalErrorPayload, isCorsOriginAllowed, webhookDeliveryTimeoutMs } from './http-hardening.js';
 import { createFixedWindowRateLimiter } from './rate-limit.js';
 import { arrayify, id, normalizeEmail } from './util.js';
+import { buildApiKeyRecord, hashApiKeyToken, normalizeSelfServeInboxLocalPart } from './api-keys.js';
 
 const TENANT_ID = process.env.DEFAULT_TENANT_ID ?? 'ten_default';
 const DEFAULT_AGENT_ID = process.env.DEFAULT_AGENT_ID ?? 'agt_default';
+const SELF_SERVE_INBOX_DOMAIN = process.env.SELF_SERVE_INBOX_DOMAIN ?? 'reverbin.com';
 const PORT = Number(process.env.PORT ?? 8797);
 const HOST = process.env.HOST ?? '127.0.0.1';
 const LLMS_TXT_PATH = new URL('../../llms.txt', import.meta.url);
@@ -40,6 +43,16 @@ await app.register(formbody);
 
 const dashboardLoginLimiter = createFixedWindowRateLimiter({ limit: 8, windowMs: 15 * 60_000 });
 const apiAuthLimiter = createFixedWindowRateLimiter({ limit: 60, windowMs: 60_000 });
+const automatedSignupLimiter = createFixedWindowRateLimiter({ limit: 5, windowMs: 60 * 60_000 });
+
+type AuthContext = {
+  tenantId: string;
+  apiKeyId?: string;
+  scopes: string[];
+  operator: boolean;
+};
+
+type AuthedRequest = FastifyRequest & { authContext?: AuthContext };
 
 function rateLimitKey(req: FastifyRequest, scope: string) {
   const forwardedFor = req.headers['x-forwarded-for'];
@@ -83,23 +96,43 @@ function dashboardCookieIsSecure() {
   return (process.env.PUBLIC_BASE_URL ?? '').startsWith('https://');
 }
 
-function requireApiKey(req: FastifyRequest, reply: FastifyReply, done: () => void) {
+async function requireApiKey(req: FastifyRequest, reply: FastifyReply) {
   const configured = configuredSecret(process.env.ECHO_EMAIL_API_KEY);
-  if (!configured) {
+  const auth = req.headers.authorization ?? '';
+  const token = auth.startsWith('Bearer ') ? auth.slice('Bearer '.length).trim() : '';
+  if (configured && token === configured) {
+    (req as AuthedRequest).authContext = { tenantId: TENANT_ID, scopes: ['*'], operator: true };
+    return;
+  }
+
+  if (token) {
+    const tokenHash = hashApiKeyToken(token);
+    const apiKey = await query<{ id: string; tenant_id: string; name: string; scopes_json: unknown }>(
+      'SELECT id, tenant_id, name, scopes_json FROM api_keys WHERE key_hash = $1 AND revoked_at IS NULL',
+      [tokenHash],
+    );
+    if (apiKey.rows.length > 0) {
+      const row = apiKey.rows[0];
+      (req as AuthedRequest).authContext = {
+        tenantId: row.tenant_id,
+        apiKeyId: row.id,
+        scopes: arrayify(row.scopes_json as string[]).map(String),
+        operator: false,
+      };
+      return;
+    }
+  }
+
+  const limit = apiAuthLimiter.check(rateLimitKey(req, 'api-auth'));
+  if (!limit.allowed) {
+    sendRateLimited(reply, limit.retry_after_seconds);
+    return;
+  }
+  if (!configured && !token) {
     reply.code(503).send({ error: 'api_auth_not_configured' });
     return;
   }
-  const auth = req.headers.authorization ?? '';
-  if (auth !== `Bearer ${configured}`) {
-    const limit = apiAuthLimiter.check(rateLimitKey(req, 'api-auth'));
-    if (!limit.allowed) {
-      sendRateLimited(reply, limit.retry_after_seconds);
-      return;
-    }
-    reply.code(401).send({ error: 'unauthorized' });
-    return;
-  }
-  done();
+  reply.code(401).send({ error: 'unauthorized' });
 }
 
 function requireWebhookSecret(req: FastifyRequest, reply: FastifyReply, done: () => void) {
@@ -116,18 +149,22 @@ function requireWebhookSecret(req: FastifyRequest, reply: FastifyReply, done: ()
   done();
 }
 
-async function audit(action: string, targetType: string, targetId: string, metadata: Record<string, unknown> = {}, actorType = 'system', actorId?: string | null) {
+function tenantIdFor(req: FastifyRequest) {
+  return (req as AuthedRequest).authContext?.tenantId ?? TENANT_ID;
+}
+
+async function audit(action: string, targetType: string, targetId: string, metadata: Record<string, unknown> = {}, actorType = 'system', actorId?: string | null, tenantId = TENANT_ID) {
   await query(
     `INSERT INTO audit_logs (id, tenant_id, actor_type, actor_id, action, target_type, target_id, metadata_json)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)`,
-    [id('aud'), TENANT_ID, actorType, actorId ?? null, action, targetType, targetId, JSON.stringify(metadata)],
+    [id('aud'), tenantId, actorType, actorId ?? null, action, targetType, targetId, JSON.stringify(metadata)],
   );
 }
 
-async function publishWebhookEvent(eventType: WebhookEventType, data: Record<string, unknown>) {
+async function publishWebhookEvent(eventType: WebhookEventType, data: Record<string, unknown>, tenantId = TENANT_ID) {
   const endpoints = await query<WebhookEndpointRow>(
     `SELECT id, url, secret, events_json, status FROM webhook_endpoints WHERE tenant_id = $1 AND status = 'active'`,
-    [TENANT_ID],
+    [tenantId],
   );
   const payload = buildWebhookEventPayload(eventType, data);
   const payloadJson = JSON.stringify(payload);
@@ -137,7 +174,7 @@ async function publishWebhookEvent(eventType: WebhookEventType, data: Record<str
     await query(
       `INSERT INTO webhook_deliveries (id, tenant_id, endpoint_id, event_type, payload_json, status)
        VALUES ($1,$2,$3,$4,$5::jsonb,'pending')`,
-      [deliveryId, TENANT_ID, endpoint.id, eventType, payloadJson],
+      [deliveryId, tenantId, endpoint.id, eventType, payloadJson],
     );
 
     if (webhookDeliveryMode() === 'queue') {
@@ -273,6 +310,14 @@ const SignupRequestSchema = z.object({
   notes: z.string().max(2000).optional(),
 });
 
+const AutomatedAgentSignupSchema = z.object({
+  requester_email: z.string().email(),
+  agent_name: z.string().min(2).max(120),
+  agent_use_case: z.string().min(8).max(2000),
+  preferred_inbox_name: z.string().min(1).max(80),
+  webhook_url: z.string().url().refine(isAllowedWebhookUrl, 'webhook url must use https, except loopback http for local testing').optional(),
+});
+
 const SignupVerificationCheckSchema = z.object({
   key: z.string().min(1),
   label: z.string().min(1),
@@ -303,6 +348,7 @@ async function storeInboundEmail(body: InboundEmail) {
     : await query<any>('SELECT * FROM inboxes WHERE email_address = $1', [normalizeEmail(body.email_address ?? body.to[0].email)]);
   if (inboxResult.rowCount === 0) return null;
   const inbox = inboxResult.rows[0];
+  const tenantId = inbox.tenant_id;
   const threadId = id('thr');
   const messageId = id('msg');
   await tx(async (client) => {
@@ -312,18 +358,18 @@ async function storeInboundEmail(body: InboundEmail) {
     );
     await client.query(
       `INSERT INTO threads (id, tenant_id, inbox_id, subject, last_message_at) VALUES ($1,$2,$3,$4,now())`,
-      [threadId, TENANT_ID, inbox.id, body.subject],
+      [threadId, tenantId, inbox.id, body.subject],
     );
     await client.query(
       `INSERT INTO messages (id, tenant_id, inbox_id, thread_id, provider_message_id, direction, from_email, from_name, to_json, cc_json, bcc_json, subject, text_body, html_body, raw_mime_storage_key, headers_json, received_at)
        VALUES ($1,$2,$3,$4,$5,'inbound',$6,$7,$8::jsonb,$9::jsonb,$10::jsonb,$11,$12,$13,$14,$15::jsonb,now())`,
-      [messageId, TENANT_ID, inbox.id, threadId, body.provider_message_id ?? null, normalizeEmail(body.from.email), body.from.name ?? null,
+      [messageId, tenantId, inbox.id, threadId, body.provider_message_id ?? null, normalizeEmail(body.from.email), body.from.name ?? null,
         JSON.stringify(body.to), JSON.stringify(body.cc ?? []), JSON.stringify(body.bcc ?? []), body.subject, body.text,
         body.html ?? null, body.raw_mime_storage_key ?? null, JSON.stringify(body.headers ?? {})],
     );
   });
-  await audit('email.received', 'message', messageId, { inbox_id: inbox.id, thread_id: threadId, from: body.from.email });
-  await publishWebhookEvent('email.received', { inbox_id: inbox.id, thread_id: threadId, message_id: messageId, from: normalizeEmail(body.from.email), subject: body.subject });
+  await audit('email.received', 'message', messageId, { inbox_id: inbox.id, thread_id: threadId, from: body.from.email }, 'system', null, tenantId);
+  await publishWebhookEvent('email.received', { inbox_id: inbox.id, thread_id: threadId, message_id: messageId, from: normalizeEmail(body.from.email), subject: body.subject }, inbox.tenant_id);
   return { inbox_id: inbox.id, thread_id: threadId, message_id: messageId, event: 'email.received' };
 }
 
@@ -333,12 +379,15 @@ type ThreadReplyResult = {
   payload: Record<string, unknown>;
 };
 
-async function sendThreadReply(threadId: string, body: ThreadReplyBody): Promise<ThreadReplyResult> {
-  const threadResult = await query<any>('SELECT * FROM threads WHERE id = $1', [threadId]);
+async function sendThreadReply(threadId: string, body: ThreadReplyBody, authContext?: AuthContext): Promise<ThreadReplyResult> {
+  const threadResult = authContext?.operator || !authContext
+    ? await query<any>('SELECT * FROM threads WHERE id = $1', [threadId])
+    : await query<any>('SELECT * FROM threads WHERE id = $1 AND tenant_id = $2', [threadId, authContext.tenantId]);
   if (threadResult.rowCount === 0) return { statusCode: 404, payload: { error: 'thread not found' } };
   const thread = threadResult.rows[0];
   const inboxResult = await query<any>('SELECT * FROM inboxes WHERE id = $1', [thread.inbox_id]);
   const inbox = inboxResult.rows[0];
+  const tenantId = inbox.tenant_id;
   const recipients = body.to?.map(normalizeEmail) ?? (await query<any>(
     `SELECT from_email FROM messages WHERE thread_id = $1 AND direction = 'inbound' ORDER BY created_at DESC LIMIT 1`,
     [thread.id],
@@ -367,11 +416,11 @@ async function sendThreadReply(threadId: string, body: ThreadReplyBody): Promise
     await query(
       `INSERT INTO approval_requests (id, tenant_id, inbox_id, agent_id, thread_id, proposed_to_json, subject, body_text, body_html, risk_flags_json, policy_reasons_json)
        VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10::jsonb,$11::jsonb)`,
-      [approvalId, TENANT_ID, inbox.id, inbox.agent_id, thread.id, JSON.stringify(recipients), body.subject ?? `Re: ${thread.subject}`,
+      [approvalId, tenantId, inbox.id, inbox.agent_id, thread.id, JSON.stringify(recipients), body.subject ?? `Re: ${thread.subject}`,
         body.text, body.html ?? null, JSON.stringify(decision.risk_flags), JSON.stringify(decision.reasons)],
     );
-    await audit('approval.required', 'approval', approvalId, { thread_id: thread.id, decision });
-    await publishWebhookEvent('approval.required', { approval_id: approvalId, inbox_id: inbox.id, thread_id: thread.id, to: recipients, subject: body.subject ?? `Re: ${thread.subject}`, risk_flags: decision.risk_flags, reasons: decision.reasons });
+    await audit('approval.required', 'approval', approvalId, { thread_id: thread.id, decision }, 'system', authContext?.apiKeyId, tenantId);
+    await publishWebhookEvent('approval.required', { approval_id: approvalId, inbox_id: inbox.id, thread_id: thread.id, to: recipients, subject: body.subject ?? `Re: ${thread.subject}`, risk_flags: decision.risk_flags, reasons: decision.reasons }, tenantId);
     return { statusCode: 202, payload: { approval_id: approvalId, status: 'pending', ...decision } };
   }
 
@@ -387,10 +436,10 @@ async function sendThreadReply(threadId: string, body: ThreadReplyBody): Promise
   await query(
     `INSERT INTO messages (id, tenant_id, inbox_id, thread_id, provider_message_id, direction, from_email, to_json, subject, text_body, html_body, risk_flags_json, sent_at)
      VALUES ($1,$2,$3,$4,$5,'outbound',$6,$7::jsonb,$8,$9,$10,$11::jsonb,now())`,
-    [messageId, TENANT_ID, inbox.id, thread.id, sendResult.provider_message_id, inbox.email_address, JSON.stringify(recipients), body.subject ?? `Re: ${thread.subject}`, body.text, body.html ?? null, JSON.stringify(decision.risk_flags)],
+    [messageId, tenantId, inbox.id, thread.id, sendResult.provider_message_id, inbox.email_address, JSON.stringify(recipients), body.subject ?? `Re: ${thread.subject}`, body.text, body.html ?? null, JSON.stringify(decision.risk_flags)],
   );
-  await audit('email.sent', 'message', messageId, { provider_result: sendResult });
-  await publishWebhookEvent('email.sent', { inbox_id: inbox.id, thread_id: thread.id, message_id: messageId, to: recipients, subject: body.subject ?? `Re: ${thread.subject}`, risk_flags: decision.risk_flags });
+  await audit('email.sent', 'message', messageId, { provider_result: sendResult }, authContext ? 'api' : 'human', authContext?.apiKeyId, tenantId);
+  await publishWebhookEvent('email.sent', { inbox_id: inbox.id, thread_id: thread.id, message_id: messageId, to: recipients, subject: body.subject ?? `Re: ${thread.subject}`, risk_flags: decision.risk_flags }, inbox.tenant_id);
   return { statusCode: 200, payload: { message_id: messageId, provider_result: sendResult } };
 }
 
@@ -638,33 +687,122 @@ app.get('/dashboard', { preHandler: requireDashboardAuth }, async (_req, reply) 
   }
 });
 
+app.post('/v1/agent-signups', async (req, reply) => {
+  const limit = automatedSignupLimiter.check(rateLimitKey(req, 'agent-signup'));
+  if (!limit.allowed) {
+    sendRateLimited(reply, limit.retry_after_seconds);
+    return;
+  }
+  const body = AutomatedAgentSignupSchema.parse(req.body);
+  const localPart = normalizeSelfServeInboxLocalPart(body.preferred_inbox_name);
+  const emailAddress = `${localPart}@${SELF_SERVE_INBOX_DOMAIN}`;
+  const tenantId = id('ten');
+  const agentId = id('agt');
+  const signupId = id('sgr');
+  const inboxId = id('inb');
+  const policyId = id('pol');
+  const apiKey = buildApiKeyRecord({ tenantId, name: `${body.agent_name} API key` });
+  const webhookId = body.webhook_url ? id('wh') : null;
+  const webhookSecret = body.webhook_url ? `rvb_whsec_${randomBytes(24).toString('base64url')}` : null;
+  const verification = buildPendingSignupVerification().map((check) => ({
+    ...check,
+    status: 'passed' as const,
+    evidence: 'Automated self-serve provisioning completed.',
+  }));
+  const policy = defaultPolicy;
+
+  try {
+    await tx(async (client) => {
+      await client.query('INSERT INTO tenants (id, name) VALUES ($1,$2)', [tenantId, body.agent_name]);
+      await client.query('INSERT INTO agents (id, tenant_id, name) VALUES ($1,$2,$3)', [agentId, tenantId, body.agent_name]);
+      await client.query(
+        `INSERT INTO signup_requests (id, tenant_id, requester_email, requester_name, agent_use_case, preferred_inbox_name, webhook_url, status, verification_json, notes, decided_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,'provisioned',$8::jsonb,$9,now())`,
+        [signupId, tenantId, normalizeEmail(body.requester_email), body.agent_name, body.agent_use_case, localPart, body.webhook_url ?? null, JSON.stringify(verification), 'Automated self-serve agent signup.'],
+      );
+      await client.query(
+        `INSERT INTO inboxes (id, tenant_id, agent_id, provider_id, email_address, display_name)
+         VALUES ($1,$2,$3,$4,$5,$6)`,
+        [inboxId, tenantId, agentId, process.env.EMAIL_PROVIDER ?? 'mock', emailAddress, body.agent_name],
+      );
+      await client.query(
+        `INSERT INTO send_policies (id, tenant_id, inbox_id, reply_only, require_approval_for_new_recipients,
+          require_approval_for_external_domains, max_outbound_per_hour, max_outbound_per_day, allowed_domains_json,
+          blocked_domains_json, allowed_recipients_json, blocked_recipients_json, allow_attachments, allow_links, risk_threshold)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10::jsonb,$11::jsonb,$12::jsonb,$13,$14,$15)`,
+        [policyId, tenantId, inboxId, policy.reply_only, policy.require_approval_for_new_recipients,
+          policy.require_approval_for_external_domains, policy.max_outbound_per_hour, policy.max_outbound_per_day,
+          JSON.stringify(policy.allowed_domains), JSON.stringify(policy.blocked_domains), JSON.stringify(policy.allowed_recipients),
+          JSON.stringify(policy.blocked_recipients), policy.allow_attachments, policy.allow_links, policy.risk_threshold],
+      );
+      await client.query(
+        `INSERT INTO api_keys (id, tenant_id, name, key_hash, scopes_json)
+         VALUES ($1,$2,$3,$4,$5::jsonb)`,
+        [apiKey.id, tenantId, apiKey.name, apiKey.key_hash, JSON.stringify(apiKey.scopes)],
+      );
+      if (body.webhook_url && webhookId && webhookSecret) {
+        await client.query(
+          `INSERT INTO webhook_endpoints (id, tenant_id, url, secret, events_json)
+           VALUES ($1,$2,$3,$4,$5::jsonb)`,
+          [webhookId, tenantId, body.webhook_url, webhookSecret, JSON.stringify(['email.received', 'email.sent', 'approval.required'])],
+        );
+      }
+    });
+  } catch (error: any) {
+    if (error?.code === '23505') {
+      reply.code(409).send({ error: 'inbox_name_unavailable', email_address: emailAddress });
+      return;
+    }
+    throw error;
+  }
+
+  await audit('agent_signup.provisioned', 'signup_request', signupId, { inbox_id: inboxId, email_address: emailAddress, webhook_id: webhookId }, 'api', apiKey.id, tenantId);
+  reply.code(201).send({
+    status: 'provisioned',
+    signup_request_id: signupId,
+    tenant_id: tenantId,
+    agent: { id: agentId, name: body.agent_name },
+    inbox: { id: inboxId, email_address: emailAddress, display_name: body.agent_name, status: 'active' },
+    api_key: { id: apiKey.id, token: apiKey.token, scopes: apiKey.scopes, returned_once: true },
+    webhook: webhookId ? { id: webhookId, url: body.webhook_url, events: ['email.received', 'email.sent', 'approval.required'], secret: webhookSecret, secret_returned_once: true, status: 'active' } : null,
+    quickstart: {
+      base_url: process.env.PUBLIC_BASE_URL ?? `http://${HOST}:${PORT}`,
+      inbox_email: emailAddress,
+      next_steps: ['Store the API key in your agent secret store.', 'Send an email to the inbox.', 'Use GET /v1/inboxes/:id/threads and POST /v1/threads/:id/reply.'],
+    },
+  });
+});
+
 app.register(async (privateRoutes) => {
   privateRoutes.addHook('preHandler', requireApiKey);
 
   privateRoutes.post('/v1/signup-requests', async (req, reply) => {
     const normalized = normalizeSignupRequestInput(SignupRequestSchema.parse(req.body));
+    const tenantId = tenantIdFor(req);
     const signupId = id('sgr');
     const summary = summarizeSignupVerification(normalized.verification_json);
     const result = await query(
       `INSERT INTO signup_requests (id, tenant_id, requester_email, requester_name, agent_use_case, preferred_inbox_name, webhook_url, status, verification_json, notes)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10)
        RETURNING *`,
-      [signupId, TENANT_ID, normalized.requester_email, normalized.requester_name ?? null, normalized.agent_use_case,
+      [signupId, tenantId, normalized.requester_email, normalized.requester_name ?? null, normalized.agent_use_case,
         normalized.preferred_inbox_name ?? null, normalized.webhook_url ?? null, normalized.status,
         JSON.stringify(normalized.verification_json), normalized.notes ?? null],
     );
-    await audit('signup.requested', 'signup_request', signupId, { requester_email: normalized.requester_email, summary }, 'api');
+    await audit('signup.requested', 'signup_request', signupId, { requester_email: normalized.requester_email, summary }, 'api', (req as AuthedRequest).authContext?.apiKeyId, tenantId);
     reply.code(201).send({ ...result.rows[0], verification_summary: summary });
   });
 
-  privateRoutes.get('/v1/signup-requests', async () => {
-    const result = await query('SELECT * FROM signup_requests ORDER BY created_at DESC LIMIT 100');
+  privateRoutes.get('/v1/signup-requests', async (req) => {
+    const tenantId = tenantIdFor(req);
+    const result = await query('SELECT * FROM signup_requests WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 100', [tenantId]);
     return { data: result.rows.map((row: any) => ({ ...row, verification_summary: summarizeSignupVerification(row.verification_json ?? []) })) };
   });
 
   privateRoutes.patch<{ Params: { id: string } }>('/v1/signup-requests/:id', async (req, reply) => {
     const body = SignupRequestUpdateSchema.parse(req.body);
-    const existing = await query<any>('SELECT * FROM signup_requests WHERE id = $1', [req.params.id]);
+    const tenantId = tenantIdFor(req);
+    const existing = await query<any>('SELECT * FROM signup_requests WHERE id = $1 AND tenant_id = $2', [req.params.id, tenantId]);
     if (existing.rowCount === 0) return reply.code(404).send({ error: 'signup request not found' });
     const nextVerification = (body.verification ?? existing.rows[0].verification_json) as SignupVerificationCheck[];
     const nextStatus = (body.status ?? existing.rows[0].status) as SignupRequestStatus;
@@ -676,16 +814,18 @@ app.register(async (privateRoutes) => {
            notes = COALESCE($4, notes),
            updated_at = now(),
            decided_at = CASE WHEN $2 IN ('approved', 'rejected', 'provisioned') THEN COALESCE(decided_at, now()) ELSE decided_at END
-       WHERE id = $1
+       WHERE id = $1 AND tenant_id = $5
        RETURNING *`,
-      [req.params.id, nextStatus, JSON.stringify(nextVerification), body.notes ?? null],
+      [req.params.id, nextStatus, JSON.stringify(nextVerification), body.notes ?? null, tenantId],
     );
-    await audit('signup.verification_updated', 'signup_request', req.params.id, { status: nextStatus, summary }, 'api');
+    await audit('signup.verification_updated', 'signup_request', req.params.id, { status: nextStatus, summary }, 'api', (req as AuthedRequest).authContext?.apiKeyId, tenantId);
     return { ...result.rows[0], verification_summary: summary };
   });
 
   privateRoutes.post('/v1/inboxes', async (req, reply) => {
     const body = InboxCreateSchema.parse(req.body);
+    const authContext = (req as AuthedRequest).authContext;
+    const tenantId = tenantIdFor(req);
     const inboxId = id('inb');
     const policyId = id('pol');
     const policy = { ...defaultPolicy, ...(body.policy ?? {}) };
@@ -694,63 +834,65 @@ app.register(async (privateRoutes) => {
       await client.query(
         `INSERT INTO inboxes (id, tenant_id, agent_id, provider_id, email_address, display_name)
          VALUES ($1, $2, $3, $4, $5, $6)`,
-        [inboxId, TENANT_ID, body.agent_id ?? DEFAULT_AGENT_ID, process.env.EMAIL_PROVIDER ?? 'mock', email, body.display_name ?? null],
+        [inboxId, tenantId, authContext?.operator ? (body.agent_id ?? DEFAULT_AGENT_ID) : null, process.env.EMAIL_PROVIDER ?? 'mock', email, body.display_name ?? null],
       );
       await client.query(
         `INSERT INTO send_policies (id, tenant_id, inbox_id, reply_only, require_approval_for_new_recipients,
           require_approval_for_external_domains, max_outbound_per_hour, max_outbound_per_day, allowed_domains_json,
           blocked_domains_json, allowed_recipients_json, blocked_recipients_json, allow_attachments, allow_links, risk_threshold)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10::jsonb,$11::jsonb,$12::jsonb,$13,$14,$15)`,
-        [policyId, TENANT_ID, inboxId, policy.reply_only, policy.require_approval_for_new_recipients,
+        [policyId, tenantId, inboxId, policy.reply_only, policy.require_approval_for_new_recipients,
           policy.require_approval_for_external_domains, policy.max_outbound_per_hour, policy.max_outbound_per_day,
           JSON.stringify(policy.allowed_domains), JSON.stringify(policy.blocked_domains), JSON.stringify(policy.allowed_recipients),
           JSON.stringify(policy.blocked_recipients), policy.allow_attachments, policy.allow_links, policy.risk_threshold],
       );
     });
-    await audit('inbox.created', 'inbox', inboxId, { email_address: email }, 'api');
+    await audit('inbox.created', 'inbox', inboxId, { email_address: email }, 'api', authContext?.apiKeyId, tenantId);
     reply.code(201).send({ id: inboxId, email_address: email, policy });
   });
 
-  privateRoutes.get('/v1/inboxes', async () => {
-    const result = await query('SELECT * FROM inboxes ORDER BY created_at DESC');
+  privateRoutes.get('/v1/inboxes', async (req) => {
+    const result = await query('SELECT * FROM inboxes WHERE tenant_id = $1 ORDER BY created_at DESC', [tenantIdFor(req)]);
     return { data: result.rows };
   });
 
   privateRoutes.get<{ Params: { id: string } }>('/v1/inboxes/:id', async (req, reply) => {
-    const result = await query('SELECT * FROM inboxes WHERE id = $1', [req.params.id]);
+    const result = await query('SELECT * FROM inboxes WHERE id = $1 AND tenant_id = $2', [req.params.id, tenantIdFor(req)]);
     if (result.rowCount === 0) return reply.code(404).send({ error: 'inbox not found' });
     return result.rows[0];
   });
 
   privateRoutes.get<{ Params: { id: string } }>('/v1/inboxes/:id/threads', async (req) => {
-    const result = await query('SELECT * FROM threads WHERE inbox_id = $1 ORDER BY last_message_at DESC', [req.params.id]);
+    const result = await query('SELECT * FROM threads WHERE inbox_id = $1 AND tenant_id = $2 ORDER BY last_message_at DESC', [req.params.id, tenantIdFor(req)]);
     return { data: result.rows };
   });
 
   privateRoutes.get<{ Params: { id: string } }>('/v1/threads/:id', async (req, reply) => {
-    const thread = await query('SELECT * FROM threads WHERE id = $1', [req.params.id]);
+    const tenantId = tenantIdFor(req);
+    const thread = await query('SELECT * FROM threads WHERE id = $1 AND tenant_id = $2', [req.params.id, tenantId]);
     if (thread.rowCount === 0) return reply.code(404).send({ error: 'thread not found' });
-    const messages = await query('SELECT * FROM messages WHERE thread_id = $1 ORDER BY created_at ASC', [req.params.id]);
+    const messages = await query('SELECT * FROM messages WHERE thread_id = $1 AND tenant_id = $2 ORDER BY created_at ASC', [req.params.id, tenantId]);
     return { ...thread.rows[0], messages: messages.rows };
   });
 
   privateRoutes.post<{ Params: { id: string } }>('/v1/threads/:id/reply', async (req, reply) => {
     const body = ReplySchema.parse(req.body);
-    const result = await sendThreadReply(req.params.id, body);
+    const result = await sendThreadReply(req.params.id, body, (req as AuthedRequest).authContext);
     return reply.code(result.statusCode).send(result.payload);
   });
 
-  privateRoutes.get('/v1/approvals', async () => {
-    const result = await query('SELECT * FROM approval_requests ORDER BY created_at DESC LIMIT 100');
+  privateRoutes.get('/v1/approvals', async (req) => {
+    const result = await query('SELECT * FROM approval_requests WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 100', [tenantIdFor(req)]);
     return { data: result.rows };
   });
 
   privateRoutes.post<{ Params: { id: string } }>('/v1/approvals/:id/approve', async (req, reply) => {
-    const approvalResult = await query<any>('SELECT * FROM approval_requests WHERE id = $1', [req.params.id]);
+    const tenantId = tenantIdFor(req);
+    const approvalResult = await query<any>('SELECT * FROM approval_requests WHERE id = $1 AND tenant_id = $2', [req.params.id, tenantId]);
     if (approvalResult.rowCount === 0) return reply.code(404).send({ error: 'approval not found' });
     const approval = approvalResult.rows[0];
     if (approval.status !== 'pending') return reply.code(409).send({ error: `approval is ${approval.status}` });
-    const inboxResult = await query<any>('SELECT * FROM inboxes WHERE id = $1', [approval.inbox_id]);
+    const inboxResult = await query<any>('SELECT * FROM inboxes WHERE id = $1 AND tenant_id = $2', [approval.inbox_id, tenantId]);
     const inbox = inboxResult.rows[0];
     const provider = getEmailProvider();
     const providerResult = await provider.sendEmail({
@@ -765,49 +907,51 @@ app.register(async (privateRoutes) => {
       await client.query(
         `INSERT INTO messages (id, tenant_id, inbox_id, thread_id, provider_message_id, direction, from_email, to_json, subject, text_body, html_body, risk_flags_json, sent_at)
          VALUES ($1,$2,$3,$4,$5,'outbound',$6,$7::jsonb,$8,$9,$10,$11::jsonb,now())`,
-        [messageId, TENANT_ID, inbox.id, approval.thread_id, providerResult.provider_message_id, inbox.email_address,
+        [messageId, tenantId, inbox.id, approval.thread_id, providerResult.provider_message_id, inbox.email_address,
           JSON.stringify(approval.proposed_to_json), approval.subject, approval.body_text, approval.body_html, JSON.stringify(approval.risk_flags_json)],
       );
-      await client.query('UPDATE approval_requests SET status = $1, provider_result_json = $2::jsonb, decided_at = now() WHERE id = $3',
-        ['sent', JSON.stringify(providerResult), approval.id]);
+      await client.query('UPDATE approval_requests SET status = $1, provider_result_json = $2::jsonb, decided_at = now() WHERE id = $3 AND tenant_id = $4',
+        ['sent', JSON.stringify(providerResult), approval.id, tenantId]);
     });
-    await audit('approval.approved_and_sent', 'approval', approval.id, { message_id: messageId, provider_result: providerResult }, 'human');
-    await publishWebhookEvent('email.sent', { approval_id: approval.id, inbox_id: inbox.id, thread_id: approval.thread_id, message_id: messageId, to: approval.proposed_to_json, subject: approval.subject, risk_flags: approval.risk_flags_json });
+    await audit('approval.approved_and_sent', 'approval', approval.id, { message_id: messageId, provider_result: providerResult }, 'api', (req as AuthedRequest).authContext?.apiKeyId, tenantId);
+    await publishWebhookEvent('email.sent', { approval_id: approval.id, inbox_id: inbox.id, thread_id: approval.thread_id, message_id: messageId, to: approval.proposed_to_json, subject: approval.subject, risk_flags: approval.risk_flags_json }, tenantId);
     return { approval_id: approval.id, message_id: messageId, provider_result: providerResult };
   });
 
   privateRoutes.post<{ Params: { id: string } }>('/v1/approvals/:id/reject', async (req, reply) => {
-    const result = await query('UPDATE approval_requests SET status = $1, decided_at = now() WHERE id = $2 AND status = $3 RETURNING *', ['rejected', req.params.id, 'pending']);
+    const tenantId = tenantIdFor(req);
+    const result = await query('UPDATE approval_requests SET status = $1, decided_at = now() WHERE id = $2 AND tenant_id = $3 AND status = $4 RETURNING *', ['rejected', req.params.id, tenantId, 'pending']);
     if (result.rowCount === 0) return reply.code(404).send({ error: 'pending approval not found' });
-    await audit('approval.rejected', 'approval', req.params.id, {}, 'human');
-    await publishWebhookEvent('approval.rejected', { approval_id: req.params.id });
+    await audit('approval.rejected', 'approval', req.params.id, {}, 'api', (req as AuthedRequest).authContext?.apiKeyId, tenantId);
+    await publishWebhookEvent('approval.rejected', { approval_id: req.params.id }, tenantId);
     return result.rows[0];
   });
 
-  privateRoutes.get('/v1/webhooks', async () => {
-    const result = await query('SELECT id, url, events_json, status, created_at FROM webhook_endpoints ORDER BY created_at DESC');
+  privateRoutes.get('/v1/webhooks', async (req) => {
+    const result = await query('SELECT id, url, events_json, status, created_at FROM webhook_endpoints WHERE tenant_id = $1 ORDER BY created_at DESC', [tenantIdFor(req)]);
     return { data: result.rows };
   });
 
   privateRoutes.post('/v1/webhooks', async (req, reply) => {
     const body = WebhookEndpointSchema.parse(req.body);
+    const tenantId = tenantIdFor(req);
     const webhookId = id('wh');
     await query(
       `INSERT INTO webhook_endpoints (id, tenant_id, url, secret, events_json)
        VALUES ($1,$2,$3,$4,$5::jsonb)`,
-      [webhookId, TENANT_ID, body.url, body.secret ?? null, JSON.stringify(body.events)],
+      [webhookId, tenantId, body.url, body.secret ?? null, JSON.stringify(body.events)],
     );
-    await audit('webhook.created', 'webhook', webhookId, { url: body.url, events: body.events }, 'api');
+    await audit('webhook.created', 'webhook', webhookId, { url: body.url, events: body.events }, 'api', (req as AuthedRequest).authContext?.apiKeyId, tenantId);
     reply.code(201).send({ id: webhookId, url: body.url, events: body.events, status: 'active' });
   });
 
-  privateRoutes.get('/v1/webhook-deliveries', async () => {
-    const result = await query('SELECT id, endpoint_id, event_type, payload_json, status, attempts, last_error, created_at, delivered_at FROM webhook_deliveries ORDER BY created_at DESC LIMIT 100');
+  privateRoutes.get('/v1/webhook-deliveries', async (req) => {
+    const result = await query('SELECT id, endpoint_id, event_type, payload_json, status, attempts, last_error, created_at, delivered_at FROM webhook_deliveries WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 100', [tenantIdFor(req)]);
     return { data: result.rows };
   });
 
-  privateRoutes.get('/v1/audit-logs', async () => {
-    const result = await query('SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT 200');
+  privateRoutes.get('/v1/audit-logs', async (req) => {
+    const result = await query('SELECT * FROM audit_logs WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 200', [tenantIdFor(req)]);
     return { data: result.rows };
   });
 });
