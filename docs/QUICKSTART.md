@@ -24,7 +24,7 @@ You need:
 - A reachable HTTPS endpoint if you want to receive webhooks.
 - An inbox domain that is already routed through the provider, for example `reverbin.com`.
 
-Beta note: root-domain examples use the intended product address shape (`user@reverbin.com`). Current beta access may issue inboxes on the verified receiving domain `agents.reverbin.com` until the root `reverbin.com` MX/provider cutover is complete. Use the domain included with your API key when running live mail tests.
+Beta note: root-domain inboxes on `reverbin.com` are live. Use the address included with your API key when running live mail tests, for example `user@reverbin.com`.
 
 Use environment variables for secrets:
 

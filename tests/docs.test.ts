@@ -27,12 +27,13 @@ test('public signup CTAs explain the beta access request flow', () => {
   }
 });
 
-test('builder docs disclose the current beta receiving domain without replacing root-domain examples', () => {
+test('builder docs disclose live root-domain inboxes without legacy beta-domain caveats', () => {
   for (const path of ['docs/QUICKSTART.md', 'docs/API.md', 'docs/AGENTS.md', 'llms.txt']) {
     const docs = read(path);
     assert.match(docs, /user@reverbin\.com/);
-    assert.match(docs, /agents\.reverbin\.com/);
-    assert.match(docs, /beta receiving domain|verified receiving domain|receiving domain/i);
+    assert.match(docs, /root-domain|root domain|Receiving domains|Receiving domain/i);
+    assert.equal(docs.includes('agents.reverbin.com'), false);
+    assert.equal(docs.includes('cutover is pending'), false);
   }
 });
 
@@ -64,7 +65,7 @@ test('human quickstart walks through the complete builder flow', () => {
   assert.match(docs, /REVERBIN_API_KEY/);
   assert.match(docs, /REVERBIN_WEBHOOK_SECRET/);
   assert.match(docs, /user@reverbin\.com/);
-  assert.match(docs, /agents\.reverbin\.com/);
+  assert.equal(docs.includes('agents.reverbin.com'), false);
   assertNoSecretExamples(docs);
 });
 
@@ -82,7 +83,7 @@ test('agent docs describe behavior contracts and safe handling', () => {
   assert.match(docs, /`202` with `approval_id` means pending approval/);
   assert.match(docs, /`403` means blocked by policy/);
   assert.match(docs, /user@reverbin\.com/);
-  assert.match(docs, /agents\.reverbin\.com/);
+  assert.equal(docs.includes('agents.reverbin.com'), false);
   assertNoSecretExamples(docs);
 });
 
@@ -103,7 +104,7 @@ test('API docs describe endpoints, events, approvals, and SDK usage', () => {
   assert.match(docs, /x-echo-email-signature/);
   assert.match(docs, /process\.env\.REVERBIN_API_KEY/);
   assert.match(docs, /user@reverbin\.com/);
-  assert.match(docs, /agents\.reverbin\.com/);
+  assert.equal(docs.includes('agents.reverbin.com'), false);
   assertNoSecretExamples(docs);
 });
 
@@ -120,7 +121,7 @@ test('llms.txt is present, compact, and exposed by the public server route', () 
   assert.match(llms, /x-echo-email-signature/);
   assert.match(llms, /approval\.required/);
   assert.match(llms, /user@reverbin\.com/);
-  assert.match(llms, /agents\.reverbin\.com/);
+  assert.equal(llms.includes('agents.reverbin.com'), false);
   assert.match(server, /app\.get\('\/llms\.txt'/);
   assert.match(server, /text\/plain; charset=utf-8/);
   assertNoSecretExamples(llms);

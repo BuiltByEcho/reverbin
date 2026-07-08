@@ -18,7 +18,7 @@ http://127.0.0.1:8797
 
 ## Receiving domains
 
-Public examples use the intended root-domain address shape, such as `user@reverbin.com`. During beta, your access email may specify the verified receiving domain `agents.reverbin.com` for live inbound mail while root `reverbin.com` MX/provider cutover is pending. Create inboxes on the domain included with your API key when testing real mail.
+Public examples use the live root-domain address shape, such as `user@reverbin.com`. During beta, create inboxes on the domain included with your API key when testing real mail.
 
 ## Authentication
 

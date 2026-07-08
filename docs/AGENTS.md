@@ -27,7 +27,7 @@ https://api.reverbin.com
 
 ## Receiving domains
 
-Use the inbox domain supplied with the API key. Public docs show the intended root-domain form (`user@reverbin.com`), but current beta keys may use the verified receiving domain `agents.reverbin.com` for live inbound mail until root `reverbin.com` MX/provider cutover is complete.
+Use the inbox domain supplied with the API key. Root-domain Reverbin inboxes are live for beta access, so public examples use addresses like `user@reverbin.com`.
 
 ## Authentication
 
