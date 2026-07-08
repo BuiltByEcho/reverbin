@@ -1,7 +1,7 @@
 import * as assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { renderMailPage } from '../src/public-pages.js';
+import { renderMailPage, renderMailSettingsPage, renderMailWebhooksPage } from '../src/public-pages.js';
 
 const root = new URL('../', import.meta.url);
 const read = (path: string) => readFileSync(new URL(path, root), 'utf8');
@@ -67,7 +67,12 @@ test('human mail console renders a Gmail-style three-pane inbox with reply contr
   assert.match(html, /Inbox/);
   assert.match(html, /Sent/);
   assert.match(html, /Webhooks/);
+  assert.match(html, /href="\/mail\/webhooks"/);
   assert.match(html, /Settings/);
+  assert.match(html, /href="\/mail\/settings"/);
+  assert.doesNotMatch(html, /Operations/);
+  assert.doesNotMatch(html, /href="\/dashboard#webhooks"/);
+  assert.doesNotMatch(html, /href="\/dashboard">Settings/);
   assert.match(html, /support@reverbin\.com/);
   assert.match(html, /customer@example\.com/);
   assert.match(html, /Can a human read this in Reverbin\?/);
@@ -95,5 +100,96 @@ test('mail console route contract keeps human mail separate from ops dashboard',
   assert.match(server, /reply\.redirect\(`\/mail\?thread_id=\$\{encodeURIComponent\(req\.params\.id\)\}&notice=reply_sent`\)/);
   assert.match(publicPages, /data-surface-id="human-mail-console"/);
   assert.match(publicPages, /Gmail-style/);
-  assert.match(publicPages, /\/dashboard/);
+  assert.match(publicPages, /href="\/mail\/webhooks"/);
+  assert.match(publicPages, /href="\/mail\/settings"/);
+  assert.doesNotMatch(publicPages, /href="\/dashboard#webhooks"/);
+});
+
+test('mail settings page is simple, tenant scoped, and editable', () => {
+  const html = renderMailSettingsPage({
+    inboxes: [
+      { id: 'inb_1', email_address: 'support@reverbin.com', display_name: 'Support Team', status: 'active', thread_count: 2 },
+    ],
+    selectedInboxId: 'inb_1',
+    policy: {
+      reply_only: false,
+      require_approval_for_new_recipients: true,
+      require_approval_for_external_domains: false,
+      max_outbound_per_hour: 20,
+      max_outbound_per_day: 100,
+      allowed_domains: ['example.com'],
+      blocked_domains: ['spam.test'],
+      allowed_recipients: [],
+      blocked_recipients: ['blocked@example.com'],
+      allow_attachments: false,
+      allow_links: true,
+      risk_threshold: 'medium',
+    },
+    notice: 'settings_saved',
+  });
+
+  assert.match(html, /data-surface-id="mail-settings"/);
+  assert.match(html, /Settings/);
+  assert.match(html, /Simple inbox settings/);
+  assert.match(html, /support@reverbin\.com/);
+  assert.match(html, /action="\/mail\/settings"/);
+  assert.match(html, /name="display_name"/);
+  assert.match(html, /value="Support Team"/);
+  assert.match(html, /name="max_outbound_per_hour"/);
+  assert.match(html, /value="20"/);
+  assert.match(html, /name="max_outbound_per_day"/);
+  assert.match(html, /value="100"/);
+  assert.match(html, /name="require_approval_for_new_recipients"/);
+  assert.match(html, /name="allow_links"/);
+  assert.match(html, /name="allowed_domains"/);
+  assert.match(html, /example\.com/);
+  assert.match(html, /Settings saved/);
+  assert.doesNotMatch(html, /Webhook deliveries/);
+  assert.doesNotMatch(html, /Audit trail/);
+  assert.doesNotMatch(html, /provider_events/);
+});
+
+test('mail webhooks page lets tenants add webhook endpoints without the ops dashboard', () => {
+  const html = renderMailWebhooksPage({
+    inboxes: [
+      { id: 'inb_1', email_address: 'support@reverbin.com', display_name: 'Support Team', status: 'active', thread_count: 2 },
+    ],
+    webhooks: [
+      { id: 'wh_1', url: 'https://agent.example/hook', events_json: ['email.received', 'email.sent'], status: 'active', created_at: new Date('2026-07-08T12:00:00Z') },
+    ],
+    notice: 'webhook_created',
+  });
+
+  assert.match(html, /data-surface-id="mail-webhooks"/);
+  assert.match(html, /Webhooks/);
+  assert.match(html, /Simple webhook setup/);
+  assert.match(html, /action="\/mail\/webhooks"/);
+  assert.match(html, /name="url"/);
+  assert.match(html, /name="secret"/);
+  assert.match(html, /name="events"/);
+  assert.match(html, /email\.received/);
+  assert.match(html, /email\.sent/);
+  assert.match(html, /approval\.required/);
+  assert.match(html, /https:\/\/agent\.example\/hook/);
+  assert.match(html, /Webhook added/);
+  assert.doesNotMatch(html, /Webhook deliveries/);
+  assert.doesNotMatch(html, /Audit trail/);
+  assert.doesNotMatch(html, /provider_events/);
+});
+
+test('mail settings and webhook routes stay separate from operator operations dashboard', () => {
+  const server = read('src/server.ts');
+
+  assert.match(server, /renderMailSettingsPage/);
+  assert.match(server, /renderMailWebhooksPage/);
+  assert.match(server, /app\.get<\{ Querystring: \{ inbox_id\?: string; notice\?: string \} \}>\('\/mail\/settings'/);
+  assert.match(server, /app\.post\('\/mail\/settings'/);
+  assert.match(server, /app\.get<\{ Querystring: \{ notice\?: string \} \}>\('\/mail\/webhooks'/);
+  assert.match(server, /app\.post\('\/mail\/webhooks'/);
+  assert.match(server, /UPDATE inboxes\s+SET display_name/);
+  assert.match(server, /UPDATE send_policies/);
+  assert.match(server, /INSERT INTO webhook_endpoints/);
+  assert.match(server, /tenantIdFor\(req\)/);
+  assert.match(server, /reply\.redirect\('\/mail\/settings\?notice=settings_saved'\)/);
+  assert.match(server, /reply\.redirect\('\/mail\/webhooks\?notice=webhook_created'\)/);
 });

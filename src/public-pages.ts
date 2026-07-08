@@ -1721,6 +1721,42 @@ export type MailPageData = {
   notice?: string | null;
 };
 
+export type MailPolicyView = {
+  reply_only: boolean;
+  require_approval_for_new_recipients: boolean;
+  require_approval_for_external_domains: boolean;
+  max_outbound_per_hour: number;
+  max_outbound_per_day: number;
+  allowed_domains: string[];
+  blocked_domains: string[];
+  allowed_recipients: string[];
+  blocked_recipients: string[];
+  allow_attachments: boolean;
+  allow_links: boolean;
+  risk_threshold: 'low' | 'medium' | 'high';
+};
+
+export type MailSettingsPageData = {
+  inboxes: MailInboxView[];
+  selectedInboxId?: string | null;
+  policy: MailPolicyView;
+  notice?: string | null;
+};
+
+export type MailWebhookView = {
+  id: string;
+  url: string;
+  events_json: unknown;
+  status: string;
+  created_at: Date | string;
+};
+
+export type MailWebhooksPageData = {
+  inboxes: MailInboxView[];
+  webhooks: MailWebhookView[];
+  notice?: string | null;
+};
+
 function formatDate(value: Date | string | null | undefined) {
   if (!value) return 'pending';
   const date = value instanceof Date ? value : new Date(value);
@@ -1879,7 +1915,7 @@ export function renderMailPage(data: MailPageData) {
     <header class="mail-topbar">
       <a class="brand" href="/mail">${reverbinMarkSvg()}<span>Reverbin Mail</span></a>
       <div class="mail-search"><input type="search" placeholder="Search mail" aria-label="Search mail" disabled /></div>
-      <div class="top-actions"><a href="/dashboard">Operations</a><a href="/docs">Docs</a><a href="/dashboard/logout">Logout</a></div>
+      <div class="top-actions"><a href="/mail/settings">Settings</a><a href="/mail/webhooks">Webhooks</a><a href="/docs">Docs</a><a href="/dashboard/logout">Logout</a></div>
     </header>
     <section class="mail-layout" aria-label="Gmail-style human mail management console">
       <aside class="mail-sidebar" aria-label="Inbox folders">
@@ -1887,8 +1923,8 @@ export function renderMailPage(data: MailPageData) {
         <nav class="mail-nav" aria-label="Mail folders">
           <a href="/mail">Inbox</a>
           <a href="/mail?folder=sent">Sent</a>
-          <a href="/dashboard#webhooks">Webhooks</a>
-          <a href="/dashboard">Settings</a>
+          <a href="/mail/webhooks">Webhooks</a>
+          <a href="/mail/settings">Settings</a>
         </nav>
         <div class="section-label">Inboxes</div>
         ${inboxLinks}
@@ -1900,6 +1936,158 @@ export function renderMailPage(data: MailPageData) {
       </section>
       <section class="mail-reader" aria-label="Thread conversation">
         ${renderMailMessages(data)}
+      </section>
+    </section>
+  </main>
+</body>
+</html>`;
+}
+
+function renderSettingsNotice(notice?: string | null) {
+  if (!notice) return '';
+  const label = notice === 'settings_saved' ? 'Settings saved' : notice === 'webhook_created' ? 'Webhook added' : notice;
+  return `<div class="settings-notice" role="status">${escapeHtml(label)}</div>`;
+}
+
+function renderMailSettingsSidebar(inboxes: MailInboxView[], active: 'inbox' | 'webhooks' | 'settings', selectedInboxId?: string | null) {
+  const selectedId = selectedInboxId ?? inboxes[0]?.id ?? null;
+  const inboxLinks = inboxes.length
+    ? inboxes.map((inbox) => {
+        const selected = inbox.id === selectedId;
+        return `<a class="mail-inbox-link ${selected ? 'selected' : ''}" href="/mail/settings?inbox_id=${encodeURIComponent(inbox.id)}" aria-current="${selected ? 'page' : 'false'}">
+          <span><strong>${escapeHtml(inbox.display_name || inbox.email_address)}</strong><small>${escapeHtml(inbox.email_address)}</small></span>
+          <em>${escapeHtml(inbox.status || 'active')}</em>
+        </a>`;
+      }).join('')
+    : `<div class="mail-empty">No inboxes yet.</div>`;
+  const nav = [
+    ['inbox', '/mail', 'Inbox'],
+    ['webhooks', '/mail/webhooks', 'Webhooks'],
+    ['settings', '/mail/settings', 'Settings'],
+  ] as const;
+  return `<aside class="mail-sidebar" aria-label="Inbox settings navigation">
+    <a class="compose" href="${inboxes[0] ? `mailto:${escapeHtml(inboxes[0].email_address)}` : '/mail'}">Compose</a>
+    <nav class="mail-nav" aria-label="Mail folders">
+      ${nav.map(([key, href, label]) => `<a class="${active === key ? 'selected' : ''}" href="${href}">${label}</a>`).join('')}
+    </nav>
+    <div class="section-label">Inboxes</div>
+    ${inboxLinks}
+  </aside>`;
+}
+
+function mailSettingsCss() {
+  return `:root { color-scheme: dark; --bg:#080909; --panel:#101214; --panel-2:#15181b; --line:rgba(244,244,242,.12); --line-strong:rgba(244,244,242,.22); --ivory:#F4F4F2; --muted:rgba(244,244,242,.68); --soft:rgba(244,244,242,.44); --signal:#B9FF2D; --mint:#BDE6D3; --danger:#ff7b7b; }
+    * { box-sizing: border-box; } body { margin:0; min-height:100vh; background:var(--bg); color:var(--ivory); font-family:'Geist', Inter, ui-sans-serif, system-ui, sans-serif; } a { color:inherit; text-decoration:none; } button, textarea, input, select { font:inherit; }
+    .mail-shell { min-height:100vh; display:grid; grid-template-rows:64px 1fr; background:linear-gradient(135deg, rgba(185,255,45,.05), transparent 38%), var(--bg); }
+    .mail-topbar { display:flex; align-items:center; gap:16px; padding:10px 18px; border-bottom:1px solid var(--line); background:rgba(8,9,9,.9); } .brand { display:flex; align-items:center; gap:10px; min-width:210px; font-weight:800; } .brand-mark { width:34px; height:34px; } .mail-search { flex:1; } .mail-search input { width:100%; max-width:760px; min-height:42px; border:1px solid var(--line); border-radius:999px; padding:0 18px; background:rgba(244,244,242,.06); color:var(--ivory); } .top-actions { margin-left:auto; display:flex; gap:10px; align-items:center; color:var(--muted); font-size:13px; } .top-actions a { padding:10px 12px; border:1px solid var(--line); border-radius:999px; }
+    .settings-layout { min-height:0; display:grid; grid-template-columns:280px minmax(0, 1fr); } .mail-sidebar { padding:18px 14px; background:rgba(244,244,242,.035); border-right:1px solid var(--line); } .compose { display:flex; align-items:center; justify-content:center; min-height:48px; margin:0 0 18px; border-radius:18px; background:var(--ivory); color:#050606; font-weight:800; } .mail-nav { display:grid; gap:6px; margin-bottom:20px; } .mail-nav a, .mail-inbox-link { display:flex; align-items:center; justify-content:space-between; gap:10px; min-height:42px; padding:10px 12px; border-radius:14px; color:var(--muted); } .mail-nav a:hover, .mail-nav a.selected, .mail-inbox-link:hover, .mail-inbox-link.selected { background:rgba(185,255,45,.09); color:var(--ivory); } .mail-inbox-link span { display:grid; gap:3px; min-width:0; } .mail-inbox-link strong, .mail-inbox-link small { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .mail-inbox-link small, .mail-inbox-link em { color:var(--soft); } .mail-inbox-link em { font-style:normal; font-size:12px; } .section-label { margin:18px 12px 8px; color:var(--soft); text-transform:uppercase; letter-spacing:.14em; font-size:11px; font-weight:800; }
+    .settings-main { padding:28px; overflow:auto; } .settings-hero { display:flex; justify-content:space-between; gap:20px; align-items:flex-start; margin-bottom:20px; } .eyebrow { margin:0 0 8px; color:var(--signal); text-transform:uppercase; font-size:11px; font-weight:900; letter-spacing:.16em; } h1 { margin:0; font-size:34px; } .settings-hero p, .form-note { color:var(--muted); line-height:1.55; } .settings-card { max-width:920px; border:1px solid var(--line); border-radius:22px; padding:20px; background:rgba(244,244,242,.045); margin-bottom:18px; } .settings-grid { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:14px; } label { display:grid; gap:7px; color:var(--muted); font-size:13px; font-weight:700; } input, textarea, select { width:100%; border:1px solid var(--line); border-radius:13px; padding:11px 12px; background:#0b0d0e; color:var(--ivory); } textarea { min-height:96px; resize:vertical; } .check-row { display:flex; align-items:center; gap:10px; border:1px solid var(--line); border-radius:14px; padding:12px; color:var(--muted); } .check-row input { width:auto; } .settings-actions { display:flex; justify-content:flex-end; margin-top:16px; } button { min-height:42px; border:0; border-radius:999px; padding:0 18px; background:var(--signal); color:#050606; font-weight:900; cursor:pointer; } .settings-notice { max-width:920px; margin:0 0 14px; padding:10px 12px; border:1px solid rgba(185,255,45,.28); border-radius:12px; color:var(--signal); background:rgba(185,255,45,.07); font-weight:800; } .webhook-list { display:grid; gap:10px; } .webhook-row { border:1px solid var(--line); border-radius:16px; padding:14px; background:rgba(244,244,242,.04); } .webhook-row strong { display:block; overflow-wrap:anywhere; } .webhook-row span { color:var(--muted); font-size:13px; } .mail-empty { padding:16px; border:1px dashed var(--line); border-radius:16px; color:var(--soft); }
+    @media (max-width: 900px) { .settings-layout { grid-template-columns:1fr; } .mail-sidebar { border-right:0; border-bottom:1px solid var(--line); } .settings-grid { grid-template-columns:1fr; } .top-actions { display:none; } }`;
+}
+
+function textareaValue(items: string[]) {
+  return escapeHtml(items.join('\n'));
+}
+
+function checked(value: boolean) {
+  return value ? ' checked' : '';
+}
+
+function renderEventList(value: unknown) {
+  if (!Array.isArray(value)) return 'all events';
+  const events = value.map((item) => String(item)).filter(Boolean);
+  return events.includes('*') ? 'all events' : events.join(', ');
+}
+
+export function renderMailSettingsPage(data: MailSettingsPageData) {
+  const selectedInboxId = data.selectedInboxId ?? data.inboxes[0]?.id ?? '';
+  const selectedInbox = data.inboxes.find((inbox) => inbox.id === selectedInboxId) ?? data.inboxes[0] ?? null;
+  const policy = data.policy;
+  return `<!doctype html>
+<html lang="en">
+<head>
+  ${baseHead}
+  <title>Reverbin Mail Settings</title>
+  <meta name="description" content="Simple Reverbin inbox settings for display names, limits, approvals, links, and recipient policy." />
+  <style>${mailSettingsCss()}</style>
+</head>
+<body>
+  <main class="mail-shell" data-surface-id="mail-settings">
+    <header class="mail-topbar">
+      <a class="brand" href="/mail">${reverbinMarkSvg()}<span>Reverbin Mail</span></a>
+      <div class="mail-search"><input type="search" placeholder="Search mail" aria-label="Search mail" disabled /></div>
+      <div class="top-actions"><a href="/mail/webhooks">Webhooks</a><a href="/docs">Docs</a><a href="/dashboard/logout">Logout</a></div>
+    </header>
+    <section class="settings-layout" aria-label="Simple inbox settings">
+      ${renderMailSettingsSidebar(data.inboxes, 'settings', selectedInboxId)}
+      <section class="settings-main">
+        <div class="settings-hero"><div><p class="eyebrow">Settings</p><h1>Simple inbox settings</h1><p>Make the common changes for this inbox without opening the operations dashboard.</p></div></div>
+        ${renderSettingsNotice(data.notice)}
+        <form class="settings-card" method="post" action="/mail/settings">
+          <input type="hidden" name="inbox_id" value="${escapeHtml(selectedInboxId)}" />
+          <div class="settings-grid">
+            <label>Inbox address<input type="email" value="${escapeHtml(selectedInbox?.email_address ?? '')}" disabled /></label>
+            <label>Display name<input type="text" name="display_name" value="${escapeHtml(selectedInbox?.display_name ?? '')}" placeholder="Support Team" /></label>
+            <label>Max outbound per hour<input type="number" min="1" max="10000" name="max_outbound_per_hour" value="${escapeHtml(String(policy.max_outbound_per_hour))}" required /></label>
+            <label>Max outbound per day<input type="number" min="1" max="100000" name="max_outbound_per_day" value="${escapeHtml(String(policy.max_outbound_per_day))}" required /></label>
+            <label>Risk threshold<select name="risk_threshold"><option value="low"${policy.risk_threshold === 'low' ? ' selected' : ''}>Low</option><option value="medium"${policy.risk_threshold === 'medium' ? ' selected' : ''}>Medium</option><option value="high"${policy.risk_threshold === 'high' ? ' selected' : ''}>High</option></select></label>
+            <label>Allowed domains<textarea name="allowed_domains" placeholder="example.com">${textareaValue(policy.allowed_domains)}</textarea></label>
+            <label>Blocked domains<textarea name="blocked_domains" placeholder="spam.test">${textareaValue(policy.blocked_domains)}</textarea></label>
+            <label>Blocked recipients<textarea name="blocked_recipients" placeholder="blocked@example.com">${textareaValue(policy.blocked_recipients)}</textarea></label>
+          </div>
+          <p class="form-note">Approval and safety defaults apply to replies sent from this inbox.</p>
+          <label class="check-row"><input type="checkbox" name="require_approval_for_new_recipients" value="true"${checked(policy.require_approval_for_new_recipients)} /> Require approval for first-time recipients</label>
+          <label class="check-row"><input type="checkbox" name="require_approval_for_external_domains" value="true"${checked(policy.require_approval_for_external_domains)} /> Require approval outside allowed domains</label>
+          <label class="check-row"><input type="checkbox" name="reply_only" value="true"${checked(policy.reply_only)} /> Reply-only mode</label>
+          <label class="check-row"><input type="checkbox" name="allow_links" value="true"${checked(policy.allow_links)} /> Allow links in outbound mail</label>
+          <label class="check-row"><input type="checkbox" name="allow_attachments" value="true"${checked(policy.allow_attachments)} /> Allow attachments</label>
+          <div class="settings-actions"><button type="submit">Save settings</button></div>
+        </form>
+      </section>
+    </section>
+  </main>
+</body>
+</html>`;
+}
+
+export function renderMailWebhooksPage(data: MailWebhooksPageData) {
+  const webhookRows = data.webhooks.length
+    ? data.webhooks.map((webhook) => `<div class="webhook-row"><strong>${escapeHtml(webhook.url)}</strong><span>${escapeHtml(webhook.status)} · ${escapeHtml(renderEventList(webhook.events_json))} · ${formatDate(webhook.created_at)}</span></div>`).join('')
+    : `<div class="mail-empty">No webhooks yet. Add your agent endpoint below.</div>`;
+  return `<!doctype html>
+<html lang="en">
+<head>
+  ${baseHead}
+  <title>Reverbin Mail Webhooks</title>
+  <meta name="description" content="Simple Reverbin webhook setup for tenant email events." />
+  <style>${mailSettingsCss()}</style>
+</head>
+<body>
+  <main class="mail-shell" data-surface-id="mail-webhooks">
+    <header class="mail-topbar">
+      <a class="brand" href="/mail">${reverbinMarkSvg()}<span>Reverbin Mail</span></a>
+      <div class="mail-search"><input type="search" placeholder="Search mail" aria-label="Search mail" disabled /></div>
+      <div class="top-actions"><a href="/mail/settings">Settings</a><a href="/docs">Docs</a><a href="/dashboard/logout">Logout</a></div>
+    </header>
+    <section class="settings-layout" aria-label="Simple webhook setup">
+      ${renderMailSettingsSidebar(data.inboxes, 'webhooks')}
+      <section class="settings-main">
+        <div class="settings-hero"><div><p class="eyebrow">Webhooks</p><h1>Simple webhook setup</h1><p>Send email events to your agent endpoint. No operations dashboard required.</p></div></div>
+        ${renderSettingsNotice(data.notice)}
+        <section class="settings-card"><h2>Active endpoints</h2><div class="webhook-list">${webhookRows}</div></section>
+        <form class="settings-card" method="post" action="/mail/webhooks">
+          <h2>Add webhook</h2>
+          <div class="settings-grid">
+            <label>Endpoint URL<input type="url" name="url" placeholder="https://agent.example/hook" required /></label>
+            <label>Signing secret<input type="text" name="secret" minlength="8" placeholder="Optional shared secret" /></label>
+          </div>
+          <p class="form-note">Choose which events this endpoint should receive.</p>
+          <label class="check-row"><input type="checkbox" name="events" value="email.received" checked /> email.received</label>
+          <label class="check-row"><input type="checkbox" name="events" value="email.sent" checked /> email.sent</label>
+          <label class="check-row"><input type="checkbox" name="events" value="approval.required" /> approval.required</label>
+          <label class="check-row"><input type="checkbox" name="events" value="approval.rejected" /> approval.rejected</label>
+          <div class="settings-actions"><button type="submit">Add webhook</button></div>
+        </form>
       </section>
     </section>
   </main>

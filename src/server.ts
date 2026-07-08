@@ -12,7 +12,7 @@ import { getEmailProvider } from './providers.js';
 import { fetchResendReceivedEmail, normalizeResendReceivedEmail, verifySvixSignature } from './resend.js';
 import { buildWebhookDeliveryHeaders, buildWebhookEventPayload, isAllowedWebhookEvent, isAllowedWebhookUrl, shouldDeliverWebhookEvent, type WebhookEventType } from './webhooks.js';
 import { clearDashboardCookie, dashboardCookie, dashboardTokenFromEnv, isDashboardRequestAuthorized, parseDashboardCookies } from './dashboard-auth.js';
-import { renderDashboardLoginPage, renderDashboardPage, renderDashboardUnavailablePage, renderDocsPage, renderFaviconSvg, renderLandingPage, renderMailPage, renderSignupPage, type DocsPageKey } from './public-pages.js';
+import { renderDashboardLoginPage, renderDashboardPage, renderDashboardUnavailablePage, renderDocsPage, renderFaviconSvg, renderLandingPage, renderMailPage, renderMailSettingsPage, renderMailWebhooksPage, renderSignupPage, type DocsPageKey } from './public-pages.js';
 import { buildWebhookDeliveryJob, redisConnectionOptions, WEBHOOK_DELIVERY_QUEUE, webhookDeliveryMode } from './webhook-delivery.js';
 import { buildPendingSignupVerification, normalizeSignupRequestInput, summarizeSignupVerification, type SignupRequestStatus, type SignupVerificationCheck } from './signup-verification.js';
 import { BILLING_PLANS, createStripeBillingPortalSession, createStripeCheckoutSession, maxInboxesForPlan, maxWebhookEndpointsForPlan, normalizePlan, priceIdForPlan, verifyStripeWebhookSignature, type BillingPlan } from './billing.js';
@@ -435,6 +435,75 @@ const WebhookEndpointSchema = z.object({
   secret: z.string().min(8).optional(),
 });
 
+const MailSettingsFormSchema = z.object({
+  inbox_id: z.string().min(1),
+  display_name: z.string().max(120).optional(),
+  reply_only: z.boolean(),
+  require_approval_for_new_recipients: z.boolean(),
+  require_approval_for_external_domains: z.boolean(),
+  max_outbound_per_hour: z.number().int().positive().max(10000),
+  max_outbound_per_day: z.number().int().positive().max(100000),
+  allowed_domains: z.array(z.string()),
+  blocked_domains: z.array(z.string()),
+  blocked_recipients: z.array(z.string().email()),
+  allow_attachments: z.boolean(),
+  allow_links: z.boolean(),
+  risk_threshold: z.enum(['low', 'medium', 'high']),
+});
+
+const MailWebhookFormSchema = z.object({
+  url: z.string().url().refine(isAllowedWebhookUrl, 'webhook url must use https, except loopback http for local testing'),
+  events: z.array(z.string().min(1).refine(isAllowedWebhookEvent, 'unsupported webhook event')).min(1),
+  secret: z.string().min(8).optional(),
+});
+
+function formField(value: unknown) {
+  if (Array.isArray(value)) return String(value[0] ?? '').trim();
+  return String(value ?? '').trim();
+}
+
+function formBool(value: unknown) {
+  return value === true || value === 'true' || value === 'on' || value === '1';
+}
+
+function formList(value: unknown) {
+  return formField(value).split(/[\n,]/).map((item) => item.trim().toLowerCase()).filter(Boolean);
+}
+
+function formEvents(value: unknown) {
+  const raw = Array.isArray(value) ? value : [value];
+  return raw.flatMap((item) => String(item ?? '').split(',')).map((item) => item.trim()).filter(Boolean);
+}
+
+function parseMailSettingsForm(body: unknown) {
+  const input = (body ?? {}) as Record<string, unknown>;
+  return MailSettingsFormSchema.parse({
+    inbox_id: formField(input.inbox_id),
+    display_name: formField(input.display_name),
+    reply_only: formBool(input.reply_only),
+    require_approval_for_new_recipients: formBool(input.require_approval_for_new_recipients),
+    require_approval_for_external_domains: formBool(input.require_approval_for_external_domains),
+    max_outbound_per_hour: Number(formField(input.max_outbound_per_hour)),
+    max_outbound_per_day: Number(formField(input.max_outbound_per_day)),
+    allowed_domains: formList(input.allowed_domains),
+    blocked_domains: formList(input.blocked_domains),
+    blocked_recipients: formList(input.blocked_recipients),
+    allow_attachments: formBool(input.allow_attachments),
+    allow_links: formBool(input.allow_links),
+    risk_threshold: formField(input.risk_threshold) || 'medium',
+  });
+}
+
+function parseMailWebhookForm(body: unknown) {
+  const input = (body ?? {}) as Record<string, unknown>;
+  const secret = formField(input.secret);
+  return MailWebhookFormSchema.parse({
+    url: formField(input.url),
+    events: formEvents(input.events),
+    secret: secret || undefined,
+  });
+}
+
 const BillingCheckoutSchema = z.object({
   plan: z.enum(['developer', 'startup']),
   success_url: z.string().url().optional(),
@@ -847,6 +916,124 @@ app.get<{ Querystring: { inbox_id?: string; thread_id?: string; notice?: string 
     req.log.error(error, 'mail console database query failed');
     reply.code(503).type('text/html').send(renderDashboardUnavailablePage('mail console unavailable'));
   }
+});
+
+app.get<{ Querystring: { inbox_id?: string; notice?: string } }>('/mail/settings', { preHandler: requireDashboardAuth }, async (req, reply) => {
+  try {
+    const tenantId = tenantIdFor(req);
+    const inboxes = await query<any>(
+      `SELECT i.id, i.email_address, i.display_name, i.status, count(t.id)::int AS thread_count
+       FROM inboxes i
+       LEFT JOIN threads t ON t.inbox_id = i.id AND t.tenant_id = i.tenant_id
+       WHERE i.tenant_id = $1
+       GROUP BY i.id, i.email_address, i.display_name, i.status, i.created_at
+       ORDER BY i.created_at DESC
+       LIMIT 50`,
+      [tenantId],
+    );
+    const selectedInboxId = req.query.inbox_id ?? inboxes.rows[0]?.id ?? null;
+    const selectedInbox = selectedInboxId
+      ? await query<any>('SELECT id FROM inboxes WHERE id = $1 AND tenant_id = $2', [selectedInboxId, tenantId])
+      : { rowCount: 0 };
+    const policy = selectedInboxId && selectedInbox.rowCount ? await getPolicy(selectedInboxId) : defaultPolicy;
+    reply.type('text/html').send(renderMailSettingsPage({
+      inboxes: inboxes.rows,
+      selectedInboxId,
+      policy,
+      notice: req.query.notice,
+    }));
+  } catch (error) {
+    req.log.error(error, 'mail settings database query failed');
+    reply.code(503).type('text/html').send(renderDashboardUnavailablePage('mail settings unavailable'));
+  }
+});
+
+app.post('/mail/settings', { preHandler: requireDashboardAuth }, async (req, reply) => {
+  const tenantId = tenantIdFor(req);
+  const body = parseMailSettingsForm(req.body);
+  const existing = await query<any>('SELECT id FROM inboxes WHERE id = $1 AND tenant_id = $2', [body.inbox_id, tenantId]);
+  if (existing.rowCount === 0) {
+    reply.code(404).type('text/html').send(renderDashboardUnavailablePage('inbox not found'));
+    return;
+  }
+  await tx(async (client) => {
+    await client.query(
+      `UPDATE inboxes
+       SET display_name = NULLIF($2, ''), updated_at = now()
+       WHERE id = $1 AND tenant_id = $3`,
+      [body.inbox_id, body.display_name ?? '', tenantId],
+    );
+    await client.query(
+      `UPDATE send_policies
+       SET reply_only = $2,
+           require_approval_for_new_recipients = $3,
+           require_approval_for_external_domains = $4,
+           max_outbound_per_hour = $5,
+           max_outbound_per_day = $6,
+           allowed_domains_json = $7::jsonb,
+           blocked_domains_json = $8::jsonb,
+           blocked_recipients_json = $9::jsonb,
+           allow_attachments = $10,
+           allow_links = $11,
+           risk_threshold = $12,
+           updated_at = now()
+       WHERE inbox_id = $1 AND tenant_id = $13`,
+      [body.inbox_id, body.reply_only, body.require_approval_for_new_recipients,
+        body.require_approval_for_external_domains, body.max_outbound_per_hour, body.max_outbound_per_day,
+        JSON.stringify(body.allowed_domains), JSON.stringify(body.blocked_domains), JSON.stringify(body.blocked_recipients),
+        body.allow_attachments, body.allow_links, body.risk_threshold, tenantId],
+    );
+  });
+  await audit('mail.settings_updated', 'inbox', body.inbox_id, { display_name: body.display_name, policy: body }, 'human', null, tenantId);
+  reply.redirect('/mail/settings?notice=settings_saved');
+});
+
+app.get<{ Querystring: { notice?: string } }>('/mail/webhooks', { preHandler: requireDashboardAuth }, async (req, reply) => {
+  try {
+    const tenantId = tenantIdFor(req);
+    const inboxes = await query<any>(
+      `SELECT i.id, i.email_address, i.display_name, i.status, count(t.id)::int AS thread_count
+       FROM inboxes i
+       LEFT JOIN threads t ON t.inbox_id = i.id AND t.tenant_id = i.tenant_id
+       WHERE i.tenant_id = $1
+       GROUP BY i.id, i.email_address, i.display_name, i.status, i.created_at
+       ORDER BY i.created_at DESC
+       LIMIT 50`,
+      [tenantId],
+    );
+    const webhooks = await query<any>('SELECT id, url, events_json, status, created_at FROM webhook_endpoints WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 50', [tenantId]);
+    reply.type('text/html').send(renderMailWebhooksPage({
+      inboxes: inboxes.rows,
+      webhooks: webhooks.rows,
+      notice: req.query.notice,
+    }));
+  } catch (error) {
+    req.log.error(error, 'mail webhooks database query failed');
+    reply.code(503).type('text/html').send(renderDashboardUnavailablePage('mail webhooks unavailable'));
+  }
+});
+
+app.post('/mail/webhooks', { preHandler: requireDashboardAuth }, async (req, reply) => {
+  const body = parseMailWebhookForm(req.body);
+  const tenantId = tenantIdFor(req);
+  const authContext = (req as AuthedRequest).authContext;
+  if (!authContext?.operator) {
+    const quota = await query<{ webhook_count: number }>("SELECT count(*)::int AS webhook_count FROM webhook_endpoints WHERE tenant_id = $1 AND status = 'active'", [tenantId]);
+    const webhookCount = Number(quota.rows[0]?.webhook_count ?? 0);
+    const maxWebhooks = await maxWebhookEndpointsForTenant(tenantId);
+    if (webhookCount >= maxWebhooks) {
+      reply.code(403).type('text/html').send(renderDashboardUnavailablePage('webhook quota exceeded'));
+      return;
+    }
+  }
+  const webhookId = id('wh');
+  await query(
+    `INSERT INTO webhook_endpoints (id, tenant_id, url, secret, events_json)
+     VALUES ($1,$2,$3,$4,$5::jsonb)`,
+    [webhookId, tenantId, body.url, body.secret ?? null, JSON.stringify(body.events)],
+  );
+  await audit('webhook.created', 'webhook', webhookId, { url: body.url, events: body.events }, 'human', null, tenantId);
+  reply.redirect('/mail/webhooks?notice=webhook_created');
 });
 
 app.post<{ Params: { id: string } }>('/mail/threads/:id/reply', { preHandler: requireDashboardAuth }, async (req, reply) => {
