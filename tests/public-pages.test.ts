@@ -211,11 +211,18 @@ test('dashboard unavailable page explains database readiness without leaking int
 test('dashboard login page includes password-manager friendly username context', () => {
   const html = renderDashboardLoginPage();
 
+  assert.match(html, /Email me a sign-in code/);
+  assert.match(html, /Use the email you signed up with/);
+  assert.match(html, /action="\/dashboard\/login\/request-code"/);
+  assert.match(html, /name="email"/);
+  assert.match(html, /autocomplete="email"/);
+  assert.match(html, /action="\/dashboard\/login\/verify"/);
+  assert.match(html, /name="code"/);
+  assert.match(html, /autocomplete="one-time-code"/);
+  assert.match(html, /Advanced: API key or operator token/);
+  assert.match(html, /API key or operator token/);
   assert.match(html, /autocomplete="username"/);
   assert.match(html, /autocomplete="current-password"/);
-  assert.match(html, /Sign in with your API key/);
-  assert.match(html, /Paste the API key Reverbin showed after signup/);
-  assert.match(html, /API key or operator token/);
   assert.doesNotMatch(html, /Operational dashboard access/);
   assert.doesNotMatch(html, /Enter the dashboard token configured for this deployment/);
   assert.doesNotMatch(html, /app token/);

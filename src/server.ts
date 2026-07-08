@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes, randomInt } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import Fastify, { type FastifyReply, type FastifyRequest } from 'fastify';
 import cors from '@fastify/cors';
@@ -122,6 +122,11 @@ async function requireDashboardAuth(req: FastifyRequest, reply: FastifyReply) {
     (req as AuthedRequest).authContext = authContext;
     return;
   }
+  const sessionContext = await authenticateDashboardSession(cookieToken);
+  if (sessionContext) {
+    (req as AuthedRequest).authContext = sessionContext;
+    return;
+  }
   const acceptsHtml = String(req.headers.accept ?? '').includes('text/html');
   if (acceptsHtml) {
     reply.redirect('/dashboard/login');
@@ -132,6 +137,45 @@ async function requireDashboardAuth(req: FastifyRequest, reply: FastifyReply) {
 
 function dashboardCookieIsSecure() {
   return (process.env.PUBLIC_BASE_URL ?? '').startsWith('https://');
+}
+
+function hashLoginSecret(secret: string) {
+  return createHash('sha256').update(secret).digest('hex');
+}
+
+function generateDashboardLoginCode() {
+  return String(randomInt(0, 1_000_000)).padStart(6, '0');
+}
+
+function generateDashboardSessionToken() {
+  return `rvb_sess_${randomBytes(32).toString('base64url')}`;
+}
+
+function dashboardSessionCookie(token: string) {
+  return dashboardCookie(token, { secure: dashboardCookieIsSecure(), maxAgeSeconds: 60 * 60 * 12 });
+}
+
+async function sendDashboardLoginCode(email: string, code: string) {
+  const provider = getEmailProvider();
+  const from = process.env.REVERBIN_LOGIN_FROM_EMAIL || process.env.RESEND_FROM_EMAIL || process.env.DEFAULT_FROM_EMAIL || 'Reverbin <login@reverbin.com>';
+  await provider.sendEmail({
+    from,
+    to: [email],
+    subject: 'Your Reverbin sign-in code',
+    text: `Your Reverbin sign-in code is ${code}. It expires in 10 minutes. If you did not request this, you can ignore this email.`,
+    html: `<p>Your Reverbin sign-in code is <strong>${code}</strong>.</p><p>It expires in 10 minutes. If you did not request this, you can ignore this email.</p>`,
+  });
+}
+
+async function authenticateDashboardSession(token: string): Promise<AuthContext | null> {
+  if (!token) return null;
+  const sessionHash = hashLoginSecret(token);
+  const session = await query<{ tenant_id: string }>(
+    'SELECT tenant_id FROM dashboard_sessions WHERE session_hash = $1 AND revoked_at IS NULL AND expires_at > now()',
+    [sessionHash],
+  );
+  if (session.rows.length === 0) return null;
+  return { tenantId: session.rows[0].tenant_id, scopes: ['dashboard:read', 'mail:read', 'threads:reply'], operator: false };
 }
 
 async function requireApiKey(req: FastifyRequest, reply: FastifyReply) {
@@ -418,6 +462,15 @@ const AutomatedAgentSignupSchema = z.object({
   webhook_url: z.string().url().refine(isAllowedWebhookUrl, 'webhook url must use https, except loopback http for local testing').optional(),
 });
 
+const DashboardLoginCodeRequestSchema = z.object({
+  email: z.string().email(),
+});
+
+const DashboardLoginCodeVerifySchema = z.object({
+  email: z.string().email(),
+  code: z.string().regex(/^\d{6}$/),
+});
+
 const SignupVerificationCheckSchema = z.object({
   key: z.string().min(1),
   label: z.string().min(1),
@@ -618,6 +671,76 @@ app.get('/docs/agents', async (_req, reply) => {
 
 app.get('/dashboard/login', async (_req, reply) => {
   reply.type('text/html').send(renderDashboardLoginPage());
+});
+
+app.post('/dashboard/login/request-code', async (req, reply) => {
+  const limit = dashboardLoginLimiter.check(rateLimitKey(req, 'dashboard-login-code'));
+  if (!limit.allowed) {
+    sendRateLimited(reply, limit.retry_after_seconds, true);
+    return;
+  }
+  const parsed = DashboardLoginCodeRequestSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    reply.code(400).type('text/html').send(renderDashboardLoginPage('Enter the email address you used to sign up.'));
+    return;
+  }
+  const email = normalizeEmail(parsed.data.email);
+  const signup = await query<{ tenant_id: string; requester_email: string }>(
+    "SELECT tenant_id, requester_email FROM signup_requests WHERE requester_email = $1 AND status = 'provisioned' ORDER BY created_at DESC LIMIT 1",
+    [email],
+  );
+  if (signup.rows.length > 0) {
+    const tenantId = signup.rows[0].tenant_id;
+    const code = generateDashboardLoginCode();
+    await query(
+      `INSERT INTO dashboard_login_codes (id, tenant_id, requester_email, code_hash, expires_at)
+       VALUES ($1,$2,$3,$4,now() + interval '10 minutes')`,
+      [id('dlc'), tenantId, email, hashLoginSecret(code)],
+    );
+    await sendDashboardLoginCode(email, code);
+    await audit('dashboard.login_code_requested', 'tenant', tenantId, { requester_email: email }, 'human', null, tenantId);
+  }
+  reply.type('text/html').send(renderDashboardLoginPage('', 'If that email has a Reverbin account, we sent a sign-in code.'));
+});
+
+app.post('/dashboard/login/verify', async (req, reply) => {
+  const limit = dashboardLoginLimiter.check(rateLimitKey(req, 'dashboard-login-verify'));
+  if (!limit.allowed) {
+    sendRateLimited(reply, limit.retry_after_seconds, true);
+    return;
+  }
+  const parsed = DashboardLoginCodeVerifySchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    reply.code(400).type('text/html').send(renderDashboardLoginPage('Enter the six-digit code from your email.'));
+    return;
+  }
+  const email = normalizeEmail(parsed.data.email);
+  const codeHash = hashLoginSecret(parsed.data.code);
+  const codeResult = await query<{ id: string; tenant_id: string }>(
+    `SELECT id, tenant_id FROM dashboard_login_codes
+     WHERE requester_email = $1 AND code_hash = $2 AND used_at IS NULL AND expires_at > now()
+     ORDER BY created_at DESC LIMIT 1`,
+    [email, codeHash],
+  );
+  if (codeResult.rows.length === 0) {
+    reply.code(401).type('text/html').send(renderDashboardLoginPage('Invalid or expired sign-in code.'));
+    return;
+  }
+  const codeRow = codeResult.rows[0];
+  const used = await query('UPDATE dashboard_login_codes SET used_at = now() WHERE id = $1 AND used_at IS NULL', [codeRow.id]);
+  if (used.rowCount !== 1) {
+    reply.code(401).type('text/html').send(renderDashboardLoginPage('Invalid or expired sign-in code.'));
+    return;
+  }
+  const sessionToken = generateDashboardSessionToken();
+  await query(
+    `INSERT INTO dashboard_sessions (id, tenant_id, session_hash, expires_at)
+     VALUES ($1,$2,$3,now() + interval '12 hours')`,
+    [id('ds'), codeRow.tenant_id, hashLoginSecret(sessionToken)],
+  );
+  await audit('dashboard.login_code_verified', 'tenant', codeRow.tenant_id, { requester_email: email }, 'human', null, codeRow.tenant_id);
+  reply.header('set-cookie', dashboardSessionCookie(sessionToken));
+  reply.redirect('/mail');
 });
 
 app.post('/dashboard/login', async (req, reply) => {

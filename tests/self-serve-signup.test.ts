@@ -96,5 +96,31 @@ test('dashboard login accepts self-serve API keys and tenant-scopes dashboard da
   assert.match(server, /SELECT id, endpoint_id, event_type, status, attempts, created_at, delivered_at FROM webhook_deliveries WHERE tenant_id = \$1 ORDER BY created_at DESC LIMIT 20/);
   assert.match(server, /SELECT action, target_type, target_id, created_at FROM audit_logs WHERE tenant_id = \$1 ORDER BY created_at DESC LIMIT 30/);
   assert.match(server, /SELECT id, requester_email, preferred_inbox_name, status, verification_json, created_at FROM signup_requests WHERE tenant_id = \$1 ORDER BY created_at DESC LIMIT 20/);
-  assert.match(publicPages, /Sign in with your API key/);
+  assert.match(publicPages, /API key or operator token/);
+});
+
+test('dashboard login supports passwordless email codes for self-serve tenants', () => {
+  const schema = read('sql/schema.sql');
+  const server = read('src/server.ts');
+  const publicPages = read('src/public-pages.ts');
+
+  assert.match(schema, /CREATE TABLE IF NOT EXISTS dashboard_login_codes/);
+  assert.match(schema, /code_hash text NOT NULL/);
+  assert.match(schema, /expires_at timestamptz NOT NULL/);
+  assert.match(schema, /CREATE TABLE IF NOT EXISTS dashboard_sessions/);
+  assert.match(schema, /session_hash text NOT NULL UNIQUE/);
+  assert.doesNotMatch(schema, /raw_code|login_code text/i);
+
+  assert.match(server, /app\.post\('\/dashboard\/login\/request-code'/);
+  assert.match(server, /app\.post\('\/dashboard\/login\/verify'/);
+  assert.match(server, /sendDashboardLoginCode/);
+  assert.match(server, /hashLoginSecret/);
+  assert.match(server, /dashboardSessionCookie/);
+  assert.match(server, /SELECT tenant_id, requester_email FROM signup_requests WHERE requester_email = \$1 AND status = 'provisioned'/);
+  assert.match(server, /INSERT INTO dashboard_login_codes/);
+  assert.match(server, /INSERT INTO dashboard_sessions/);
+  assert.match(server, /authenticateDashboardSession/);
+
+  assert.match(publicPages, /Email me a sign-in code/);
+  assert.match(publicPages, /autocomplete="one-time-code"/);
 });

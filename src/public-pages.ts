@@ -2735,8 +2735,9 @@ export function renderDashboardUnavailablePage(_reason = '') {
 </html>`;
 }
 
-export function renderDashboardLoginPage(error = '') {
+export function renderDashboardLoginPage(error = '', notice = '') {
   const errorHtml = error ? `<p class="error">${escapeHtml(error)}</p>` : '';
+  const noticeHtml = notice ? `<p class="notice">${escapeHtml(notice)}</p>` : '';
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -2863,6 +2864,24 @@ export function renderDashboardLoginPage(error = '') {
       color: #FCA5A5;
       margin: 14px 0 0;
     }
+    .notice {
+      color: var(--signal);
+      margin: 14px 0 0;
+    }
+    .advanced-login {
+      margin-top: 22px;
+      padding-top: 18px;
+      border-top: 1px solid rgba(244,244,242,.12);
+    }
+    .advanced-login summary {
+      cursor: pointer;
+      color: var(--mint);
+      font-weight: 800;
+    }
+    .form-note {
+      margin-top: 8px;
+      font-size: 13px;
+    }
     .mini-list {
       display: grid;
       gap: 10px;
@@ -2906,24 +2925,41 @@ export function renderDashboardLoginPage(error = '') {
     <a class="brand" href="/" aria-label="Reverbin home">${reverbinMarkSvg()}<span>reverbin</span></a>
     <section class="login-grid">
       <div class="copy">
-        <h1>Sign in with your API key.</h1>
-        <p>Paste the API key Reverbin showed after signup to open your inbox dashboard. Operator tokens still work for internal admin access.</p>
+        <h1>Sign in with your email.</h1>
+        <p>Use the email you signed up with. Reverbin sends a short one-time code, so you do not need to save a password or hunt for your API key.</p>
         <ul class="mini-list">
-          <li><span>Authentication</span><span>API key or operator token</span></li>
+          <li><span>Primary login</span><span>email code</span></li>
           <li><span>Surface</span><span>mail + settings</span></li>
           <li><span>Scope</span><span>your inboxes + activity</span></li>
         </ul>
       </div>
       <div class="card">
-        <h2>Sign in</h2>
-        <p>Use the API key from signup. You can copy it from the one-time success screen after creating an agent.</p>
+        <h2>Email me a sign-in code</h2>
+        <p>Use the email you signed up with. We will send a six-digit code that opens your inbox dashboard.</p>
         ${errorHtml}
-        <form method="post" action="/dashboard/login">
-          <input type="text" name="username" value="reverbin-dashboard" autocomplete="username" hidden />
-          <label for="token">API key or operator token</label>
-          <input id="token" type="password" name="token" autocomplete="current-password" placeholder="rvb_live_..." autofocus required />
+        ${noticeHtml}
+        <form method="post" action="/dashboard/login/request-code">
+          <label for="email">Signup email</label>
+          <input id="email" type="email" name="email" autocomplete="email" placeholder="you@example.com" autofocus required />
+          <button type="submit">Send sign-in code</button>
+        </form>
+        <form method="post" action="/dashboard/login/verify">
+          <label for="code-email">Signup email</label>
+          <input id="code-email" type="email" name="email" autocomplete="email" placeholder="you@example.com" required />
+          <label for="code">Sign-in code</label>
+          <input id="code" type="text" name="code" autocomplete="one-time-code" inputmode="numeric" pattern="[0-9]{6}" placeholder="123456" required />
           <button type="submit">Open dashboard</button>
         </form>
+        <details class="advanced-login">
+          <summary>Advanced: API key or operator token</summary>
+          <p class="form-note">If you already have an API key or internal operator token, you can still paste it here.</p>
+          <form method="post" action="/dashboard/login">
+            <input type="text" name="username" value="reverbin-dashboard" autocomplete="username" hidden />
+            <label for="token">API key or operator token</label>
+            <input id="token" type="password" name="token" autocomplete="current-password" placeholder="rvb_live_..." required />
+            <button type="submit">Open with token</button>
+          </form>
+        </details>
       </div>
     </section>
   </main>

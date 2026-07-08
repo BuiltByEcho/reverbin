@@ -178,6 +178,30 @@ CREATE TABLE IF NOT EXISTS api_keys (
   revoked_at timestamptz
 );
 
+CREATE TABLE IF NOT EXISTS dashboard_login_codes (
+  id text PRIMARY KEY,
+  tenant_id text NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  requester_email text NOT NULL,
+  code_hash text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  expires_at timestamptz NOT NULL,
+  used_at timestamptz
+);
+
+CREATE INDEX IF NOT EXISTS idx_dashboard_login_codes_email_created ON dashboard_login_codes(requester_email, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_dashboard_login_codes_expires ON dashboard_login_codes(expires_at);
+
+CREATE TABLE IF NOT EXISTS dashboard_sessions (
+  id text PRIMARY KEY,
+  tenant_id text NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  session_hash text NOT NULL UNIQUE,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  expires_at timestamptz NOT NULL,
+  revoked_at timestamptz
+);
+
+CREATE INDEX IF NOT EXISTS idx_dashboard_sessions_expires ON dashboard_sessions(expires_at);
+
 INSERT INTO tenants (id, name)
 VALUES ('ten_default', 'BuiltByEcho')
 ON CONFLICT (id) DO NOTHING;
