@@ -1757,6 +1757,12 @@ export type MailWebhooksPageData = {
   notice?: string | null;
 };
 
+export type MailComposePageData = {
+  inboxes: MailInboxView[];
+  selectedInboxId?: string | null;
+  notice?: string | null;
+};
+
 function formatDate(value: Date | string | null | undefined) {
   if (!value) return 'pending';
   const date = value instanceof Date ? value : new Date(value);
@@ -1919,7 +1925,7 @@ export function renderMailPage(data: MailPageData) {
     </header>
     <section class="mail-layout" aria-label="Gmail-style human mail management console">
       <aside class="mail-sidebar" aria-label="Inbox folders">
-        <a class="compose" href="mailto:${data.inboxes[0] ? escapeHtml(data.inboxes[0].email_address) : 'hello@builtbyecho.com'}">Compose</a>
+        <a class="compose" href="/mail/compose${selectedInboxId ? `?inbox_id=${encodeURIComponent(selectedInboxId)}` : ''}">Compose</a>
         <nav class="mail-nav" aria-label="Mail folders">
           <a href="/mail">Inbox</a>
           <a href="/mail?folder=sent">Sent</a>
@@ -1945,7 +1951,11 @@ export function renderMailPage(data: MailPageData) {
 
 function renderSettingsNotice(notice?: string | null) {
   if (!notice) return '';
-  const label = notice === 'settings_saved' ? 'Settings saved' : notice === 'webhook_created' ? 'Webhook added' : notice;
+  const label = notice === 'settings_saved' ? 'Settings saved'
+    : notice === 'webhook_created' ? 'Webhook added'
+      : notice === 'compose_sent' ? 'Message sent'
+        : notice === 'compose_pending' ? 'Message queued for approval'
+          : notice;
   return `<div class="settings-notice" role="status">${escapeHtml(label)}</div>`;
 }
 
@@ -1966,7 +1976,7 @@ function renderMailSettingsSidebar(inboxes: MailInboxView[], active: 'inbox' | '
     ['settings', '/mail/settings', 'Settings'],
   ] as const;
   return `<aside class="mail-sidebar" aria-label="Inbox settings navigation">
-    <a class="compose" href="${inboxes[0] ? `mailto:${escapeHtml(inboxes[0].email_address)}` : '/mail'}">Compose</a>
+    <a class="compose" href="/mail/compose${selectedId ? `?inbox_id=${encodeURIComponent(selectedId)}` : ''}">Compose</a>
     <nav class="mail-nav" aria-label="Mail folders">
       ${nav.map(([key, href, label]) => `<a class="${active === key ? 'selected' : ''}" href="${href}">${label}</a>`).join('')}
     </nav>
@@ -2042,6 +2052,47 @@ export function renderMailSettingsPage(data: MailSettingsPageData) {
           <label class="check-row"><input type="checkbox" name="allow_links" value="true"${checked(policy.allow_links)} /> Allow links in outbound mail</label>
           <label class="check-row"><input type="checkbox" name="allow_attachments" value="true"${checked(policy.allow_attachments)} /> Allow attachments</label>
           <div class="settings-actions"><button type="submit">Save settings</button></div>
+        </form>
+      </section>
+    </section>
+  </main>
+</body>
+</html>`;
+}
+
+export function renderMailComposePage(data: MailComposePageData) {
+  const selectedInboxId = data.selectedInboxId ?? data.inboxes[0]?.id ?? '';
+  const selectedInbox = data.inboxes.find((inbox) => inbox.id === selectedInboxId) ?? data.inboxes[0] ?? null;
+  const inboxOptions = data.inboxes.map((inbox) => `<option value="${escapeHtml(inbox.id)}"${inbox.id === selectedInboxId ? ' selected' : ''}>${escapeHtml(inbox.display_name || inbox.email_address)} · ${escapeHtml(inbox.email_address)}</option>`).join('');
+  return `<!doctype html>
+<html lang="en">
+<head>
+  ${baseHead}
+  <title>Reverbin Mail Compose</title>
+  <meta name="description" content="Compose a new outbound Reverbin email thread from an agent inbox." />
+  <style>${mailSettingsCss()}</style>
+</head>
+<body>
+  <main class="mail-shell" data-surface-id="mail-compose">
+    <header class="mail-topbar">
+      <a class="brand" href="/mail">${reverbinMarkSvg()}<span>Reverbin Mail</span></a>
+      <div class="mail-search"><input type="search" placeholder="Search mail" aria-label="Search mail" disabled /></div>
+      <div class="top-actions"><a href="/mail/settings">Settings</a><a href="/mail/webhooks">Webhooks</a><a href="/docs">Docs</a><a href="/dashboard/logout">Logout</a></div>
+    </header>
+    <section class="settings-layout" aria-label="Compose outbound mail">
+      ${renderMailSettingsSidebar(data.inboxes, 'inbox', selectedInboxId)}
+      <section class="settings-main">
+        <div class="settings-hero"><div><p class="eyebrow">Compose</p><h1>Compose message</h1><p>Start a new outbound thread from ${escapeHtml(selectedInbox?.email_address ?? 'your Reverbin inbox')} without leaving the mail console.</p></div></div>
+        ${renderSettingsNotice(data.notice)}
+        <form class="settings-card" method="post" action="/mail/compose">
+          <div class="settings-grid">
+            <label>From inbox<select name="inbox_id" required>${inboxOptions}</select></label>
+            <label>To<input type="text" name="to" placeholder="recipient@example.com" autocomplete="email" required /></label>
+          </div>
+          <label>Subject<input type="text" name="subject" placeholder="Subject" required /></label>
+          <label>Message<textarea name="text" rows="12" placeholder="Write your message…" required></textarea></label>
+          <p class="form-note">Sent through Reverbin, logged as a new thread, policy checked, and delivered through the active provider.</p>
+          <div class="settings-actions"><button type="submit">Send message</button></div>
         </form>
       </section>
     </section>

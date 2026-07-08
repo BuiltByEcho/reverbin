@@ -1,7 +1,7 @@
 import * as assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { renderMailPage, renderMailSettingsPage, renderMailWebhooksPage } from '../src/public-pages.js';
+import { renderMailComposePage, renderMailPage, renderMailSettingsPage, renderMailWebhooksPage } from '../src/public-pages.js';
 
 const root = new URL('../', import.meta.url);
 const read = (path: string) => readFileSync(new URL(path, root), 'utf8');
@@ -64,6 +64,8 @@ test('human mail console renders a Gmail-style three-pane inbox with reply contr
   assert.match(html, /aria-label="Thread conversation"/);
   assert.match(html, /Search mail/);
   assert.match(html, /Compose/);
+  assert.match(html, /href="\/mail\/compose\?inbox_id=inb_1"/);
+  assert.doesNotMatch(html, /mailto:/);
   assert.match(html, /Inbox/);
   assert.match(html, /Sent/);
   assert.match(html, /Webhooks/);
@@ -88,6 +90,30 @@ test('human mail console renders a Gmail-style three-pane inbox with reply contr
   assert.equal(html.includes('provider_events'), false);
 });
 
+test('mail compose page lets tenants start a new outbound thread in-app', () => {
+  const html = renderMailComposePage({
+    inboxes: [
+      { id: 'inb_1', email_address: 'support@reverbin.com', display_name: 'Support Team', status: 'active', thread_count: 2 },
+    ],
+    selectedInboxId: 'inb_1',
+    notice: 'compose_sent',
+  });
+
+  assert.match(html, /data-surface-id="mail-compose"/);
+  assert.match(html, /Compose message/);
+  assert.match(html, /support@reverbin\.com/);
+  assert.match(html, /action="\/mail\/compose"/);
+  assert.match(html, /name="inbox_id"/);
+  assert.match(html, /value="inb_1"/);
+  assert.match(html, /name="to"/);
+  assert.match(html, /name="subject"/);
+  assert.match(html, /name="text"/);
+  assert.match(html, /Send message/);
+  assert.match(html, /Message sent/);
+  assert.doesNotMatch(html, /mailto:/);
+  assert.doesNotMatch(html, /Operations/);
+});
+
 test('mail console route contract keeps human mail separate from ops dashboard', () => {
   const server = read('src/server.ts');
   const publicPages = read('src/public-pages.ts');
@@ -98,6 +124,11 @@ test('mail console route contract keeps human mail separate from ops dashboard',
   assert.match(server, /requireDashboardAuth/);
   assert.match(server, /sendThreadReply/);
   assert.match(server, /reply\.redirect\(`\/mail\?thread_id=\$\{encodeURIComponent\(req\.params\.id\)\}&notice=reply_sent`\)/);
+  assert.match(server, /app\.get<\{ Querystring: \{ inbox_id\?: string; notice\?: string \} \}>\('\/mail\/compose'/);
+  assert.match(server, /app\.post\('\/mail\/compose'/);
+  assert.match(server, /sendNewThread/);
+  assert.match(server, /isNewThread: true/);
+  assert.match(server, /reply\.redirect\(`\/mail\?thread_id=\$\{encodeURIComponent\(String\(result\.payload\.thread_id\)\)\}&notice=compose_sent`\)/);
   assert.match(publicPages, /data-surface-id="human-mail-console"/);
   assert.match(publicPages, /Gmail-style/);
   assert.match(publicPages, /href="\/mail\/webhooks"/);

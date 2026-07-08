@@ -12,7 +12,7 @@ import { getEmailProvider } from './providers.js';
 import { fetchResendReceivedEmail, normalizeResendReceivedEmail, verifySvixSignature } from './resend.js';
 import { buildWebhookDeliveryHeaders, buildWebhookEventPayload, isAllowedWebhookEvent, isAllowedWebhookUrl, shouldDeliverWebhookEvent, type WebhookEventType } from './webhooks.js';
 import { clearDashboardCookie, dashboardCookie, dashboardTokenFromEnv, isDashboardRequestAuthorized, parseDashboardCookies } from './dashboard-auth.js';
-import { renderDashboardLoginPage, renderDashboardPage, renderDashboardUnavailablePage, renderDocsPage, renderFaviconSvg, renderLandingPage, renderMailPage, renderMailSettingsPage, renderMailWebhooksPage, renderSignupPage, type DocsPageKey } from './public-pages.js';
+import { renderDashboardLoginPage, renderDashboardPage, renderDashboardUnavailablePage, renderDocsPage, renderFaviconSvg, renderLandingPage, renderMailComposePage, renderMailPage, renderMailSettingsPage, renderMailWebhooksPage, renderSignupPage, type DocsPageKey } from './public-pages.js';
 import { buildWebhookDeliveryJob, redisConnectionOptions, WEBHOOK_DELIVERY_QUEUE, webhookDeliveryMode } from './webhook-delivery.js';
 import { buildPendingSignupVerification, normalizeSignupRequestInput, summarizeSignupVerification, type SignupRequestStatus, type SignupVerificationCheck } from './signup-verification.js';
 import { BILLING_PLANS, createStripeBillingPortalSession, createStripeCheckoutSession, maxInboxesForPlan, maxWebhookEndpointsForPlan, normalizePlan, priceIdForPlan, verifyStripeWebhookSignature, type BillingPlan } from './billing.js';
@@ -429,6 +429,15 @@ const ReplySchema = z.object({
   attachments: z.array(z.unknown()).optional(),
 });
 
+const ComposeMessageSchema = z.object({
+  inbox_id: z.string().min(1),
+  to: z.array(z.string().email()).min(1),
+  subject: z.string().trim().min(1).max(240),
+  text: z.string().trim().min(1),
+  html: z.string().nullable().optional(),
+  attachments: z.array(z.unknown()).optional(),
+});
+
 const WebhookEndpointSchema = z.object({
   url: z.string().url().refine(isAllowedWebhookUrl, 'webhook url must use https, except loopback http for local testing'),
   events: z.array(z.string().min(1).refine(isAllowedWebhookEvent, 'unsupported webhook event')).default(['*']),
@@ -501,6 +510,22 @@ function parseMailWebhookForm(body: unknown) {
     url: formField(input.url),
     events: formEvents(input.events),
     secret: secret || undefined,
+  });
+}
+
+function formRecipients(value: unknown) {
+  return formField(value).split(/[\n,;]/).map((item) => normalizeEmail(item)).filter(Boolean);
+}
+
+function parseMailComposeForm(body: unknown) {
+  const input = (body ?? {}) as Record<string, unknown>;
+  const html = formField(input.html);
+  return ComposeMessageSchema.parse({
+    inbox_id: formField(input.inbox_id),
+    to: formRecipients(input.to),
+    subject: formField(input.subject),
+    text: formField(input.text),
+    html: html || undefined,
   });
 }
 
@@ -596,6 +621,7 @@ async function storeInboundEmail(body: InboundEmail) {
 }
 
 type ThreadReplyBody = z.infer<typeof ReplySchema>;
+type ComposeMessageBody = z.infer<typeof ComposeMessageSchema>;
 type ThreadReplyResult = {
   statusCode: 200 | 202 | 400 | 403 | 404;
   payload: Record<string, unknown>;
@@ -663,6 +689,77 @@ async function sendThreadReply(threadId: string, body: ThreadReplyBody, authCont
   await audit('email.sent', 'message', messageId, { provider_result: sendResult }, authContext ? 'api' : 'human', authContext?.apiKeyId, tenantId);
   await publishWebhookEvent('email.sent', { inbox_id: inbox.id, thread_id: thread.id, message_id: messageId, to: recipients, subject: body.subject ?? `Re: ${thread.subject}`, risk_flags: decision.risk_flags }, inbox.tenant_id);
   return { statusCode: 200, payload: { message_id: messageId, provider_result: sendResult } };
+}
+
+async function sendNewThread(body: ComposeMessageBody, authContext?: AuthContext): Promise<ThreadReplyResult> {
+  const inboxResult = authContext?.operator || !authContext
+    ? await query<any>('SELECT * FROM inboxes WHERE id = $1', [body.inbox_id])
+    : await query<any>('SELECT * FROM inboxes WHERE id = $1 AND tenant_id = $2', [body.inbox_id, authContext.tenantId]);
+  if (inboxResult.rowCount === 0) return { statusCode: 404, payload: { error: 'inbox not found' } };
+
+  const inbox = inboxResult.rows[0];
+  const tenantId = inbox.tenant_id;
+  const recipients = body.to.map(normalizeEmail);
+  const policy = await getPolicy(inbox.id);
+  const decision = evaluatePolicy(policy, {
+    to: recipients,
+    bodyText: body.text,
+    bodyHtml: body.html,
+    attachments: body.attachments,
+    isNewThread: true,
+    knownRecipientEmails: await knownRecipients(inbox.id),
+    sentLastHour: await countOutbound(inbox.id, '1 hour'),
+    sentLastDay: await countOutbound(inbox.id, '1 day'),
+  });
+
+  if (decision.decision === 'block') {
+    await audit('policy.blocked', 'inbox', inbox.id, { decision, to: recipients, subject: body.subject }, 'human', authContext?.apiKeyId, tenantId);
+    return { statusCode: 403, payload: { error: 'policy blocked send', ...decision } };
+  }
+
+  const threadId = id('thr');
+  if (decision.decision === 'require_approval') {
+    const approvalId = id('apr');
+    await tx(async (client) => {
+      await client.query(
+        `INSERT INTO threads (id, tenant_id, inbox_id, subject, last_message_at) VALUES ($1,$2,$3,$4,now())`,
+        [threadId, tenantId, inbox.id, body.subject],
+      );
+      await client.query(
+        `INSERT INTO approval_requests (id, tenant_id, inbox_id, agent_id, thread_id, proposed_to_json, subject, body_text, body_html, risk_flags_json, policy_reasons_json)
+         VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10::jsonb,$11::jsonb)`,
+        [approvalId, tenantId, inbox.id, inbox.agent_id, threadId, JSON.stringify(recipients), body.subject,
+          body.text, body.html ?? null, JSON.stringify(decision.risk_flags), JSON.stringify(decision.reasons)],
+      );
+    });
+    await audit('approval.required', 'approval', approvalId, { thread_id: threadId, decision }, 'system', authContext?.apiKeyId, tenantId);
+    await publishWebhookEvent('approval.required', { approval_id: approvalId, inbox_id: inbox.id, thread_id: threadId, to: recipients, subject: body.subject, risk_flags: decision.risk_flags, reasons: decision.reasons }, tenantId);
+    return { statusCode: 202, payload: { thread_id: threadId, approval_id: approvalId, status: 'pending', ...decision } };
+  }
+
+  const provider = getEmailProvider();
+  const sendResult = await provider.sendEmail({
+    from: process.env.RESEND_FROM_EMAIL || inbox.email_address || process.env.DEFAULT_FROM_EMAIL,
+    to: recipients,
+    subject: body.subject,
+    text: body.text,
+    html: body.html,
+  });
+  const messageId = id('msg');
+  await tx(async (client) => {
+    await client.query(
+      `INSERT INTO threads (id, tenant_id, inbox_id, subject, last_message_at) VALUES ($1,$2,$3,$4,now())`,
+      [threadId, tenantId, inbox.id, body.subject],
+    );
+    await client.query(
+      `INSERT INTO messages (id, tenant_id, inbox_id, thread_id, provider_message_id, direction, from_email, to_json, subject, text_body, html_body, risk_flags_json, sent_at)
+       VALUES ($1,$2,$3,$4,$5,'outbound',$6,$7::jsonb,$8,$9,$10,$11::jsonb,now())`,
+      [messageId, tenantId, inbox.id, threadId, sendResult.provider_message_id, inbox.email_address, JSON.stringify(recipients), body.subject, body.text, body.html ?? null, JSON.stringify(decision.risk_flags)],
+    );
+  });
+  await audit('email.sent', 'message', messageId, { provider_result: sendResult, composed: true }, authContext ? 'api' : 'human', authContext?.apiKeyId, tenantId);
+  await publishWebhookEvent('email.sent', { inbox_id: inbox.id, thread_id: threadId, message_id: messageId, to: recipients, subject: body.subject, risk_flags: decision.risk_flags }, tenantId);
+  return { statusCode: 200, payload: { thread_id: threadId, message_id: messageId, provider_result: sendResult } };
 }
 
 app.get('/health', async () => ({
@@ -916,6 +1013,45 @@ app.get<{ Querystring: { inbox_id?: string; thread_id?: string; notice?: string 
     req.log.error(error, 'mail console database query failed');
     reply.code(503).type('text/html').send(renderDashboardUnavailablePage('mail console unavailable'));
   }
+});
+
+app.get<{ Querystring: { inbox_id?: string; notice?: string } }>('/mail/compose', { preHandler: requireDashboardAuth }, async (req, reply) => {
+  try {
+    const tenantId = tenantIdFor(req);
+    const inboxes = await query<any>(
+      `SELECT i.id, i.email_address, i.display_name, i.status, count(t.id)::int AS thread_count
+       FROM inboxes i
+       LEFT JOIN threads t ON t.inbox_id = i.id AND t.tenant_id = i.tenant_id
+       WHERE i.tenant_id = $1
+       GROUP BY i.id, i.email_address, i.display_name, i.status, i.created_at
+       ORDER BY i.created_at DESC
+       LIMIT 50`,
+      [tenantId],
+    );
+    const selectedInboxId = req.query.inbox_id ?? inboxes.rows[0]?.id ?? null;
+    reply.type('text/html').send(renderMailComposePage({
+      inboxes: inboxes.rows,
+      selectedInboxId,
+      notice: req.query.notice,
+    }));
+  } catch (error) {
+    req.log.error(error, 'mail compose database query failed');
+    reply.code(503).type('text/html').send(renderDashboardUnavailablePage('mail compose unavailable'));
+  }
+});
+
+app.post('/mail/compose', { preHandler: requireDashboardAuth }, async (req, reply) => {
+  const body = parseMailComposeForm(req.body);
+  const result = await sendNewThread(body, (req as AuthedRequest).authContext);
+  if (result.statusCode === 200) {
+    reply.redirect(`/mail?thread_id=${encodeURIComponent(String(result.payload.thread_id))}&notice=compose_sent`);
+    return;
+  }
+  if (result.statusCode === 202) {
+    reply.redirect(`/mail?thread_id=${encodeURIComponent(String(result.payload.thread_id))}&notice=compose_pending`);
+    return;
+  }
+  reply.code(result.statusCode).type('text/html').send(renderDashboardUnavailablePage('compose unavailable'));
 });
 
 app.get<{ Querystring: { inbox_id?: string; notice?: string } }>('/mail/settings', { preHandler: requireDashboardAuth }, async (req, reply) => {
