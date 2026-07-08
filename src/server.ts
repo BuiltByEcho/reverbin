@@ -14,7 +14,7 @@ import { getEmailProvider } from './providers.js';
 import { fetchResendReceivedEmail, normalizeResendReceivedEmail, verifySvixSignature } from './resend.js';
 import { buildWebhookDeliveryHeaders, buildWebhookEventPayload, isAllowedWebhookEvent, isAllowedWebhookUrl, shouldDeliverWebhookEvent, type WebhookEventType } from './webhooks.js';
 import { clearDashboardCookie, dashboardCookie, dashboardTokenFromEnv, isDashboardRequestAuthorized, parseDashboardCookies } from './dashboard-auth.js';
-import { renderDashboardLoginPage, renderDashboardPage, renderDashboardUnavailablePage, renderDocsPage, renderFaviconSvg, renderLandingPage, renderMailComposePage, renderMailCreateMailboxPage, renderMailForwardPage, renderMailPage, renderMailSettingsPage, renderMailWebhooksPage, renderSignupPage, type DocsPageKey } from './public-pages.js';
+import { renderDashboardLoginPage, renderDashboardPage, renderDashboardUnavailablePage, renderDocsPage, renderFaviconSvg, renderLandingPage, renderMailBillingPage, renderMailComposePage, renderMailCreateMailboxPage, renderMailForwardPage, renderMailPage, renderMailSettingsPage, renderMailWebhooksPage, renderSignupPage, type DocsPageKey } from './public-pages.js';
 import { buildWebhookDeliveryJob, redisConnectionOptions, WEBHOOK_DELIVERY_QUEUE, webhookDeliveryMode } from './webhook-delivery.js';
 import { buildPendingSignupVerification, normalizeSignupRequestInput, summarizeSignupVerification, type SignupRequestStatus, type SignupVerificationCheck } from './signup-verification.js';
 import { BILLING_PLANS, createStripeBillingPortalSession, createStripeCheckoutSession, maxInboxesForPlan, maxWebhookEndpointsForPlan, normalizePlan, priceIdForPlan, verifyStripeWebhookSignature, type BillingPlan } from './billing.js';
@@ -1487,6 +1487,98 @@ app.post('/mail/mailboxes', { preHandler: requireDashboardAuth }, async (req, re
     return;
   }
   reply.redirect(`/mail?inbox_id=${encodeURIComponent(created.id)}&notice=mailbox_created`);
+});
+
+app.get<{ Querystring: { notice?: string } }>('/mail/billing', { preHandler: requireDashboardAuth }, async (req, reply) => {
+  try {
+    const tenantId = tenantIdFor(req);
+    const inboxes = await query<any>(
+      `SELECT i.id, i.email_address, i.display_name, i.status, count(t.id)::int AS thread_count
+       FROM inboxes i
+       LEFT JOIN threads t ON t.inbox_id = i.id AND t.tenant_id = i.tenant_id AND t.deleted_at IS NULL
+       WHERE i.tenant_id = $1
+       GROUP BY i.id, i.email_address, i.display_name, i.status, i.created_at
+       ORDER BY i.created_at DESC
+       LIMIT 50`,
+      [tenantId],
+    );
+    const tenant = await getTenantBilling(tenantId);
+    reply.type('text/html').send(renderMailBillingPage({
+      inboxes: inboxes.rows,
+      tenant: tenant ?? { plan: 'free', billing_status: 'active', stripe_customer_id: null },
+      plans: Object.values(BILLING_PLANS),
+      notice: req.query.notice,
+    }));
+  } catch (error) {
+    req.log.error(error, 'mail billing database query failed');
+    reply.code(503).type('text/html').send(renderDashboardUnavailablePage('billing unavailable'));
+  }
+});
+
+app.post('/mail/billing/checkout', { preHandler: requireDashboardAuth }, async (req, reply) => {
+  const parsed = BillingCheckoutSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    reply.redirect('/mail/billing?notice=billing_invalid');
+    return;
+  }
+  const body = parsed.data;
+  const tenantId = tenantIdFor(req);
+  const tenant = await getTenantBilling(tenantId);
+  if (!tenant) {
+    reply.code(404).type('text/html').send(renderDashboardUnavailablePage('tenant not found'));
+    return;
+  }
+  const secretKey = configuredSecret(process.env.STRIPE_SECRET_KEY);
+  const priceId = priceIdForPlan(body.plan);
+  if (!secretKey || !priceId) {
+    reply.redirect('/mail/billing?notice=billing_not_configured');
+    return;
+  }
+  const requester = await query<{ requester_email: string }>(
+    'SELECT requester_email FROM signup_requests WHERE tenant_id = $1 ORDER BY created_at ASC LIMIT 1',
+    [tenantId],
+  );
+  const session = await createStripeCheckoutSession({
+    secretKey,
+    plan: body.plan,
+    tenantId,
+    priceId,
+    customerId: tenant.stripe_customer_id,
+    customerEmail: requester.rows[0]?.requester_email ?? null,
+    successUrl: body.success_url ?? process.env.STRIPE_SUCCESS_URL ?? 'https://reverbin.com/mail/billing?notice=billing_success',
+    cancelUrl: body.cancel_url ?? process.env.STRIPE_CANCEL_URL ?? 'https://reverbin.com/mail/billing?notice=billing_canceled',
+  });
+  await audit('billing.checkout_created', 'tenant', tenantId, { plan: body.plan, stripe_checkout_session_id: session.id }, 'human', null, tenantId);
+  if (session.customer) {
+    await query('UPDATE tenants SET stripe_customer_id = COALESCE(stripe_customer_id, $2) WHERE id = $1', [tenantId, session.customer]);
+  }
+  if (!session.url) {
+    reply.redirect('/mail/billing?notice=billing_not_configured');
+    return;
+  }
+  reply.redirect(session.url);
+});
+
+app.post('/mail/billing/portal', { preHandler: requireDashboardAuth }, async (req, reply) => {
+  const body = BillingPortalSchema.parse(req.body ?? {});
+  const tenantId = tenantIdFor(req);
+  const tenant = await getTenantBilling(tenantId);
+  const secretKey = configuredSecret(process.env.STRIPE_SECRET_KEY);
+  if (!secretKey) {
+    reply.redirect('/mail/billing?notice=billing_not_configured');
+    return;
+  }
+  if (!tenant?.stripe_customer_id) {
+    reply.redirect('/mail/billing?notice=billing_portal_unavailable');
+    return;
+  }
+  const session = await createStripeBillingPortalSession({
+    secretKey,
+    customerId: tenant.stripe_customer_id,
+    returnUrl: body.return_url ?? 'https://reverbin.com/mail/billing',
+  });
+  await audit('billing.portal_created', 'tenant', tenantId, { stripe_portal_session_id: session.id }, 'human', null, tenantId);
+  reply.redirect(session.url);
 });
 
 app.get<{ Querystring: { inbox_id?: string; notice?: string } }>('/mail/settings', { preHandler: requireDashboardAuth }, async (req, reply) => {

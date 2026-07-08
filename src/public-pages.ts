@@ -1759,6 +1759,28 @@ export type MailCreateMailboxPageData = {
   notice?: string | null;
 };
 
+export type MailBillingPlanView = {
+  key: 'free' | 'developer' | 'startup' | 'enterprise';
+  label: string;
+  price_monthly_usd: number | null;
+  max_inboxes: number;
+  emails_per_month: number | null;
+  max_webhooks: number;
+};
+
+export type MailBillingTenantView = {
+  plan: string;
+  billing_status: string;
+  stripe_customer_id?: string | null;
+};
+
+export type MailBillingPageData = {
+  inboxes: MailInboxView[];
+  tenant: MailBillingTenantView;
+  plans: MailBillingPlanView[];
+  notice?: string | null;
+};
+
 export type MailWebhookView = {
   id: string;
   url: string;
@@ -2038,7 +2060,7 @@ export function renderMailPage(data: MailPageData) {
     <header class="mail-topbar">
       <a class="brand" href="/mail">${reverbinMarkSvg()}<span>Reverbin Mail</span></a>
       <div class="mail-search"><input type="search" placeholder="Search mail" aria-label="Search mail" disabled /></div>
-      <div class="top-actions"><a href="/mail/settings">Settings</a><a href="/mail/webhooks">Webhooks</a><a href="/docs">Docs</a><a href="/dashboard/logout">Logout</a></div>
+      <div class="top-actions"><a href="/mail/billing">Billing</a><a href="/mail/settings">Settings</a><a href="/mail/webhooks">Webhooks</a><a href="/docs">Docs</a><a href="/dashboard/logout">Logout</a></div>
     </header>
     <section class="mail-layout" aria-label="Gmail-style human mail management console">
       <aside class="mail-sidebar" aria-label="Mail navigation">
@@ -2074,7 +2096,12 @@ function renderSettingsNotice(notice?: string | null) {
       : notice === 'compose_sent' ? 'Message sent'
         : notice === 'compose_pending' ? 'Message queued for approval'
           : notice === 'mailbox_quota' ? 'You already have the maximum number of mailboxes for this plan'
-            : notice === 'mailbox_exists' ? 'That mailbox address already exists'
+            : notice === 'billing_not_configured' ? 'Stripe Checkout is not configured yet'
+              : notice === 'billing_invalid' ? 'Choose a valid paid plan'
+                : notice === 'billing_success' ? 'Checkout complete. Stripe is syncing your plan now.'
+                  : notice === 'billing_canceled' ? 'Checkout canceled'
+                    : notice === 'billing_portal_unavailable' ? 'Billing portal is unavailable until a paid Stripe customer exists'
+                      : notice === 'mailbox_exists' ? 'That mailbox address already exists'
               : notice === 'mailbox_invalid' ? 'Enter a valid mailbox address'
                 : notice === 'forward_sent' ? 'Forward sent'
                   : notice === 'forward_pending' ? 'Forward queued for approval'
@@ -2082,7 +2109,7 @@ function renderSettingsNotice(notice?: string | null) {
   return `<div class="settings-notice" role="status">${escapeHtml(label)}</div>`;
 }
 
-function renderMailSettingsSidebar(inboxes: MailInboxView[], active: 'inbox' | 'webhooks' | 'settings', selectedInboxId?: string | null) {
+function renderMailSettingsSidebar(inboxes: MailInboxView[], active: 'inbox' | 'webhooks' | 'settings' | 'billing', selectedInboxId?: string | null) {
   const selectedId = selectedInboxId ?? inboxes[0]?.id ?? null;
   const inboxLinks = inboxes.length
     ? inboxes.map((inbox) => {
@@ -2096,6 +2123,7 @@ function renderMailSettingsSidebar(inboxes: MailInboxView[], active: 'inbox' | '
   const nav = [
     ['inbox', '/mail', 'Inbox'],
     ['webhooks', '/mail/webhooks', 'Webhooks'],
+    ['billing', '/mail/billing', 'Billing'],
     ['settings', '/mail/settings', 'Settings'],
   ] as const;
   return `<aside class="mail-sidebar" aria-label="Mailbox settings navigation">
@@ -2133,6 +2161,70 @@ function renderEventList(value: unknown) {
   return events.includes('*') ? 'all events' : events.join(', ');
 }
 
+function formatPlanValue(value: number | null, suffix: string) {
+  if (value === null || value >= Number.MAX_SAFE_INTEGER) return 'Custom';
+  return `${value.toLocaleString()} ${suffix}`;
+}
+
+export function renderMailBillingPage(data: MailBillingPageData) {
+  const currentPlan = data.tenant.plan || 'free';
+  const currentPlanLabel = data.plans.find((plan) => plan.key === currentPlan)?.label ?? currentPlan;
+  const paidPlans = data.plans.filter((plan) => plan.key === 'developer' || plan.key === 'startup');
+  const planCards = paidPlans.map((plan) => {
+    const current = plan.key === currentPlan;
+    return `<article class="settings-card billing-plan ${current ? 'current' : ''}">
+      <p class="eyebrow">${escapeHtml(plan.label)}</p>
+      <h2>$${escapeHtml(String(plan.price_monthly_usd ?? 'Custom'))}/mo</h2>
+      <p class="form-note">${escapeHtml(formatPlanValue(plan.max_inboxes, 'mailboxes'))} · ${escapeHtml(formatPlanValue(plan.emails_per_month, 'emails/month'))} · ${escapeHtml(formatPlanValue(plan.max_webhooks, 'webhooks'))}</p>
+      <form method="post" action="/mail/billing/checkout">
+        <input type="hidden" name="plan" value="${escapeHtml(plan.key)}" />
+        <button type="submit">${current ? 'Current plan' : `Upgrade to ${escapeHtml(plan.label)}`}</button>
+      </form>
+    </article>`;
+  }).join('');
+  const portalForm = data.tenant.stripe_customer_id
+    ? `<form method="post" action="/mail/billing/portal"><button type="submit">Manage subscription</button></form>`
+    : `<p class="form-note">After your first checkout, billing management opens here through Stripe Customer Portal.</p>`;
+  return `<!doctype html>
+<html lang="en">
+<head>
+  ${baseHead}
+  <title>Reverbin Billing</title>
+  <meta name="description" content="Upgrade Reverbin mailbox quotas through hosted Stripe Checkout." />
+  <style>${mailSettingsCss()}</style>
+</head>
+<body>
+  <main class="mail-shell" data-surface-id="mail-billing">
+    <header class="mail-topbar">
+      <a class="brand" href="/mail">${reverbinMarkSvg()}<span>Reverbin Mail</span></a>
+      <div class="mail-search"><input type="search" placeholder="Search mail" aria-label="Search mail" disabled /></div>
+      <div class="top-actions"><a href="/mail/billing">Billing</a><a href="/mail/settings">Settings</a><a href="/mail/webhooks">Webhooks</a><a href="/docs">Docs</a><a href="/dashboard/logout">Logout</a></div>
+    </header>
+    <section class="settings-layout" aria-label="Billing">
+      ${renderMailSettingsSidebar(data.inboxes, 'billing')}
+      <section class="settings-main">
+        <div class="settings-hero">
+          <div>
+            <p class="eyebrow">Billing</p>
+            <h1>Upgrade with hosted Stripe Checkout.</h1>
+            <p>Paid upgrades are handled by hosted Stripe Checkout with Link available inside Stripe when enabled on the Stripe account. Reverbin never collects payment details.</p>
+          </div>
+        </div>
+        ${renderSettingsNotice(data.notice)}
+        <div class="settings-card billing-current">
+          <p class="eyebrow">Current plan</p>
+          <h2>${escapeHtml(currentPlanLabel)}</h2>
+          <p class="form-note">Billing status: ${escapeHtml(data.tenant.billing_status || 'active')}</p>
+          ${portalForm}
+        </div>
+        <div class="billing-grid">${planCards}</div>
+      </section>
+    </section>
+  </main>
+</body>
+</html>`;
+}
+
 export function renderMailCreateMailboxPage(data: MailCreateMailboxPageData) {
   return `<!doctype html>
 <html lang="en">
@@ -2147,7 +2239,7 @@ export function renderMailCreateMailboxPage(data: MailCreateMailboxPageData) {
     <header class="mail-topbar">
       <a class="brand" href="/mail">${reverbinMarkSvg()}<span>Reverbin Mail</span></a>
       <div class="mail-search"><input type="search" placeholder="Search mail" aria-label="Search mail" disabled /></div>
-      <div class="top-actions"><a href="/mail/settings">Settings</a><a href="/mail/webhooks">Webhooks</a><a href="/docs">Docs</a><a href="/dashboard/logout">Logout</a></div>
+      <div class="top-actions"><a href="/mail/billing">Billing</a><a href="/mail/settings">Settings</a><a href="/mail/webhooks">Webhooks</a><a href="/docs">Docs</a><a href="/dashboard/logout">Logout</a></div>
     </header>
     <section class="settings-layout" aria-label="Create mailbox">
       ${renderMailSettingsSidebar(data.inboxes, 'inbox')}
@@ -2260,7 +2352,7 @@ export function renderMailForwardPage(data: MailForwardPageData) {
     <header class="mail-topbar">
       <a class="brand" href="/mail">${reverbinMarkSvg()}<span>Reverbin Mail</span></a>
       <div class="mail-search"><input type="search" placeholder="Search mail" aria-label="Search mail" disabled /></div>
-      <div class="top-actions"><a href="/mail/settings">Settings</a><a href="/mail/webhooks">Webhooks</a><a href="/docs">Docs</a><a href="/dashboard/logout">Logout</a></div>
+      <div class="top-actions"><a href="/mail/billing">Billing</a><a href="/mail/settings">Settings</a><a href="/mail/webhooks">Webhooks</a><a href="/docs">Docs</a><a href="/dashboard/logout">Logout</a></div>
     </header>
     <section class="settings-layout" aria-label="Forward email thread">
       ${renderMailSettingsSidebar(data.inboxes, 'inbox', selectedInboxId)}
@@ -2298,7 +2390,7 @@ export function renderMailComposePage(data: MailComposePageData) {
     <header class="mail-topbar">
       <a class="brand" href="/mail">${reverbinMarkSvg()}<span>Reverbin Mail</span></a>
       <div class="mail-search"><input type="search" placeholder="Search mail" aria-label="Search mail" disabled /></div>
-      <div class="top-actions"><a href="/mail/settings">Settings</a><a href="/mail/webhooks">Webhooks</a><a href="/docs">Docs</a><a href="/dashboard/logout">Logout</a></div>
+      <div class="top-actions"><a href="/mail/billing">Billing</a><a href="/mail/settings">Settings</a><a href="/mail/webhooks">Webhooks</a><a href="/docs">Docs</a><a href="/dashboard/logout">Logout</a></div>
     </header>
     <section class="settings-layout" aria-label="Compose outbound mail">
       ${renderMailSettingsSidebar(data.inboxes, 'inbox', selectedInboxId)}

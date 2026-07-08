@@ -1,7 +1,7 @@
 import * as assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { renderMailComposePage, renderMailCreateMailboxPage, renderMailForwardPage, renderMailPage, renderMailSettingsPage, renderMailWebhooksPage } from '../src/public-pages.js';
+import { renderMailBillingPage, renderMailComposePage, renderMailCreateMailboxPage, renderMailForwardPage, renderMailPage, renderMailSettingsPage, renderMailWebhooksPage } from '../src/public-pages.js';
 
 const root = new URL('../', import.meta.url);
 const read = (path: string) => readFileSync(new URL(path, root), 'utf8');
@@ -325,6 +325,56 @@ test('mail mailbox creation routes are tenant scoped and enforce the inbox quota
   assert.match(server, /mail\.mailbox_created/);
   assert.match(server, /reply\.redirect\(`\/mail\?inbox_id=\$\{encodeURIComponent\(created\.id\)\}&notice=mailbox_created`\)/);
   assert.match(server, /reply\.redirect\('\/mail\/mailboxes\/new\?notice=mailbox_quota'\)/);
+});
+
+test('mail billing page lets tenants upgrade from the dashboard through hosted Stripe Checkout', () => {
+  const html = renderMailBillingPage({
+    inboxes: [
+      { id: 'inb_1', email_address: 'support@reverbin.com', display_name: 'Support Team', status: 'active', thread_count: 2 },
+    ],
+    tenant: {
+      plan: 'free',
+      billing_status: 'active',
+      stripe_customer_id: null,
+    },
+    plans: [
+      { key: 'free', label: 'Free', price_monthly_usd: 0, max_inboxes: 2, emails_per_month: 2000, max_webhooks: 1 },
+      { key: 'developer', label: 'Developer', price_monthly_usd: 19, max_inboxes: 10, emails_per_month: 10000, max_webhooks: 3 },
+      { key: 'startup', label: 'Startup Beta', price_monthly_usd: 149, max_inboxes: 100, emails_per_month: 100000, max_webhooks: 10 },
+    ],
+    notice: 'billing_not_configured',
+  });
+
+  assert.match(html, /data-surface-id="mail-billing"/);
+  assert.match(html, /Billing/);
+  assert.match(html, /Current plan/);
+  assert.match(html, /Free/);
+  assert.match(html, /Developer/);
+  assert.match(html, /\$19\/mo/);
+  assert.match(html, /Startup Beta/);
+  assert.match(html, /\$149\/mo/);
+  assert.match(html, /method="post" action="\/mail\/billing\/checkout"/);
+  assert.match(html, /name="plan" value="developer"/);
+  assert.match(html, /name="plan" value="startup"/);
+  assert.match(html, /Stripe Checkout is not configured yet/);
+  assert.match(html, /hosted Stripe Checkout/);
+  assert.match(html, /Link/);
+  assert.doesNotMatch(html, /card number|cvc|expiry|curl|POST \/v1\/billing/i);
+});
+
+test('mail billing dashboard routes create hosted checkout and portal sessions', () => {
+  const server = read('src/server.ts');
+  const publicPages = read('src/public-pages.ts');
+
+  assert.match(publicPages, /renderMailBillingPage/);
+  assert.match(server, /renderMailBillingPage/);
+  assert.match(server, /app\.get<\{ Querystring: \{ notice\?: string \} \}>\('\/mail\/billing'/);
+  assert.match(server, /app\.post\('\/mail\/billing\/checkout'/);
+  assert.match(server, /app\.post\('\/mail\/billing\/portal'/);
+  assert.match(server, /createStripeCheckoutSession/);
+  assert.match(server, /stripe_checkout_not_configured/);
+  assert.match(server, /reply\.redirect\(session\.url\)/);
+  assert.match(server, /billing\.checkout_created/);
 });
 
 test('mail settings page is simple, tenant scoped, and editable', () => {
