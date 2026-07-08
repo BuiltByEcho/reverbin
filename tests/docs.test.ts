@@ -37,6 +37,8 @@ test('public signup CTAs open the self-serve agent signup page', () => {
   assert.doesNotMatch(signup, /Optional webhook/);
   assert.doesNotMatch(signup, /webhook_url/);
   assert.doesNotMatch(signup, /Webhook secret/);
+  assert.doesNotMatch(signup, /Upgrade with Checkout/);
+  assert.doesNotMatch(signup, /billing-and-plan-upgrades/);
 });
 
 test('builder docs disclose live root-domain inboxes without legacy beta-domain caveats', () => {

@@ -1997,7 +1997,6 @@ export function renderSignupPage() {
           <pre id="signup-output"></pre>
           <div class="nav">
             <button type="button" id="copy-signup-output">Copy quickstart</button>
-            <a class="button secondary" href="/docs/api#billing-and-plan-upgrades">Upgrade with Checkout</a>
           </div>
         </section>
       </div>
