@@ -79,6 +79,15 @@ test('human mail console renders a Gmail-style three-pane inbox with reply contr
   assert.match(html, /customer@example\.com/);
   assert.match(html, /Can a human read this in Reverbin\?/);
   assert.match(html, /Yes — the human mail console is live\./);
+  assert.match(html, /data-reader-layout="email-thread"/);
+  assert.match(html, /class="email-message-card"/);
+  assert.match(html, /class="email-message-meta"/);
+  assert.match(html, /From/);
+  assert.match(html, /To/);
+  assert.match(html, /Date/);
+  assert.doesNotMatch(html, /class="mail-message inbound"/);
+  assert.doesNotMatch(html, /class="mail-message outbound"/);
+  assert.doesNotMatch(html, /Agent connected · policy guarded/);
   assert.match(html, /action="\/mail\/threads\/thr_1\/reply"/);
   assert.match(html, /name="text"/);
   assert.match(html, /Reply sent/);

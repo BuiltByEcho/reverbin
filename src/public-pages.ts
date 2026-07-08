@@ -1815,27 +1815,39 @@ function renderMailThreads(data: MailPageData) {
 function renderMailMessages(data: MailPageData) {
   const selectedThread = data.selectedThread;
   if (!selectedThread) {
-    return `<div class="mail-empty reader-empty">Choose a thread to read and reply.</div>`;
+    return `<div class="mail-empty reader-empty">Choose an email thread to read and reply.</div>`;
   }
   const messages = data.messages.length
     ? data.messages.map((message) => {
-        const fromLabel = [message.from_name, message.from_email].filter(Boolean).join(' · ') || 'unknown sender';
-        return `<article class="mail-message ${escapeHtml(message.direction)}">
-          <header><div><strong>${escapeHtml(fromLabel)}</strong><span>to ${escapeHtml(renderMailRecipients(message.to_json))}</span></div><time>${formatDate(message.created_at)}</time></header>
-          <pre>${escapeHtml(message.text_body || message.html_body || '')}</pre>
+        const fromLabel = [message.from_name, message.from_email].filter(Boolean).join(' <') + (message.from_name && message.from_email ? '>' : '') || 'unknown sender';
+        const recipients = renderMailRecipients(message.to_json);
+        return `<article class="email-message-card" data-direction="${escapeHtml(message.direction)}">
+          <header class="email-message-header">
+            <div class="email-message-sender">
+              <strong>${escapeHtml(fromLabel)}</strong>
+              <span>${escapeHtml(message.subject || selectedThread.subject || '(no subject)')}</span>
+            </div>
+            <time>${formatDate(message.created_at)}</time>
+          </header>
+          <dl class="email-message-meta">
+            <div><dt>From</dt><dd>${escapeHtml(fromLabel)}</dd></div>
+            <div><dt>To</dt><dd>${escapeHtml(recipients)}</dd></div>
+            <div><dt>Date</dt><dd>${formatDate(message.created_at)}</dd></div>
+          </dl>
+          <div class="email-message-body"><pre>${escapeHtml(message.text_body || message.html_body || '')}</pre></div>
         </article>`;
       }).join('')
-    : `<div class="mail-empty">This thread has no stored messages yet.</div>`;
+    : `<div class="mail-empty">This thread has no stored emails yet.</div>`;
   return `<div class="mail-reader-head">
-      <p class="eyebrow">Thread</p>
+      <p class="eyebrow">Email thread</p>
       <h1>${escapeHtml(selectedThread.subject || '(no subject)')}</h1>
-      <span class="mail-agent-chip">Agent connected · policy guarded</span>
+      <p class="mail-thread-summary">${escapeHtml(String(data.messages.length || selectedThread.message_count || 0))} emails in this conversation</p>
     </div>
-    <div class="mail-messages">${messages}</div>
+    <div class="mail-messages" data-reader-layout="email-thread">${messages}</div>
     <form class="mail-reply" method="post" action="/mail/threads/${escapeHtml(selectedThread.id)}/reply">
-      <label for="reply-text">Reply</label>
-      <textarea id="reply-text" name="text" rows="6" placeholder="Write a human reply…" required></textarea>
-      <div class="mail-reply-actions"><span>Sent through Reverbin, logged to the thread, and delivered through the active provider.</span><button type="submit">Send reply</button></div>
+      <label for="reply-text">Reply by email</label>
+      <textarea id="reply-text" name="text" rows="6" placeholder="Write an email reply…" required></textarea>
+      <div class="mail-reply-actions"><span>Sent through Reverbin and saved to this email thread.</span><button type="submit">Send reply</button></div>
     </form>`;
 }
 
@@ -1897,16 +1909,22 @@ export function renderMailPage(data: MailPageData) {
     .mail-reader-head { position:sticky; top:0; z-index:2; padding:24px 28px 18px; border-bottom:1px solid var(--line); background:rgba(21,24,27,.96); }
     .eyebrow { margin:0 0 8px; color:var(--signal); text-transform:uppercase; font-size:11px; font-weight:900; letter-spacing:.16em; }
     .mail-reader h1 { margin:0; font-size:28px; line-height:1.15; }
-    .mail-agent-chip { display:inline-flex; margin-top:12px; color:var(--mint); border:1px solid rgba(189,230,211,.28); border-radius:999px; padding:7px 10px; font-size:12px; font-weight:700; }
+    .mail-thread-summary { margin:10px 0 0; color:var(--muted); font-size:13px; }
     .mail-messages { display:grid; gap:14px; padding:22px 28px; }
-    .mail-message { border:1px solid var(--line); border-radius:18px; padding:16px; background:rgba(244,244,242,.045); }
-    .mail-message.outbound { margin-left:8%; border-color:rgba(185,255,45,.25); background:rgba(185,255,45,.06); }
-    .mail-message header { display:flex; justify-content:space-between; gap:16px; margin-bottom:12px; color:var(--muted); }
-    .mail-message header div { display:grid; gap:4px; }
-    .mail-message header strong { color:var(--ivory); }
-    .mail-message pre { margin:0; white-space:pre-wrap; overflow-wrap:anywhere; color:rgba(244,244,242,.82); line-height:1.55; font-family:'Geist', Inter, ui-sans-serif, system-ui, sans-serif; }
+    .email-message-card { border:1px solid var(--line); border-radius:14px; background:#0f1113; box-shadow:0 16px 35px rgba(0,0,0,.18); overflow:hidden; }
+    .email-message-header { display:flex; justify-content:space-between; gap:16px; padding:16px 18px; border-bottom:1px solid var(--line); background:rgba(244,244,242,.035); }
+    .email-message-sender { display:grid; gap:5px; min-width:0; }
+    .email-message-sender strong { color:var(--ivory); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .email-message-sender span { color:var(--muted); font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .email-message-header time { color:var(--soft); font-size:12px; white-space:nowrap; }
+    .email-message-meta { display:grid; gap:6px; margin:0; padding:14px 18px 0; color:var(--muted); font-size:13px; }
+    .email-message-meta div { display:grid; grid-template-columns:58px minmax(0, 1fr); gap:10px; }
+    .email-message-meta dt { color:var(--soft); font-weight:800; }
+    .email-message-meta dd { margin:0; overflow-wrap:anywhere; }
+    .email-message-body { padding:16px 18px 18px; }
+    .email-message-body pre { margin:0; white-space:pre-wrap; overflow-wrap:anywhere; color:rgba(244,244,242,.86); line-height:1.58; font-family:'Geist', Inter, ui-sans-serif, system-ui, sans-serif; }
     .mail-reply { margin:0 28px 28px; padding:16px; border:1px solid var(--line-strong); border-radius:20px; background:#0b0d0e; display:grid; gap:10px; }
-    .mail-reply label { font-weight:800; }
+
     .mail-reply textarea { width:100%; resize:vertical; border:1px solid var(--line); border-radius:14px; padding:12px; background:rgba(244,244,242,.045); color:var(--ivory); }
     .mail-reply-actions { display:flex; justify-content:space-between; gap:14px; align-items:center; color:var(--soft); font-size:12px; }
     .mail-reply button { min-height:42px; border:0; border-radius:999px; padding:0 18px; background:var(--signal); color:#050606; font-weight:900; cursor:pointer; }
