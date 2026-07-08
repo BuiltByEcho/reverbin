@@ -1,7 +1,7 @@
 import * as assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { renderMailComposePage, renderMailForwardPage, renderMailPage, renderMailSettingsPage, renderMailWebhooksPage } from '../src/public-pages.js';
+import { renderMailComposePage, renderMailCreateMailboxPage, renderMailForwardPage, renderMailPage, renderMailSettingsPage, renderMailWebhooksPage } from '../src/public-pages.js';
 
 const root = new URL('../', import.meta.url);
 const read = (path: string) => readFileSync(new URL(path, root), 'utf8');
@@ -98,6 +98,8 @@ test('human mail console renders a Gmail-style three-pane inbox with reply contr
   assert.doesNotMatch(html, /mailto:/);
   assert.match(html, /Inbox/);
   assert.match(html, /Mailboxes/);
+  assert.match(html, /href="\/mail\/mailboxes\/new"/);
+  assert.match(html, />Create mailbox<\/a>/);
   assert.doesNotMatch(html, />Inboxes<|>INBOXES</);
   assert.match(html, /Sent/);
   assert.match(html, /Webhooks/);
@@ -285,6 +287,44 @@ test('mail attachments are backed by metadata rows and authenticated storage rou
   assert.match(server, /AND tenant_id = \$2/);
   assert.match(publicPages, /renderMailAttachments/);
   assert.match(publicPages, /mail-attachments/);
+});
+
+test('mail create mailbox page lets tenants add their second mailbox without curl', () => {
+  const html = renderMailCreateMailboxPage({
+    inboxes: [
+      { id: 'inb_1', email_address: 'echo@reverbin.com', display_name: 'Echo', status: 'active', thread_count: 0 },
+    ],
+    notice: 'mailbox_quota',
+  });
+
+  assert.match(html, /data-surface-id="mail-create-mailbox"/);
+  assert.match(html, /Create mailbox/);
+  assert.match(html, /Mailboxes/);
+  assert.match(html, /method="post" action="\/mail\/mailboxes"/);
+  assert.match(html, /name="email_address"/);
+  assert.match(html, /placeholder="second@reverbin\.com"/);
+  assert.match(html, /name="display_name"/);
+  assert.match(html, /2 mailboxes per agent/);
+  assert.match(html, /You already have the maximum number of mailboxes for this plan/);
+  assert.doesNotMatch(html, /curl|POST \/v1\/inboxes|Operations dashboard/);
+});
+
+test('mail mailbox creation routes are tenant scoped and enforce the inbox quota', () => {
+  const server = read('src/server.ts');
+  const publicPages = read('src/public-pages.ts');
+
+  assert.match(publicPages, /renderMailCreateMailboxPage/);
+  assert.match(server, /renderMailCreateMailboxPage/);
+  assert.match(server, /app\.get<\{ Querystring: \{ notice\?: string \} \}>\('\/mail\/mailboxes\/new'/);
+  assert.match(server, /app\.post\('\/mail\/mailboxes'/);
+  assert.match(server, /parseMailCreateMailboxForm/);
+  assert.match(server, /maxInboxesForTenant\(tenantId\)/);
+  assert.match(server, /inbox_quota_exceeded/);
+  assert.match(server, /INSERT INTO inboxes/);
+  assert.match(server, /INSERT INTO send_policies/);
+  assert.match(server, /mail\.mailbox_created/);
+  assert.match(server, /reply\.redirect\(`\/mail\?inbox_id=\$\{encodeURIComponent\(created\.id\)\}&notice=mailbox_created`\)/);
+  assert.match(server, /reply\.redirect\('\/mail\/mailboxes\/new\?notice=mailbox_quota'\)/);
 });
 
 test('mail settings page is simple, tenant scoped, and editable', () => {

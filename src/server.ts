@@ -14,7 +14,7 @@ import { getEmailProvider } from './providers.js';
 import { fetchResendReceivedEmail, normalizeResendReceivedEmail, verifySvixSignature } from './resend.js';
 import { buildWebhookDeliveryHeaders, buildWebhookEventPayload, isAllowedWebhookEvent, isAllowedWebhookUrl, shouldDeliverWebhookEvent, type WebhookEventType } from './webhooks.js';
 import { clearDashboardCookie, dashboardCookie, dashboardTokenFromEnv, isDashboardRequestAuthorized, parseDashboardCookies } from './dashboard-auth.js';
-import { renderDashboardLoginPage, renderDashboardPage, renderDashboardUnavailablePage, renderDocsPage, renderFaviconSvg, renderLandingPage, renderMailComposePage, renderMailForwardPage, renderMailPage, renderMailSettingsPage, renderMailWebhooksPage, renderSignupPage, type DocsPageKey } from './public-pages.js';
+import { renderDashboardLoginPage, renderDashboardPage, renderDashboardUnavailablePage, renderDocsPage, renderFaviconSvg, renderLandingPage, renderMailComposePage, renderMailCreateMailboxPage, renderMailForwardPage, renderMailPage, renderMailSettingsPage, renderMailWebhooksPage, renderSignupPage, type DocsPageKey } from './public-pages.js';
 import { buildWebhookDeliveryJob, redisConnectionOptions, WEBHOOK_DELIVERY_QUEUE, webhookDeliveryMode } from './webhook-delivery.js';
 import { buildPendingSignupVerification, normalizeSignupRequestInput, summarizeSignupVerification, type SignupRequestStatus, type SignupVerificationCheck } from './signup-verification.js';
 import { BILLING_PLANS, createStripeBillingPortalSession, createStripeCheckoutSession, maxInboxesForPlan, maxWebhookEndpointsForPlan, normalizePlan, priceIdForPlan, verifyStripeWebhookSignature, type BillingPlan } from './billing.js';
@@ -353,6 +353,57 @@ async function publishWebhookEvent(eventType: WebhookEventType, data: Record<str
   }));
 }
 
+async function createMailboxForTenant(input: {
+  tenantId: string;
+  authContext?: AuthContext | null;
+  email_address: string;
+  display_name?: string;
+  agent_id?: string;
+  policy?: Partial<Policy>;
+  actorType: 'api' | 'human';
+  auditAction: 'inbox.created' | 'mail.mailbox_created';
+}) {
+  const { tenantId, authContext, actorType, auditAction } = input;
+  if (!authContext?.operator) {
+    const quota = await query<{ inbox_count: number }>('SELECT count(*)::int AS inbox_count FROM inboxes WHERE tenant_id = $1', [tenantId]);
+    const inboxCount = Number(quota.rows[0]?.inbox_count ?? 0);
+    const maxInboxes = await maxInboxesForTenant(tenantId);
+    if (inboxCount >= maxInboxes) {
+      return { status: 'quota' as const, max_inboxes: maxInboxes, current_inboxes: inboxCount };
+    }
+  }
+  const inboxId = id('inb');
+  const policyId = id('pol');
+  const policy = { ...defaultPolicy, ...(input.policy ?? {}) };
+  const email = normalizeEmail(input.email_address);
+  try {
+    await tx(async (client) => {
+      await client.query(
+        `INSERT INTO inboxes (id, tenant_id, agent_id, provider_id, email_address, display_name)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [inboxId, tenantId, authContext?.operator ? (input.agent_id ?? DEFAULT_AGENT_ID) : null, process.env.EMAIL_PROVIDER ?? 'mock', email, input.display_name ?? null],
+      );
+      await client.query(
+        `INSERT INTO send_policies (id, tenant_id, inbox_id, reply_only, require_approval_for_new_recipients,
+          require_approval_for_external_domains, max_outbound_per_hour, max_outbound_per_day, allowed_domains_json,
+          blocked_domains_json, allowed_recipients_json, blocked_recipients_json, allow_attachments, allow_links, risk_threshold)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10::jsonb,$11::jsonb,$12::jsonb,$13,$14,$15)`,
+        [policyId, tenantId, inboxId, policy.reply_only, policy.require_approval_for_new_recipients,
+          policy.require_approval_for_external_domains, policy.max_outbound_per_hour, policy.max_outbound_per_day,
+          JSON.stringify(policy.allowed_domains), JSON.stringify(policy.blocked_domains), JSON.stringify(policy.allowed_recipients),
+          JSON.stringify(policy.blocked_recipients), policy.allow_attachments, policy.allow_links, policy.risk_threshold],
+      );
+    });
+  } catch (error) {
+    if ((error as { code?: string }).code === '23505') {
+      return { status: 'exists' as const };
+    }
+    throw error;
+  }
+  await audit(auditAction, 'inbox', inboxId, { email_address: email }, actorType, actorType === 'api' ? authContext?.apiKeyId : null, tenantId);
+  return { status: 'created' as const, id: inboxId, email_address: email, policy };
+}
+
 async function getPolicy(inboxId: string): Promise<Policy> {
   const result = await query<any>('SELECT * FROM send_policies WHERE inbox_id = $1', [inboxId]);
   if (result.rowCount === 0) return defaultPolicy;
@@ -490,6 +541,11 @@ const MailSettingsFormSchema = z.object({
   risk_threshold: z.enum(['low', 'medium', 'high']),
 });
 
+const MailCreateMailboxFormSchema = z.object({
+  email_address: z.string().email(),
+  display_name: z.string().max(120).optional(),
+});
+
 const MailWebhookFormSchema = z.object({
   url: z.string().url().refine(isAllowedWebhookUrl, 'webhook url must use https, except loopback http for local testing'),
   events: z.array(z.string().min(1).refine(isAllowedWebhookEvent, 'unsupported webhook event')).min(1),
@@ -535,6 +591,15 @@ function parseMailSettingsForm(body: unknown) {
     allow_attachments: formBool(input.allow_attachments),
     allow_links: formBool(input.allow_links),
     risk_threshold: formField(input.risk_threshold) || 'medium',
+  });
+}
+
+function parseMailCreateMailboxForm(body: unknown) {
+  const input = (body ?? {}) as Record<string, unknown>;
+  const displayName = formField(input.display_name);
+  return MailCreateMailboxFormSchema.parse({
+    email_address: normalizeEmail(formField(input.email_address)),
+    display_name: displayName || undefined,
   });
 }
 
@@ -1372,6 +1437,58 @@ app.post('/mail/threads/delete', { preHandler: requireDashboardAuth }, async (re
   reply.redirect(`/mail${inboxId ? `?inbox_id=${encodeURIComponent(inboxId)}&notice=${notice}` : `?notice=${notice}`}`);
 });
 
+app.get<{ Querystring: { notice?: string } }>('/mail/mailboxes/new', { preHandler: requireDashboardAuth }, async (req, reply) => {
+  try {
+    const tenantId = tenantIdFor(req);
+    const inboxes = await query<any>(
+      `SELECT i.id, i.email_address, i.display_name, i.status, count(t.id)::int AS thread_count
+       FROM inboxes i
+       LEFT JOIN threads t ON t.inbox_id = i.id AND t.tenant_id = i.tenant_id AND t.deleted_at IS NULL
+       WHERE i.tenant_id = $1
+       GROUP BY i.id, i.email_address, i.display_name, i.status, i.created_at
+       ORDER BY i.created_at DESC
+       LIMIT 50`,
+      [tenantId],
+    );
+    reply.type('text/html').send(renderMailCreateMailboxPage({
+      inboxes: inboxes.rows,
+      notice: req.query.notice,
+    }));
+  } catch (error) {
+    req.log.error(error, 'mail create mailbox database query failed');
+    reply.code(503).type('text/html').send(renderDashboardUnavailablePage('mailbox creation unavailable'));
+  }
+});
+
+app.post('/mail/mailboxes', { preHandler: requireDashboardAuth }, async (req, reply) => {
+  const authContext = (req as AuthedRequest).authContext;
+  const tenantId = tenantIdFor(req);
+  let body: z.infer<typeof MailCreateMailboxFormSchema>;
+  try {
+    body = parseMailCreateMailboxForm(req.body);
+  } catch {
+    reply.redirect('/mail/mailboxes/new?notice=mailbox_invalid');
+    return;
+  }
+  const created = await createMailboxForTenant({
+    tenantId,
+    authContext,
+    email_address: body.email_address,
+    display_name: body.display_name,
+    actorType: 'human',
+    auditAction: 'mail.mailbox_created',
+  });
+  if (created.status === 'quota') {
+    reply.redirect('/mail/mailboxes/new?notice=mailbox_quota');
+    return;
+  }
+  if (created.status === 'exists') {
+    reply.redirect('/mail/mailboxes/new?notice=mailbox_exists');
+    return;
+  }
+  reply.redirect(`/mail?inbox_id=${encodeURIComponent(created.id)}&notice=mailbox_created`);
+});
+
 app.get<{ Querystring: { inbox_id?: string; notice?: string } }>('/mail/settings', { preHandler: requireDashboardAuth }, async (req, reply) => {
   try {
     const tenantId = tenantIdFor(req);
@@ -1771,41 +1888,27 @@ app.register(async (privateRoutes) => {
     const body = InboxCreateSchema.parse(req.body);
     const authContext = (req as AuthedRequest).authContext;
     const tenantId = tenantIdFor(req);
-    if (!authContext?.operator) {
-      const quota = await query<{ inbox_count: number }>('SELECT count(*)::int AS inbox_count FROM inboxes WHERE tenant_id = $1', [tenantId]);
-      const inboxCount = Number(quota.rows[0]?.inbox_count ?? 0);
-      const maxInboxes = await maxInboxesForTenant(tenantId);
-      if (inboxCount >= maxInboxes) {
-        return reply.code(403).send({
-          error: 'inbox_quota_exceeded',
-          max_inboxes: maxInboxes,
-          current_inboxes: inboxCount,
-        });
-      }
-    }
-    const inboxId = id('inb');
-    const policyId = id('pol');
-    const policy = { ...defaultPolicy, ...(body.policy ?? {}) };
-    const email = normalizeEmail(body.email_address);
-    await tx(async (client) => {
-      await client.query(
-        `INSERT INTO inboxes (id, tenant_id, agent_id, provider_id, email_address, display_name)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [inboxId, tenantId, authContext?.operator ? (body.agent_id ?? DEFAULT_AGENT_ID) : null, process.env.EMAIL_PROVIDER ?? 'mock', email, body.display_name ?? null],
-      );
-      await client.query(
-        `INSERT INTO send_policies (id, tenant_id, inbox_id, reply_only, require_approval_for_new_recipients,
-          require_approval_for_external_domains, max_outbound_per_hour, max_outbound_per_day, allowed_domains_json,
-          blocked_domains_json, allowed_recipients_json, blocked_recipients_json, allow_attachments, allow_links, risk_threshold)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10::jsonb,$11::jsonb,$12::jsonb,$13,$14,$15)`,
-        [policyId, tenantId, inboxId, policy.reply_only, policy.require_approval_for_new_recipients,
-          policy.require_approval_for_external_domains, policy.max_outbound_per_hour, policy.max_outbound_per_day,
-          JSON.stringify(policy.allowed_domains), JSON.stringify(policy.blocked_domains), JSON.stringify(policy.allowed_recipients),
-          JSON.stringify(policy.blocked_recipients), policy.allow_attachments, policy.allow_links, policy.risk_threshold],
-      );
+    const created = await createMailboxForTenant({
+      tenantId,
+      authContext,
+      email_address: body.email_address,
+      display_name: body.display_name,
+      agent_id: body.agent_id,
+      policy: body.policy,
+      actorType: 'api',
+      auditAction: 'inbox.created',
     });
-    await audit('inbox.created', 'inbox', inboxId, { email_address: email }, 'api', authContext?.apiKeyId, tenantId);
-    reply.code(201).send({ id: inboxId, email_address: email, policy });
+    if (created.status === 'quota') {
+      return reply.code(403).send({
+        error: 'inbox_quota_exceeded',
+        max_inboxes: created.max_inboxes,
+        current_inboxes: created.current_inboxes,
+      });
+    }
+    if (created.status === 'exists') {
+      return reply.code(409).send({ error: 'inbox_already_exists' });
+    }
+    reply.code(201).send({ id: created.id, email_address: created.email_address, policy: created.policy });
   });
 
   privateRoutes.get('/v1/inboxes', async (req) => {

@@ -1754,6 +1754,11 @@ export type MailSettingsPageData = {
   notice?: string | null;
 };
 
+export type MailCreateMailboxPageData = {
+  inboxes: MailInboxView[];
+  notice?: string | null;
+};
+
 export type MailWebhookView = {
   id: string;
   url: string;
@@ -1814,8 +1819,9 @@ function renderMailNotice(notice?: string | null) {
     : notice === 'approval_pending' ? 'Reply queued for approval'
       : notice === 'thread_deleted' ? 'Thread deleted'
         : notice === 'threads_deleted' ? 'Selected messages deleted'
-          : notice === 'no_threads_selected' ? 'Select at least one message to delete'
-            : notice;
+          : notice === 'mailbox_created' ? 'Mailbox created'
+            : notice === 'no_threads_selected' ? 'Select at least one message to delete'
+              : notice;
   return `<div class="mail-notice" role="status">${escapeHtml(label)}</div>`;
 }
 
@@ -1962,8 +1968,9 @@ export function renderMailPage(data: MailPageData) {
     .mail-sidebar { padding:18px 14px; background:rgba(244,244,242,.035); }
     .compose { display:flex; align-items:center; justify-content:center; min-height:48px; margin:0 0 18px; border-radius:18px; background:var(--ivory); color:#050606; font-weight:800; box-shadow:0 18px 40px rgba(0,0,0,.24); }
     .mail-nav { display:grid; gap:6px; margin-bottom:20px; }
-    .mail-nav a, .mail-inbox-link { display:flex; align-items:center; justify-content:space-between; gap:10px; min-height:42px; padding:10px 12px; border-radius:14px; color:var(--muted); }
-    .mail-nav a:hover, .mail-inbox-link:hover, .mail-inbox-link.selected { background:rgba(185,255,45,.09); color:var(--ivory); }
+    .mail-nav a, .mail-inbox-link, .mailbox-create-link { display:flex; align-items:center; justify-content:space-between; gap:10px; min-height:42px; padding:10px 12px; border-radius:14px; color:var(--muted); }
+    .mail-nav a:hover, .mail-inbox-link:hover, .mail-inbox-link.selected, .mailbox-create-link:hover { background:rgba(185,255,45,.09); color:var(--ivory); }
+    .mailbox-create-link { margin:8px 0 2px; border:1px dashed var(--line); color:var(--signal); font-weight:850; justify-content:center; }
     .mail-inbox-link span { display:grid; gap:3px; min-width:0; }
     .mail-inbox-link strong, .mail-inbox-link small { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .mail-inbox-link small { color:var(--soft); }
@@ -2044,6 +2051,7 @@ export function renderMailPage(data: MailPageData) {
         </nav>
         <div class="section-label">Mailboxes</div>
         ${inboxLinks}
+        <a class="mailbox-create-link" href="/mail/mailboxes/new">Create mailbox</a>
       </aside>
       <section class="mail-thread-list" aria-label="Thread list">
         <div class="thread-list-head"><h2>Inbox</h2><p>Human-readable threads from agent inboxes.</p></div>
@@ -2065,9 +2073,12 @@ function renderSettingsNotice(notice?: string | null) {
     : notice === 'webhook_created' ? 'Webhook added'
       : notice === 'compose_sent' ? 'Message sent'
         : notice === 'compose_pending' ? 'Message queued for approval'
-          : notice === 'forward_sent' ? 'Forward sent'
-            : notice === 'forward_pending' ? 'Forward queued for approval'
-              : notice;
+          : notice === 'mailbox_quota' ? 'You already have the maximum number of mailboxes for this plan'
+            : notice === 'mailbox_exists' ? 'That mailbox address already exists'
+              : notice === 'mailbox_invalid' ? 'Enter a valid mailbox address'
+                : notice === 'forward_sent' ? 'Forward sent'
+                  : notice === 'forward_pending' ? 'Forward queued for approval'
+                    : notice;
   return `<div class="settings-notice" role="status">${escapeHtml(label)}</div>`;
 }
 
@@ -2094,6 +2105,7 @@ function renderMailSettingsSidebar(inboxes: MailInboxView[], active: 'inbox' | '
     </nav>
     <div class="section-label">Mailboxes</div>
     ${inboxLinks}
+    <a class="mailbox-create-link" href="/mail/mailboxes/new">Create mailbox</a>
   </aside>`;
 }
 
@@ -2102,7 +2114,7 @@ function mailSettingsCss() {
     * { box-sizing: border-box; } body { margin:0; min-height:100vh; background:var(--bg); color:var(--ivory); font-family:'Geist', Inter, ui-sans-serif, system-ui, sans-serif; } a { color:inherit; text-decoration:none; } button, textarea, input, select { font:inherit; }
     .mail-shell { min-height:100vh; display:grid; grid-template-rows:64px 1fr; background:linear-gradient(135deg, rgba(185,255,45,.05), transparent 38%), var(--bg); }
     .mail-topbar { display:flex; align-items:center; gap:16px; padding:10px 18px; border-bottom:1px solid var(--line); background:rgba(8,9,9,.9); } .brand { display:flex; align-items:center; gap:10px; min-width:210px; font-weight:800; } .brand-mark { width:34px; height:34px; } .mail-search { flex:1; } .mail-search input { width:100%; max-width:760px; min-height:42px; border:1px solid var(--line); border-radius:999px; padding:0 18px; background:rgba(244,244,242,.06); color:var(--ivory); } .top-actions { margin-left:auto; display:flex; gap:10px; align-items:center; color:var(--muted); font-size:13px; } .top-actions a { padding:10px 12px; border:1px solid var(--line); border-radius:999px; }
-    .settings-layout { min-height:0; display:grid; grid-template-columns:280px minmax(0, 1fr); } .mail-sidebar { padding:18px 14px; background:rgba(244,244,242,.035); border-right:1px solid var(--line); } .compose { display:flex; align-items:center; justify-content:center; min-height:48px; margin:0 0 18px; border-radius:18px; background:var(--ivory); color:#050606; font-weight:800; } .mail-nav { display:grid; gap:6px; margin-bottom:20px; } .mail-nav a, .mail-inbox-link { display:flex; align-items:center; justify-content:space-between; gap:10px; min-height:42px; padding:10px 12px; border-radius:14px; color:var(--muted); } .mail-nav a:hover, .mail-nav a.selected, .mail-inbox-link:hover, .mail-inbox-link.selected { background:rgba(185,255,45,.09); color:var(--ivory); } .mail-inbox-link span { display:grid; gap:3px; min-width:0; } .mail-inbox-link strong, .mail-inbox-link small { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .mail-inbox-link small, .mail-inbox-link em { color:var(--soft); } .mail-inbox-link em { font-style:normal; font-size:12px; } .section-label { margin:18px 12px 8px; color:var(--soft); text-transform:uppercase; letter-spacing:.14em; font-size:11px; font-weight:800; }
+    .settings-layout { min-height:0; display:grid; grid-template-columns:280px minmax(0, 1fr); } .mail-sidebar { padding:18px 14px; background:rgba(244,244,242,.035); border-right:1px solid var(--line); } .compose { display:flex; align-items:center; justify-content:center; min-height:48px; margin:0 0 18px; border-radius:18px; background:var(--ivory); color:#050606; font-weight:800; } .mail-nav { display:grid; gap:6px; margin-bottom:20px; } .mail-nav a, .mail-inbox-link, .mailbox-create-link { display:flex; align-items:center; justify-content:space-between; gap:10px; min-height:42px; padding:10px 12px; border-radius:14px; color:var(--muted); } .mail-nav a:hover, .mail-nav a.selected, .mail-inbox-link:hover, .mail-inbox-link.selected, .mailbox-create-link:hover { background:rgba(185,255,45,.09); color:var(--ivory); } .mailbox-create-link { margin:8px 0 2px; border:1px dashed var(--line); color:var(--signal); font-weight:850; justify-content:center; } .mail-inbox-link span { display:grid; gap:3px; min-width:0; } .mail-inbox-link strong, .mail-inbox-link small { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .mail-inbox-link small, .mail-inbox-link em { color:var(--soft); } .mail-inbox-link em { font-style:normal; font-size:12px; } .section-label { margin:18px 12px 8px; color:var(--soft); text-transform:uppercase; letter-spacing:.14em; font-size:11px; font-weight:800; }
     .settings-main { padding:28px; overflow:auto; } .settings-hero { display:flex; justify-content:space-between; gap:20px; align-items:flex-start; margin-bottom:20px; } .eyebrow { margin:0 0 8px; color:var(--signal); text-transform:uppercase; font-size:11px; font-weight:900; letter-spacing:.16em; } h1 { margin:0; font-size:34px; } .settings-hero p, .form-note { color:var(--muted); line-height:1.55; } .settings-card { max-width:920px; border:1px solid var(--line); border-radius:22px; padding:20px; background:rgba(244,244,242,.045); margin-bottom:18px; } .settings-grid { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:14px; } label { display:grid; gap:7px; color:var(--muted); font-size:13px; font-weight:700; } input, textarea, select { width:100%; border:1px solid var(--line); border-radius:13px; padding:11px 12px; background:#0b0d0e; color:var(--ivory); } textarea { min-height:96px; resize:vertical; } .advanced-settings { margin-top:16px; border:1px solid var(--line); border-radius:18px; background:rgba(244,244,242,.035); overflow:hidden; } .advanced-settings summary { cursor:pointer; padding:14px 16px; color:var(--ivory); font-weight:900; list-style:none; } .advanced-settings summary::-webkit-details-marker { display:none; } .advanced-settings summary::after { content:'+'; float:right; color:var(--signal); } .advanced-settings[open] summary::after { content:'−'; } .advanced-body { display:grid; gap:14px; padding:0 16px 16px; } .check-row { display:flex; align-items:center; gap:10px; border:1px solid var(--line); border-radius:14px; padding:12px; color:var(--muted); } .check-row input { width:auto; } .settings-actions { display:flex; justify-content:flex-end; margin-top:16px; } button { min-height:42px; border:0; border-radius:999px; padding:0 18px; background:var(--signal); color:#050606; font-weight:900; cursor:pointer; } .settings-notice { max-width:920px; margin:0 0 14px; padding:10px 12px; border:1px solid rgba(185,255,45,.28); border-radius:12px; color:var(--signal); background:rgba(185,255,45,.07); font-weight:800; } .webhook-list { display:grid; gap:10px; } .webhook-row { border:1px solid var(--line); border-radius:16px; padding:14px; background:rgba(244,244,242,.04); } .webhook-row strong { display:block; overflow-wrap:anywhere; } .webhook-row span { color:var(--muted); font-size:13px; } .mail-empty { padding:16px; border:1px dashed var(--line); border-radius:16px; color:var(--soft); }
     @media (max-width: 900px) { .settings-layout { grid-template-columns:1fr; } .mail-sidebar { border-right:0; border-bottom:1px solid var(--line); } .settings-grid { grid-template-columns:1fr; } .top-actions { display:none; } }`;
 }
@@ -2119,6 +2131,42 @@ function renderEventList(value: unknown) {
   if (!Array.isArray(value)) return 'all events';
   const events = value.map((item) => String(item)).filter(Boolean);
   return events.includes('*') ? 'all events' : events.join(', ');
+}
+
+export function renderMailCreateMailboxPage(data: MailCreateMailboxPageData) {
+  return `<!doctype html>
+<html lang="en">
+<head>
+  ${baseHead}
+  <title>Reverbin Create Mailbox</title>
+  <meta name="description" content="Create another Reverbin mailbox for this agent from the mail dashboard." />
+  <style>${mailSettingsCss()}</style>
+</head>
+<body>
+  <main class="mail-shell" data-surface-id="mail-create-mailbox">
+    <header class="mail-topbar">
+      <a class="brand" href="/mail">${reverbinMarkSvg()}<span>Reverbin Mail</span></a>
+      <div class="mail-search"><input type="search" placeholder="Search mail" aria-label="Search mail" disabled /></div>
+      <div class="top-actions"><a href="/mail/settings">Settings</a><a href="/mail/webhooks">Webhooks</a><a href="/docs">Docs</a><a href="/dashboard/logout">Logout</a></div>
+    </header>
+    <section class="settings-layout" aria-label="Create mailbox">
+      ${renderMailSettingsSidebar(data.inboxes, 'inbox')}
+      <section class="settings-main">
+        <div class="settings-hero"><div><p class="eyebrow">Mailboxes</p><h1>Create mailbox</h1><p>Add another Reverbin address for this agent. Free beta agents can use 2 mailboxes per agent.</p></div></div>
+        ${renderSettingsNotice(data.notice)}
+        <form class="settings-card" method="post" action="/mail/mailboxes">
+          <div class="settings-grid">
+            <label>Email address<input type="email" name="email_address" placeholder="second@reverbin.com" required /></label>
+            <label>Display name<input type="text" name="display_name" placeholder="Second Inbox" /></label>
+          </div>
+          <p class="form-note">Use a root-domain Reverbin address. The new mailbox appears in the Mailboxes list immediately after creation.</p>
+          <div class="settings-actions"><button type="submit">Create mailbox</button></div>
+        </form>
+      </section>
+    </section>
+  </main>
+</body>
+</html>`;
 }
 
 export function renderMailSettingsPage(data: MailSettingsPageData) {
