@@ -15,7 +15,14 @@ test('landing page presents Reverbin as agent communication infrastructure', () 
   assert.equal(html.includes('agents.reverbin.com'), false);
   assert.match(html, /href="\/docs"/);
   assert.match(html, /href="\/dashboard\/login"/);
-  assert.match(html, /Sign up/);
+  assert.match(html, /Create free inbox/);
+  assert.match(html, /data-proof-rail="live-product"/);
+  assert.match(html, /Live on reverbin\.com/);
+  assert.match(html, /Download agent skill/);
+  assert.match(html, /Email agents can actually use/);
+  assert.equal(html.includes('Email</span><span class="line">for AI</span><span class="line">agents.'), false);
+  assert.equal(html.includes('Everything important, without the long scroll.'), false);
+  assert.equal(html.includes('Use the tabs to see what Reverbin is'), false);
   assert.equal(html.includes('Request access'), false);
   assert.match(html, /email\.received/);
   assert.match(html, /email\.sent/);
@@ -47,6 +54,23 @@ test('landing page presents Reverbin as agent communication infrastructure', () 
   assert.equal(html.includes('Email Inboxes for AI Agents'), false);
   assert.equal(html.includes('Start for free'), false);
   assert.equal(html.includes('No credit card required'), false);
+});
+
+test('landing page visual polish avoids generic AI landing-page tropes', () => {
+  const html = renderLandingPage();
+
+  assert.match(html, /--radius:\s*18px/);
+  assert.match(html, /--radius-lg:\s*28px/);
+  assert.match(html, /@media \(prefers-reduced-motion: reduce\)/);
+  assert.match(html, /\.hero-proof-rail/);
+  assert.match(html, /\.command-card/);
+  assert.match(html, /\.inbox-envelope/);
+  assert.match(html, /data-proof-rail="live-product"/);
+  assert.equal(html.includes('seamless'), false);
+  assert.equal(html.includes('unlock'), false);
+  assert.equal(html.includes('vibrant'), false);
+  assert.equal(html.includes('supercharge'), false);
+  assert.equal(html.includes('transform your'), false);
 });
 
 test('landing page pricing explains the upgrade value beyond raw mailbox counts', () => {

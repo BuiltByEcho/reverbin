@@ -39,7 +39,7 @@ const baseHead = `
   <link rel="icon" href="${faviconHref}" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&family=Geist+Mono:wght@400;500;600;700&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&family=Geist+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 `;
 
 export function renderLandingPage() {
@@ -75,10 +75,12 @@ export function renderLandingPage() {
       --mint: #BDE6D3;
       --signal: #B9FF2D;
       --warning: #FFD166;
-      --radius: 8px;
-      --shadow: 0 26px 80px rgba(0,0,0,.46);
+      --radius: 18px;
+      --radius-sm: 12px;
+      --radius-lg: 28px;
+      --shadow: 0 30px 90px rgba(0,0,0,.5);
       --page-gutter: clamp(32px, 4.4vw, 84px);
-      --display-font: 'IBM Plex Sans Condensed', 'Space Grotesk', 'Geist', Inter, ui-sans-serif, system-ui, sans-serif;
+      --display-font: 'Geist', Inter, ui-sans-serif, system-ui, sans-serif;
     }
     * { box-sizing: border-box; }
     html { scroll-behavior: smooth; background: var(--black); }
@@ -219,18 +221,23 @@ export function renderLandingPage() {
     h1 {
       margin: 0;
       font-family: var(--display-font);
-      font-size: clamp(66px, 4.9vw, 98px);
-      line-height: .88;
+      font-size: clamp(56px, 5.8vw, 104px);
+      line-height: .92;
       font-weight: 700;
-      letter-spacing: 0;
-      max-width: 920px;
+      letter-spacing: -.07em;
+      max-width: 980px;
       text-wrap: balance;
       overflow-wrap: normal;
       word-break: normal;
     }
     h1 .line {
-      display: block;
-      white-space: nowrap;
+      display: inline;
+    }
+    h1 em {
+      color: var(--signal);
+      font-style: normal;
+      letter-spacing: -.075em;
+      text-shadow: 0 0 34px rgba(185,255,45,.16);
     }
     .lede {
       max-width: 720px;
@@ -282,14 +289,92 @@ export function renderLandingPage() {
       font-size: 13px;
       line-height: 1.45;
     }
+    .hero-proof-rail {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 0;
+      max-width: 880px;
+      margin-top: 26px;
+      border: 1px solid rgba(244,244,242,.12);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      background: rgba(244,244,242,.026);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.05);
+    }
+    .proof-rail-item {
+      display: grid;
+      gap: 5px;
+      min-height: 82px;
+      padding: 15px;
+      border-right: 1px solid rgba(244,244,242,.09);
+    }
+    .proof-rail-item:last-child { border-right: 0; }
+    .proof-rail-item span {
+      color: var(--soft);
+      font-family: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+    .proof-rail-item b {
+      color: var(--ivory);
+      font-size: 14px;
+      line-height: 1.25;
+    }
+    .command-card,
+    .inbox-envelope {
+      position: relative;
+      z-index: 1;
+      border: 1px solid rgba(244,244,242,.13);
+      border-radius: var(--radius);
+      background: rgba(7,8,8,.72);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 22px 50px rgba(0,0,0,.24);
+    }
+    .inbox-envelope {
+      display: grid;
+      gap: 12px;
+      margin: 20px 20px 0;
+      padding: 18px;
+    }
+    .envelope-topline {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      color: var(--soft);
+      font-family: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 11px;
+      text-transform: uppercase;
+    }
+    .envelope-subject {
+      margin: 0;
+      color: var(--ivory);
+      font-size: clamp(24px, 2vw, 34px);
+      line-height: 1.05;
+      letter-spacing: -.04em;
+    }
+    .envelope-meta {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      color: var(--mint);
+      font-family: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 11px;
+    }
+    .command-card {
+      margin: 0 20px 20px;
+      overflow: hidden;
+    }
+    .command-card pre { min-height: auto; }
     .relay-board {
       position: relative;
       min-height: clamp(560px, 58vh, 760px);
       border: 1px solid var(--line);
-      border-radius: var(--radius);
+      border-radius: var(--radius-lg);
       background:
-        linear-gradient(180deg, rgba(255,255,255,.055), rgba(255,255,255,.02)),
-        linear-gradient(135deg, rgba(189,230,211,.045), transparent 44%, rgba(185,255,45,.055));
+        linear-gradient(180deg, rgba(255,255,255,.062), rgba(255,255,255,.018)),
+        radial-gradient(circle at 18% 12%, rgba(185,255,45,.13), transparent 32%),
+        linear-gradient(135deg, rgba(189,230,211,.045), transparent 44%, rgba(185,255,45,.06));
       box-shadow: var(--shadow);
       overflow: hidden;
     }
@@ -1145,6 +1230,14 @@ export function renderLandingPage() {
     .compact-dashboard { min-height: auto; }
     .compact-cases { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .mobile-only { display: none; }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        scroll-behavior: auto !important;
+        transition-duration: .01ms !important;
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+      }
+    }
     @media (max-width: 1080px) {
       .hero {
         grid-template-columns: 1fr;
@@ -1214,6 +1307,7 @@ export function renderLandingPage() {
         line-height: 1.58;
       }
       .hero-proof,
+      .hero-proof-rail,
       .audience-grid,
       .flow-grid,
       .capability-matrix,
@@ -1223,12 +1317,14 @@ export function renderLandingPage() {
         grid-template-columns: 1fr;
       }
       .capability-cell,
-      .production-stat {
+      .production-stat,
+      .proof-rail-item {
         border-right: 0;
         border-bottom: 1px solid rgba(244,244,242,.1);
       }
       .capability-cell:last-child,
-      .production-stat:last-child {
+      .production-stat:last-child,
+      .proof-rail-item:last-child {
         border-bottom: 0;
       }
       .relay-board {
@@ -1238,6 +1334,10 @@ export function renderLandingPage() {
         min-height: auto;
         margin: 12px;
         padding: 14px;
+      }
+      .inbox-envelope,
+      .command-card {
+        margin: 12px;
       }
       .message-flow {
         grid-template-columns: 1fr;
@@ -1319,20 +1419,21 @@ export function renderLandingPage() {
         <a href="#pricing">Pricing</a>
         <a href="/docs">Docs</a>
         <a class="button secondary" href="/dashboard/login">Dashboard</a>
-        <a class="button primary" href="${SIGNUP_HREF}">Sign up</a>
+        <a class="button primary" href="${SIGNUP_HREF}">Create free inbox</a>
       </nav>
     </header>
 
     <section class="hero" aria-labelledby="hero-heading">
       <div class="hero-copy">
         <span class="section-label">Email for AI agents</span>
-        <h1 id="hero-heading"><span class="line">Email</span><span class="line">for AI</span><span class="line">agents.</span></h1>
-        <p class="lede"><strong>Reverbin is an email service for AI agents.</strong> Give every agent a real email address like <code>user@reverbin.com</code>, then route incoming messages to your agent runtime with signed webhooks, thread history, sending policy, and operator audit logs.</p>
+        <h1 id="hero-heading">Email agents can actually use.</h1>
+        <p class="lede"><strong>Reverbin is an email service for AI agents.</strong> Give every agent a real email address like <code>user@reverbin.com</code>, then route incoming messages to your agent runtime with signed webhooks, durable thread history, sending policy, and operator audit logs.</p>
         <div class="hero-actions">
           <a class="button primary" href="${SIGNUP_HREF}">
-            Sign up
+            Create free inbox
             <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M5 12h13m-5-5 5 5-5 5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </a>
+          <a class="button" href="/SKILL.md">Download agent skill</a>
           <a class="button" href="/docs">Read API docs</a>
         </div>
         <p class="access-note">${ACCESS_REQUEST_NOTE}</p>
@@ -1341,12 +1442,31 @@ export function renderLandingPage() {
           <div class="proof-item"><b>Signed events</b><span>Webhook payloads include event names, delivery IDs, and HMAC signatures.</span></div>
           <div class="proof-item"><b>Thread memory</b><span>Inbound and outbound messages stay attached to durable conversation state.</span></div>
         </div>
+        <div class="hero-proof-rail" data-proof-rail="live-product" aria-label="Live Reverbin proof points">
+          <div class="proof-rail-item"><span>Status</span><b>Live on reverbin.com</b></div>
+          <div class="proof-rail-item"><span>Signup</span><b>Create inbox + API key instantly</b></div>
+          <div class="proof-rail-item"><span>Agent file</span><b>Download agent skill</b></div>
+          <div class="proof-rail-item"><span>Runtime</span><b>Signed webhooks and stored threads</b></div>
+        </div>
       </div>
 
       <aside class="relay-board" aria-label="Reverbin relay visual">
         <div class="relay-topline">
           <span>reverbin.com / issued inboxes</span>
           <span class="relay-status">online</span>
+        </div>
+        <div class="inbox-envelope" aria-label="Example Reverbin inbox message">
+          <div class="envelope-topline"><span>From: customer@example.com</span><span>To: support@reverbin.com</span></div>
+          <p class="envelope-subject">“Can your agent read this thread and reply?”</p>
+          <div class="envelope-meta"><span>stored as thread</span><span>signed event</span><span>reply policy attached</span></div>
+        </div>
+        <div class="command-card" aria-label="Signed webhook delivery example">
+          <div class="terminal-bar"><span>Webhook delivery</span><span>POST /agent/email</span></div>
+          <pre>{
+  <span class="key">"event"</span>: "email.received",
+  <span class="key">"inbox"</span>: "support@reverbin.com",
+  <span class="key">"signature"</span>: "sha256=verified"
+}</pre>
         </div>
         <div class="relay-core">
           <div class="message-flow" aria-label="How a message moves through Reverbin">
@@ -1399,9 +1519,9 @@ export function renderLandingPage() {
       <div class="section-head compact-head">
         <div>
           <span class="section-label">Explore Reverbin</span>
-          <h2 id="explore-heading">Everything important, without the long scroll.</h2>
+          <h2 id="explore-heading">The inbox layer, from signup to reply.</h2>
         </div>
-        <p>Use the tabs to see what Reverbin is, how agent email flows, how developers integrate, what operators can inspect, and where it fits.</p>
+        <p>Move through the product surface: mailbox provisioning, signed events, developer integration, operator visibility, and the workflows agent email makes possible.</p>
       </div>
       <div class="landing-tabs">
         <div class="tab-rail" role="tablist" aria-label="Explore Reverbin">
