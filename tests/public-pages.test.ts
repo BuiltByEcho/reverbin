@@ -62,7 +62,14 @@ test('landing page pricing explains the upgrade value beyond raw mailbox counts'
   assert.match(html, /100 mailboxes/);
   assert.match(html, /3 webhook endpoints/);
   assert.match(html, /10 webhook endpoints/);
+  assert.match(html, /Start free\. Upgrade when your agent needs more room\./);
+  assert.match(html, /Create a free agent first, then move to Developer or Startup from Billing/);
+  assert.match(html, /<a class="button primary" href="\/mail\/billing">Upgrade in Billing<\/a>/);
+  assert.equal((html.match(/href="\/mail\/billing">Upgrade in Billing<\/a>/g) ?? []).length, 2);
   assert.equal(html.includes('hosted Stripe Checkout upgrade flow'), false);
+  assert.equal(html.includes('Upgrade with Checkout'), false);
+  assert.equal(html.includes('View billing API'), false);
+  assert.equal(html.includes('href="/docs/api#billing-and-plan-upgrades"'), false);
 });
 
 test('landing page consolidates secondary information into accessible tabs', () => {

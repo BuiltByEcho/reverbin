@@ -1528,9 +1528,9 @@ await reverbin.inboxes.create({
       <div class="section-head compact-head">
         <div>
           <span class="section-label">Pricing</span>
-          <h2 id="pricing-heading">Start free, upgrade through Stripe Checkout.</h2>
+          <h2 id="pricing-heading">Start free. Upgrade when your agent needs more room.</h2>
         </div>
-        <p>Paid plans use hosted Stripe Checkout with Link available from Stripe, then Reverbin webhooks update tenant quotas automatically.</p>
+        <p>Create a free agent first, then move to Developer or Startup from Billing when you need more mailboxes, volume, webhooks, and support.</p>
       </div>
       <div class="resource-grid pricing-grid" aria-label="Reverbin pricing plans">
         <article class="resource-panel pricing-card">
@@ -1543,13 +1543,13 @@ await reverbin.inboxes.create({
           <code>Developer</code>
           <h4>$19/mo</h4>
           ${renderPlanValueList('developer')}
-          <a class="button primary" href="/docs/api#billing-and-plan-upgrades">Upgrade with Checkout</a>
+          <a class="button primary" href="/mail/billing">Upgrade in Billing</a>
         </article>
         <article class="resource-panel pricing-card">
           <code>Startup Beta</code>
           <h4>$149/mo</h4>
           ${renderPlanValueList('startup')}
-          <a class="button" href="/docs/api#billing-and-plan-upgrades">View billing API</a>
+          <a class="button" href="/mail/billing">Upgrade in Billing</a>
         </article>
         <article class="resource-panel pricing-card">
           <code>Enterprise</code>
