@@ -33,6 +33,7 @@ const HOST = process.env.HOST ?? '127.0.0.1';
 const ATTACHMENT_STORAGE_DIR = process.env.ATTACHMENT_STORAGE_DIR ?? '/var/lib/agent-email-layer/attachments';
 const MAX_INBOUND_ATTACHMENT_BYTES = Number(process.env.MAX_INBOUND_ATTACHMENT_BYTES ?? String(15 * 1024 * 1024));
 const LLMS_TXT_PATH = new URL('../../llms.txt', import.meta.url);
+const SKILL_MD_PATH = new URL('../../SKILL.md', import.meta.url);
 const DOCS_MARKDOWN_PATHS: Record<Exclude<DocsPageKey, 'overview'>, URL> = {
   quickstart: new URL('../../docs/QUICKSTART.md', import.meta.url),
   api: new URL('../../docs/API.md', import.meta.url),
@@ -1108,6 +1109,11 @@ app.get('/favicon.svg', async (_req, reply) => {
 app.get('/llms.txt', async (_req, reply) => {
   const body = await readFile(LLMS_TXT_PATH, 'utf8');
   reply.header('cache-control', 'public, max-age=300').type('text/plain; charset=utf-8').send(body);
+});
+
+app.get('/SKILL.md', async (_req, reply) => {
+  const body = await readFile(SKILL_MD_PATH, 'utf8');
+  reply.header('cache-control', 'public, max-age=300').type('text/markdown; charset=utf-8').send(body);
 });
 
 async function sendDocsPage(reply: FastifyReply, page: DocsPageKey) {

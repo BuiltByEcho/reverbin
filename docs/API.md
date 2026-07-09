@@ -30,9 +30,9 @@ All other `/v1/*` routes require bearer auth:
 -H "Authorization: Bearer $REVERBIN_API_KEY"
 ```
 
-Do not put API keys in source code. Pass them through environment variables or an agent secret store. Self-serve API keys are scoped to the tenant created during signup, so one agent cannot list another builder's inboxes, threads, webhooks, deliveries, or audit logs.
+Do not put API keys in source code. Pass them through environment variables or an agent secret store. Self-serve API keys are scoped to the tenant created during signup, so one account cannot list another builder's inboxes, threads, webhooks, deliveries, or audit logs.
 
-Beta quota: self-serve accounts get **2 inboxes per self-serve agent**. Signup creates the first inbox. The generated API key can create one more with `POST /v1/inboxes`. Further inbox creation returns `403` with `inbox_quota_exceeded` and `max_inboxes: 2`.
+Beta quota: self-serve accounts get **2 inboxes**. Signup creates the first inbox. The generated API key can create one more with `POST /v1/inboxes`. Further inbox creation returns `403` with `inbox_quota_exceeded` and `max_inboxes: 2`.
 
 ## Health routes
 
@@ -92,9 +92,9 @@ Common statuses:
 7. Reverbin emits `email.received`, `email.sent`, or `approval.required` to registered webhooks.
 8. `GET /v1/webhook-deliveries` and `GET /v1/audit-logs` support operations.
 
-## Self-serve agent signup
+## Self-serve inbox signup
 
-### Provision an agent inbox
+### Provision an inbox
 
 ```txt
 POST /v1/agent-signups
@@ -167,7 +167,7 @@ Reverbin uses hosted **Stripe Checkout** for paid subscriptions. Stripe displays
 
 | Plan | Best for | Value add | Price | Inboxes | Emails/month | Webhooks |
 | --- | --- | --- | ---: | ---: | ---: | ---: |
-| Free | Best for testing one agent workflow | Start with a real agent inbox, root-domain addresses, and one webhook before committing to paid volume. | $0/month | 2 | 2,000 | 1 |
+| Free | Best for testing one agent workflow | Start with a real inbox, root-domain addresses, and one webhook before committing to paid volume. | $0/month | 2 | 2,000 | 1 |
 | Developer | For solo builders shipping real agents | Build production agent email flows with more mailboxes, higher volume, multiple webhooks, API keys, and audit logs. | $19/month | 10 | 10,000 | 3 |
 | Startup Beta | For startups running multiple agents | Scale a team or beta product with 100 mailboxes, higher monthly volume, more webhook destinations, and priority support. | $149/month | 100 | 100,000 | 10 |
 | Enterprise | For larger agent fleets | Custom scale, domains, deployment, support, and compliance needs. | Custom | Custom | Custom | Custom |

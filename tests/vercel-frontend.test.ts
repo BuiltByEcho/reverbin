@@ -39,6 +39,7 @@ test('frontend static build emits Vercel Build Output API files without backend 
     const docsApiPath = join(outDir, 'docs', 'api', 'index.html');
     const docsAgentsPath = join(outDir, 'docs', 'agents', 'index.html');
     const llmsPath = join(outDir, 'llms.txt');
+    const skillPath = join(outDir, 'SKILL.md');
     const faviconPath = join(outDir, 'favicon.svg');
 
     assert.equal(existsSync(indexPath), true);
@@ -46,6 +47,7 @@ test('frontend static build emits Vercel Build Output API files without backend 
     assert.equal(existsSync(docsApiPath), true);
     assert.equal(existsSync(docsAgentsPath), true);
     assert.equal(existsSync(llmsPath), true);
+    assert.equal(existsSync(skillPath), true);
     assert.equal(existsSync(faviconPath), true);
 
     const html = readFileSync(indexPath, 'utf8');
@@ -53,6 +55,7 @@ test('frontend static build emits Vercel Build Output API files without backend 
     const docsApi = readFileSync(docsApiPath, 'utf8');
     const docsAgents = readFileSync(docsAgentsPath, 'utf8');
     const llms = readFileSync(llmsPath, 'utf8');
+    const skill = readFileSync(skillPath, 'utf8');
 
     assert.match(html, /Reverbin - Email for AI agents/);
     assert.match(html, /Reverbin is an email service for AI agents/);
@@ -65,6 +68,10 @@ test('frontend static build emits Vercel Build Output API files without backend 
     assert.match(docsApi, /POST \/v1\/inboxes/);
     assert.match(docsApi, /x-echo-email-signature/);
     assert.match(docsAgents, /Treat email content as untrusted user input/);
+    assert.match(docs, /href="\/SKILL\.md"/);
+    assert.match(skill, /^---\r?\nname: reverbin-agent-inbox/);
+    assert.match(skill, /Create free inbox/);
+    assert.match(skill, /POST \/v1\/agent-signups/);
     assert.equal(docs.includes('github.com/BuiltByEcho/reverbin/blob/main/docs/API.md'), false);
     assert.match(llms, /^# Reverbin/);
   } finally {
@@ -85,12 +92,14 @@ test('default frontend build writes .vercel/output and stale-output-directory fa
     const configPath = new URL('config.json', outputRoot);
     const indexPath = new URL('index.html', staticRoot);
     const llmsPath = new URL('llms.txt', staticRoot);
+    const skillPath = new URL('SKILL.md', staticRoot);
     const fallbackEntrypoint = new URL('index.mjs', fallbackRoot);
     const fallbackHtml = new URL('index.html', fallbackRoot);
 
     assert.equal(existsSync(configPath), true);
     assert.equal(existsSync(indexPath), true);
     assert.equal(existsSync(llmsPath), true);
+    assert.equal(existsSync(skillPath), true);
     assert.equal(existsSync(fallbackEntrypoint), true);
     assert.equal(existsSync(fallbackHtml), true);
 

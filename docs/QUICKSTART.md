@@ -2,14 +2,14 @@
 
 This guide is for humans building with Reverbin for the first time.
 
-If you are an autonomous agent or a tool runtime, start with [`AGENTS.md`](AGENTS.md) or the root [`llms.txt`](../llms.txt) file.
+If you are an autonomous agent or a tool runtime, start with [`AGENTS.md`](AGENTS.md), [`../SKILL.md`](../SKILL.md), or the root [`llms.txt`](../llms.txt) file.
 
 ## What you will build
 
 In this quickstart you will:
 
-1. Connect to the Reverbin API.
-2. Create an inbox for an agent.
+1. Create a free inbox and copy the one-time API key.
+2. Connect to the Reverbin API.
 3. Register a signed webhook endpoint.
 4. Read threads.
 5. Reply to a thread.
@@ -19,18 +19,42 @@ In this quickstart you will:
 
 You need:
 
-- Node.js 18+.
-- A Reverbin API key.
+- Node.js 18+ for SDK examples.
+- A Reverbin inbox and API key from https://reverbin.com/signup.
 - A reachable HTTPS endpoint if you want to receive webhooks.
-- An inbox domain that is already routed through the provider, for example `reverbin.com`.
 
-Beta note: root-domain inboxes on `reverbin.com` are live. Use the address included with your API key when running live mail tests, for example `user@reverbin.com`.
+Beta note: root-domain inboxes on `reverbin.com` are live. Use the address included with your signup result when running live mail tests, for example `user@reverbin.com`.
 
-Use environment variables for secrets:
+## 0. Create a free inbox
+
+Open:
+
+```txt
+https://reverbin.com/signup
+```
+
+Choose **Create free inbox**. Reverbin creates your first inbox and returns a quickstart block once. Copy it immediately.
+
+API signup alternative:
+
+```sh
+curl -X POST https://api.reverbin.com/v1/agent-signups \
+  -H "content-type: application/json" \
+  -d '{
+    "requester_email": "builder@example.com",
+    "agent_name": "Support Agent",
+    "agent_use_case": "Handle customer support replies and escalate unusual requests.",
+    "preferred_inbox_name": "support-agent"
+  }'
+```
+
+Save these values in your shell or secret manager:
 
 ```sh
 export REVERBIN_BASE_URL="https://api.reverbin.com"
-export REVERBIN_API_KEY="..."
+export REVERBIN_API_KEY="$REVERBIN_API_KEY"
+export REVERBIN_INBOX_ID="$REVERBIN_INBOX_ID"
+export REVERBIN_INBOX_EMAIL="$REVERBIN_INBOX_EMAIL"
 export REVERBIN_WEBHOOK_SECRET="generate-a-long-random-secret"
 ```
 
@@ -66,6 +90,8 @@ const reverbin = new ReverbinClient({
 
 ## 2. Create an inbox
 
+Signup already creates your first inbox. To create the second free inbox or another paid-plan inbox:
+
 ```ts
 const inbox = await reverbin.inboxes.create({
   email_address: 'user@reverbin.com',
@@ -84,7 +110,7 @@ The default inbox policy is intentionally low-friction for normal agent replies:
 
 Use explicit policy settings when you need stricter behavior.
 
-## 3. Register a webhook endpoint
+## 3. Register a signed webhook endpoint
 
 ```ts
 await reverbin.webhooks.create({
@@ -117,7 +143,7 @@ the endpoint secret you provided to POST /v1/webhooks
 ## 4. Read threads
 
 ```ts
-const threads = await reverbin.inboxes.threads(inbox.id);
+const threads = await reverbin.inboxes.threads(process.env.REVERBIN_INBOX_ID!);
 
 for (const thread of threads.data) {
   console.log(thread.id, thread.subject);
@@ -176,7 +202,7 @@ Browser dashboard:
 https://reverbin.com/dashboard/login
 ```
 
-The dashboard requires `DASHBOARD_TOKEN`. It shows inboxes, recent messages, webhook deliveries, and audit logs.
+Sign in with the email used at signup. The dashboard shows inboxes, recent messages, webhook endpoints, billing, and audit-oriented mail actions.
 
 ## Local health checks
 
@@ -201,10 +227,11 @@ curl https://api.reverbin.com/readyz
 | Webhook endpoint receives nothing | Confirm endpoint is active, event type is subscribed, and worker mode is running if queued. |
 | Reply returns `202 pending` | The inbox policy requires approval for that send. |
 | Reply returns `403 policy blocked send` | Policy blocked recipient/domain/content/rate. |
-| Inbound mail never appears | Confirm domain MX/Resend receiving status and provider webhook configuration. |
+| Inbound mail never appears | Confirm the recipient matches `REVERBIN_INBOX_EMAIL` and provider receiving status is healthy. |
 
 ## Next reads
 
 - [`API.md`](API.md) for endpoint examples.
 - [`AGENTS.md`](AGENTS.md) for agent-runtime behavior.
+- [`../SKILL.md`](../SKILL.md) for a downloadable agent skill.
 - [`../llms.txt`](../llms.txt) for compact machine-readable context.

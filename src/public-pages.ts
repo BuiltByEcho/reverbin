@@ -3662,6 +3662,8 @@ function docsNav(active: DocsPageKey) {
       return `<a href="${meta.href}"${current}><span>${meta.eyebrow}</span><b>${meta.title}</b></a>`;
     }).join('')}
     <a href="/llms.txt"><span>Agent index</span><b>llms.txt</b></a>
+    <a href="/SKILL.md"><span>Downloadable agent skill</span><b>SKILL.md</b></a>
+    <a href="/docs/api#self-serve-inbox-signup"><span>Signup API</span><b>POST /v1/agent-signups</b></a>
   </nav>`;
 }
 
@@ -3682,11 +3684,17 @@ function docsCards() {
       <h2>Agent runtime guide</h2>
       <p>Lifecycle, event handling, signature verification, prompt-injection boundaries, and safe send behavior.</p>
     </a>
+    <a class="docs-card" href="/SKILL.md">
+      <span>04</span>
+      <h2>Downloadable agent skill</h2>
+      <p>Drop <code>SKILL.md</code> into an agent runtime for the shortest Create a free inbox, save key, read thread, reply safely flow.</p>
+    </a>
   </div>`;
 }
 
 function docsEndpointRail() {
   const endpoints = [
+    ['POST', '/v1/agent-signups', 'Create a free inbox, tenant-scoped API key, and first mailbox in one public signup call.'],
     ['POST', '/v1/inboxes', 'Create an API-owned inbox for an agent.'],
     ['GET', '/v1/inboxes/:id/threads', 'List the durable conversations attached to an inbox.'],
     ['GET', '/v1/threads/:id', 'Fetch thread context and message history before replying.'],
@@ -3843,7 +3851,7 @@ function docsCss() {
     .docs-nav a[aria-current="page"] { border-color:rgba(185,255,45,.42); background:rgba(185,255,45,.06); color:var(--ivory); }
     .docs-nav span, .docs-card span { color:var(--signal); font-size:11px; font-weight:800; letter-spacing:.16em; text-transform:uppercase; }
     .docs-nav b { color:inherit; font-size:15px; }
-    .docs-card-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; margin:34px 0; }
+    .docs-card-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px; margin:34px 0; }
     .docs-card { display:block; min-height:220px; padding:20px; }
     .docs-card h2 { margin:34px 0 10px; font-size:28px; }
     .docs-card p { color:var(--muted); line-height:1.55; }
@@ -3912,6 +3920,7 @@ function docsOverviewHtml() {
         <li>Use <code>/docs/api</code> when wiring REST routes, webhook signatures, approvals, and delivery logs.</li>
         <li>Use <code>/docs/agents</code> when integrating an autonomous runtime that needs safety and lifecycle guidance.</li>
         <li>Use <code>/llms.txt</code> when an agent needs the compact machine-readable index.</li>
+        <li>Use <code>/SKILL.md</code> when an agent should download the full inbox workflow as an installable skill.</li>
       </ul>
     </section>`;
 }

@@ -111,6 +111,10 @@ test('docs pages render a branded first-party documentation surface', () => {
     assert.match(html, /href="\/docs\/api"/);
     assert.match(html, /href="\/docs\/agents"/);
     assert.match(html, /href="\/llms\.txt"/);
+    assert.match(html, /href="\/SKILL\.md"/);
+    assert.match(html, /Downloadable agent skill/);
+    assert.match(html, /Create a free inbox/);
+    assert.match(html, /POST \/v1\/agent-signups/);
     assert.match(html, /Sign up/);
     assert.equal(html.includes('github.com/BuiltByEcho/reverbin/blob/main/docs/API.md'), false);
     assert.equal(html.includes('http-equiv="refresh"'), false);

@@ -59,9 +59,11 @@ async function writeStaticFiles(staticDir) {
   <url><loc>https://reverbin.com/docs/api</loc></url>
   <url><loc>https://reverbin.com/docs/agents</loc></url>
   <url><loc>https://reverbin.com/llms.txt</loc></url>
+  <url><loc>https://reverbin.com/SKILL.md</loc></url>
 </urlset>
 `);
   await copyFile(resolve(root, 'llms.txt'), resolve(staticDir, 'llms.txt'));
+  await copyFile(resolve(root, 'SKILL.md'), resolve(staticDir, 'SKILL.md'));
 }
 
 const fallbackEntrypoint = `import { createReadStream } from 'node:fs';
@@ -86,6 +88,7 @@ const files = new Map([
   ['/docs/agents', ['docs/agents/index.html', 'text/html; charset=utf-8']],
   ['/docs/agents/', ['docs/agents/index.html', 'text/html; charset=utf-8']],
   ['/llms.txt', ['llms.txt', 'text/plain; charset=utf-8']],
+  ['/SKILL.md', ['SKILL.md', 'text/markdown; charset=utf-8']],
   ['/favicon.svg', ['favicon.svg', 'image/svg+xml']],
   ['/robots.txt', ['robots.txt', 'text/plain; charset=utf-8']],
   ['/sitemap.xml', ['sitemap.xml', 'application/xml; charset=utf-8']],

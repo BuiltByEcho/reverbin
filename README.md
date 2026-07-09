@@ -10,6 +10,8 @@ Reverbin gives agents real email inboxes, threaded conversations, signed webhook
 - Human quickstart: [`docs/QUICKSTART.md`](docs/QUICKSTART.md)
 - Agent integration guide: [`docs/AGENTS.md`](docs/AGENTS.md)
 - Agent-readable index: [`llms.txt`](llms.txt)
+- Downloadable agent skill: [`SKILL.md`](SKILL.md)
+- Create free inbox: https://reverbin.com/signup
 
 ## What Reverbin is for
 
@@ -17,11 +19,11 @@ Agents often need to touch normal human workflows: support, onboarding, billing,
 
 Reverbin gives each agent an addressable inbox and gives the application a small control plane around it:
 
-1. Create an inbox for an agent.
-2. Receive real inbound email.
-3. Store the thread and messages.
-4. Notify the agent runtime through signed webhooks.
-5. Let the agent fetch context and reply.
+1. Create a free inbox at https://reverbin.com/signup and copy the one-time quickstart block.
+2. Store `REVERBIN_API_KEY`, `REVERBIN_INBOX_ID`, and `REVERBIN_INBOX_EMAIL` in the agent secret store.
+3. Send mail to the created inbox.
+4. Fetch thread context.
+5. Let the agent reply through policy-controlled API calls.
 6. Keep delivery logs, audit rows, and policy decisions for humans.
 
 ## Current capabilities
@@ -38,6 +40,16 @@ Reverbin gives each agent an addressable inbox and gives the application a small
 - Optional approval policies for higher-risk workflows.
 
 ## Five-minute agent flow
+
+Start by creating the first inbox and API key:
+
+```txt
+https://reverbin.com/signup
+```
+
+For agent runtimes that support downloadable procedures, import [`SKILL.md`](SKILL.md).
+
+Then use the SDK with the values returned from signup:
 
 ```ts
 import { ReverbinClient } from '@builtbyecho/reverbin';
@@ -80,6 +92,7 @@ Authorization: Bearer $REVERBIN_API_KEY
 Core routes:
 
 ```txt
+POST /v1/agent-signups
 POST /v1/inboxes
 GET  /v1/inboxes
 GET  /v1/inboxes/:id
@@ -140,7 +153,7 @@ npm run build:frontend
 
 The operational dashboard is app-token protected.
 
-- Browser login: `GET /dashboard/login`, then enter `DASHBOARD_TOKEN`.
+- Browser login: `GET /dashboard/login`, then enter `DASHBOARD_TOKEN` or use the signup email code flow.
 - Scripted/operator access: `Authorization: Bearer $DASHBOARD_TOKEN` on `GET /dashboard`.
 - If `DASHBOARD_TOKEN` is unset, dashboard auth falls back to the API key env var used by the server.
 

@@ -1,23 +1,31 @@
 # Reverbin
 
-> Communication infrastructure for autonomous agents: real inboxes, signed webhooks, threaded conversations, delivery logs, policy guardrails, and operator auditability.
+> Email for AI agents: real inboxes, signed webhooks, threaded conversations, delivery logs, policy guardrails, and operator auditability.
 
 Live site: https://reverbin.com
+Sign up first: https://reverbin.com/signup
+Downloadable agent skill: https://reverbin.com/SKILL.md
 API base URL: https://api.reverbin.com
 Canonical repository: https://github.com/BuiltByEcho/reverbin
 
 Receiving domain note: root-domain inboxes on `reverbin.com` are live for beta access. Use the address supplied with your API key, for example `user@reverbin.com`.
 
-## What Reverbin does
+## Fastest agent path
 
-Reverbin lets autonomous agents use normal email safely:
+1. Open https://reverbin.com/signup.
+2. Choose **Create free inbox**.
+3. Copy the one-time quickstart output immediately.
+4. Save `REVERBIN_API_KEY`, `REVERBIN_INBOX_ID`, and `REVERBIN_INBOX_EMAIL` in the agent secret store.
+5. Send email to `REVERBIN_INBOX_EMAIL`.
+6. Fetch the thread, decide safely, and reply through the API.
 
-- create an inbox for an agent;
-- receive inbound email through a provider webhook;
-- store threads and messages;
-- notify agent runtimes through signed webhooks;
-- let agents reply through a policy-controlled API;
-- expose delivery logs, approval state, and audit logs to operators.
+API signup alternative:
+
+```txt
+POST /v1/agent-signups
+```
+
+The signup route creates a tenant, first inbox, tenant-scoped API key, and optional webhook. Secrets are returned once.
 
 ## Primary docs
 
@@ -25,6 +33,7 @@ Reverbin lets autonomous agents use normal email safely:
 - Human quickstart: https://reverbin.com/docs/quickstart
 - Agent integration guide: https://reverbin.com/docs/agents
 - API reference: https://reverbin.com/docs/api
+- Downloadable agent skill: https://reverbin.com/SKILL.md
 - Source repository: https://github.com/BuiltByEcho/reverbin
 
 ## API summary
@@ -44,8 +53,7 @@ Authorization: Bearer $REVERBIN_API_KEY
 Core routes:
 
 ```txt
-GET  /health
-GET  /readyz
+POST /v1/agent-signups
 POST /v1/inboxes
 GET  /v1/inboxes
 GET  /v1/inboxes/:id
@@ -71,16 +79,13 @@ const reverbin = new ReverbinClient({
   apiKey: process.env.REVERBIN_API_KEY,
 });
 
-const inbox = await reverbin.inboxes.create({
-  email_address: 'user@reverbin.com',
-  display_name: 'Agent Runtime',
-});
-
-await reverbin.webhooks.create({
-  url: 'https://agent.example.com/reverbin/events',
-  events: ['email.received', 'email.sent', 'approval.required'],
-  secret: process.env.REVERBIN_WEBHOOK_SECRET,
-});
+const threads = await reverbin.inboxes.threads(process.env.REVERBIN_INBOX_ID!);
+const latest = threads.data[0];
+if (latest) {
+  await reverbin.threads.reply(latest.id, {
+    text: 'Received — I am handling this from the agent workflow.',
+  });
+}
 ```
 
 ## Webhook signing
@@ -115,15 +120,10 @@ Agents should verify the signature before acting.
 - Avoid infinite reply loops.
 - Use backoff for transient network/server failures.
 
-## Human mail console actions
-
-- `/mail` lets authenticated operators read threads, forward a quoted thread, delete one thread, or use checkboxes to Delete selected threads in bulk.
-- Forward, Delete, and Delete selected are human/operator controls; the public agent API intentionally stays limited to read/reply/webhook/approval operations.
-- Deletes are soft deletes on threads, preserving messages and audit history.
-
 ## Human/operator surfaces
 
 - Dashboard login: https://reverbin.com/dashboard/login
-- Public docs redirect: https://reverbin.com/docs
+- Public docs: https://reverbin.com/docs
+- Downloadable agent skill: https://reverbin.com/SKILL.md
 - Health: https://api.reverbin.com/health
 - Readiness: https://api.reverbin.com/readyz
