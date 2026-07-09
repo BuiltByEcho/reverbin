@@ -88,6 +88,10 @@ test('human mail console renders a Gmail-style three-pane inbox with reply contr
   assert.match(html, /class="mail-sidebar"/);
   assert.match(html, /class="mail-thread-list"/);
   assert.match(html, /class="mail-reader"/);
+  assert.match(html, /\.mail-search \{ display:none; \}/);
+  assert.match(html, /\.mail-topbar \{ display:grid; grid-template-columns:1fr;/);
+  assert.match(html, /\.mail-nav a, \.mail-inbox-link, \.mailbox-create-link \{[^}]*min-height:44px;/);
+  assert.match(html, /\.brand \{[^}]*min-height:44px;/);
   assert.match(html, /aria-label="Mail navigation"/);
   assert.doesNotMatch(html, /aria-label="Inbox folders"/);
   assert.match(html, /aria-label="Thread list"/);
@@ -410,6 +414,9 @@ test('mail settings page is simple, tenant scoped, and editable', () => {
   assert.match(html, /Mailbox settings/);
   assert.match(html, /Simple inbox settings/);
   assert.match(html, /<a href="\/mail\/billing">Billing<\/a><a href="\/mail\/settings">Settings<\/a><a href="\/mail\/webhooks">Webhooks<\/a>/);
+  assert.match(html, /\.mail-search \{ display:none; \}/);
+  assert.match(html, /\.mail-nav a, \.mail-inbox-link, \.mailbox-create-link \{[^}]*min-height:44px;/);
+  assert.match(html, /\.brand \{[^}]*min-height:44px;/);
   assert.match(html, /support@reverbin\.com/);
   assert.match(html, /MAILBOXES/);
   assert.doesNotMatch(html, />Mailboxes<\/div>/);

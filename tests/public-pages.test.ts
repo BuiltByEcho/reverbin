@@ -1,6 +1,6 @@
 import * as assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { renderDashboardLoginPage, renderDashboardPage, renderDashboardUnavailablePage, renderDocsPage, renderFaviconSvg, renderLandingPage, renderLegalPage } from '../src/public-pages.js';
+import { renderDashboardLoginPage, renderDashboardPage, renderDashboardUnavailablePage, renderDocsPage, renderFaviconSvg, renderLandingPage, renderLegalPage, renderSignupPage } from '../src/public-pages.js';
 
 test('landing page presents Reverbin as agent communication infrastructure', () => {
   const html = renderLandingPage();
@@ -272,6 +272,17 @@ test('dashboard login page starts with one email field and keeps code entry sepa
   assert.doesNotMatch(html, /Operational dashboard access/);
   assert.doesNotMatch(html, /Enter the dashboard token configured for this deployment/);
   assert.doesNotMatch(html, /app token/);
+});
+
+test('signup and dashboard login keep primary mobile tap targets at least 44px tall', () => {
+  const signup = renderSignupPage();
+  const login = renderDashboardLoginPage();
+
+  assert.match(signup, /\.brand \{[^}]*min-height:\s*44px;/);
+  assert.match(login, /\.brand \{[^}]*min-height:\s*44px;/);
+  assert.match(login, /\.advanced-login summary \{[^}]*min-height:\s*44px;/);
+  assert.match(login, /\.advanced-login summary \{[^}]*display:\s*flex;/);
+  assert.match(login, /\.advanced-login summary \{[^}]*align-items:\s*center;/);
 });
 
 test('dashboard login code page reuses the submitted email so users only type numbers', () => {
