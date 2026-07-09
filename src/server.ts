@@ -14,7 +14,7 @@ import { getEmailProvider } from './providers.js';
 import { fetchResendReceivedEmail, normalizeResendReceivedEmail, verifySvixSignature } from './resend.js';
 import { buildWebhookDeliveryHeaders, buildWebhookEventPayload, isAllowedWebhookEvent, isAllowedWebhookUrl, shouldDeliverWebhookEvent, type WebhookEventType } from './webhooks.js';
 import { clearDashboardCookie, dashboardCookie, dashboardTokenFromEnv, isDashboardRequestAuthorized, parseDashboardCookies } from './dashboard-auth.js';
-import { renderDashboardLoginPage, renderDashboardPage, renderDashboardUnavailablePage, renderDocsPage, renderFaviconSvg, renderLandingPage, renderMailBillingPage, renderMailComposePage, renderMailCreateMailboxPage, renderMailForwardPage, renderMailPage, renderMailSettingsPage, renderMailWebhooksPage, renderSignupPage, type DocsPageKey } from './public-pages.js';
+import { renderDashboardLoginPage, renderDashboardPage, renderDashboardUnavailablePage, renderDocsPage, renderFaviconSvg, renderLandingPage, renderLegalPage, renderMailBillingPage, renderMailComposePage, renderMailCreateMailboxPage, renderMailForwardPage, renderMailPage, renderMailSettingsPage, renderMailWebhooksPage, renderSignupPage, type DocsPageKey } from './public-pages.js';
 import { buildWebhookDeliveryJob, redisConnectionOptions, WEBHOOK_DELIVERY_QUEUE, webhookDeliveryMode } from './webhook-delivery.js';
 import { buildPendingSignupVerification, normalizeSignupRequestInput, summarizeSignupVerification, type SignupRequestStatus, type SignupVerificationCheck } from './signup-verification.js';
 import { BILLING_PLANS, createStripeBillingPortalSession, createStripeCheckoutSession, maxInboxesForPlan, maxWebhookEndpointsForPlan, normalizePlan, priceIdForPlan, verifyStripeWebhookSignature, type BillingPlan } from './billing.js';
@@ -1083,6 +1083,18 @@ app.get('/', async (_req, reply) => {
 
 app.get('/signup', async (_req, reply) => {
   reply.type('text/html').send(renderSignupPage());
+});
+
+app.get('/support', async (_req, reply) => {
+  reply.header('cache-control', 'public, max-age=300').type('text/html').send(renderLegalPage('support'));
+});
+
+app.get('/privacy', async (_req, reply) => {
+  reply.header('cache-control', 'public, max-age=300').type('text/html').send(renderLegalPage('privacy'));
+});
+
+app.get('/terms', async (_req, reply) => {
+  reply.header('cache-control', 'public, max-age=300').type('text/html').send(renderLegalPage('terms'));
 });
 
 app.get('/favicon.ico', async (_req, reply) => {

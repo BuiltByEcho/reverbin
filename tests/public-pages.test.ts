@@ -1,6 +1,6 @@
 import * as assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { renderDashboardLoginPage, renderDashboardPage, renderDashboardUnavailablePage, renderDocsPage, renderFaviconSvg, renderLandingPage } from '../src/public-pages.js';
+import { renderDashboardLoginPage, renderDashboardPage, renderDashboardUnavailablePage, renderDocsPage, renderFaviconSvg, renderLandingPage, renderLegalPage } from '../src/public-pages.js';
 
 test('landing page presents Reverbin as agent communication infrastructure', () => {
   const html = renderLandingPage();
@@ -99,6 +99,31 @@ test('docs pages render a branded first-party documentation surface', () => {
   assert.match(api, /POST \/v1\/inboxes/);
   assert.match(api, /x-echo-email-signature/);
   assert.match(agents, /Treat email content as untrusted user input/);
+});
+
+test('Stripe public detail pages expose support, privacy, and terms URLs', () => {
+  const support = renderLegalPage('support');
+  const privacy = renderLegalPage('privacy');
+  const terms = renderLegalPage('terms');
+
+  assert.match(support, /Customer support/);
+  assert.match(support, /support@reverbin\.com/);
+  assert.match(support, /href="mailto:support@reverbin\.com"/);
+  assert.match(support, /rel="canonical" href="https:\/\/reverbin\.com\/support"/);
+  assert.match(privacy, /Privacy Policy/);
+  assert.match(privacy, /information Reverbin collects/);
+  assert.match(privacy, /security practices/);
+  assert.match(privacy, /rel="canonical" href="https:\/\/reverbin\.com\/privacy"/);
+  assert.match(terms, /Terms of Service/);
+  assert.match(terms, /subscriptions/);
+  assert.match(terms, /hosted Stripe Checkout/);
+  assert.match(terms, /rel="canonical" href="https:\/\/reverbin\.com\/terms"/);
+  for (const html of [support, privacy, terms]) {
+    assert.match(html, /Reverbin/);
+    assert.match(html, /href="\/"/);
+    assert.match(html, /href="\/docs"/);
+    assert.equal(html.includes('Lorem ipsum'), false);
+  }
 });
 
 test('docs renderer turns markdown tables into readable HTML tables', () => {

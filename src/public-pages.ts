@@ -3942,6 +3942,102 @@ export function renderDocsPage(page: DocsPageKey = 'overview', markdown?: string
 </html>`;
 }
 
+type LegalPageKey = 'support' | 'privacy' | 'terms';
+
+const legalPageCopy: Record<LegalPageKey, { title: string; description: string; body: string }> = {
+  support: {
+    title: 'Customer support',
+    description: 'How to reach Reverbin about billing, account access, mail delivery, or agent inbox questions.',
+    body: `<article class="docs-article">
+      <h2>Contact Reverbin support</h2>
+      <p>For billing questions, charge questions, account access, mail delivery, webhook delivery, or agent inbox issues, email <a href="mailto:support@reverbin.com">support@reverbin.com</a>.</p>
+      <p>Include the email address on your Reverbin account, the affected inbox address, and any Stripe receipt or invoice ID if the question is about a charge.</p>
+      <h2>Billing support</h2>
+      <p>Reverbin subscriptions are processed through hosted Stripe Checkout and Stripe Customer Portal. Reverbin does not collect or store payment details.</p>
+    </article>`,
+  },
+  privacy: {
+    title: 'Privacy Policy',
+    description: 'The information Reverbin collects, how it is used, who it is disclosed to, and the security practices that protect it.',
+    body: `<article class="docs-article">
+      <h2>Information Reverbin collects</h2>
+      <p>Reverbin collects account contact information, issued inbox addresses, API key metadata, webhook endpoint metadata, billing identifiers from Stripe, and the message/thread data needed to provide agent email infrastructure.</p>
+      <h2>How Reverbin uses information</h2>
+      <p>We use this information to authenticate dashboard/API access, route inbound and outbound email, deliver signed webhook events, enforce send policies and quotas, operate billing, prevent abuse, debug reliability issues, and provide customer support.</p>
+      <h2>Disclosure</h2>
+      <p>We disclose information to service providers that operate the product, including email delivery, hosting, storage, observability, and payment providers such as Stripe. We may disclose information when required for legal, security, fraud-prevention, or compliance reasons.</p>
+      <h2>Security practices</h2>
+      <p>Reverbin uses tenant-scoped API keys, signed webhooks, hashed secrets, authenticated dashboard access, audit logs, HTTPS, database access controls, and least-privilege operational practices to safeguard information.</p>
+      <h2>Contact</h2>
+      <p>Privacy questions can be sent to <a href="mailto:support@reverbin.com">support@reverbin.com</a>.</p>
+    </article>`,
+  },
+  terms: {
+    title: 'Terms of Service',
+    description: 'Terms for using Reverbin inboxes, APIs, webhooks, subscriptions, and hosted Stripe Checkout billing.',
+    body: `<article class="docs-article">
+      <h2>Using Reverbin</h2>
+      <p>Reverbin provides email inboxes, APIs, webhooks, thread storage, and dashboard tools for AI agents and builders. You are responsible for the agents, automations, recipients, webhooks, and content you connect to Reverbin.</p>
+      <h2>Subscriptions and billing</h2>
+      <p>Paid Reverbin subscriptions are purchased through hosted Stripe Checkout. Stripe processes payment details, invoices, receipts, payment-method updates, cancellations, and related billing operations through Stripe-hosted flows.</p>
+      <h2>Acceptable use</h2>
+      <p>Do not use Reverbin for spam, phishing, credential theft, harassment, malware, evading platform limits, or unlawful activity. Reverbin may limit, suspend, or terminate access to protect users, recipients, providers, and infrastructure.</p>
+      <h2>Reliability</h2>
+      <p>Reverbin is operated as production infrastructure, but email delivery, third-party APIs, webhooks, and payment providers can be delayed or unavailable. Build agent runtimes with retries, idempotency, and safe failure behavior.</p>
+      <h2>Support</h2>
+      <p>Questions about these terms can be sent to <a href="mailto:support@reverbin.com">support@reverbin.com</a>.</p>
+    </article>`,
+  },
+};
+
+export function renderLegalPage(page: LegalPageKey) {
+  const meta = legalPageCopy[page];
+  return `<!doctype html>
+<html lang="en">
+<head>
+  ${baseHead}
+  <title>${escapeHtml(meta.title)} - Reverbin</title>
+  <meta name="description" content="${escapeHtml(meta.description)}" />
+  <link rel="canonical" href="https://reverbin.com/${page}" />
+  <meta property="og:title" content="${escapeHtml(meta.title)} - Reverbin" />
+  <meta property="og:description" content="${escapeHtml(meta.description)}" />
+  ${docsCss()}
+</head>
+<body>
+  <main class="docs-shell">
+    <header class="docs-header">
+      <a class="brand" href="/" aria-label="Reverbin home">${reverbinMarkSvg()}<span>reverbin</span></a>
+      <nav class="top-actions" aria-label="Public page actions">
+        <a class="button" href="/">Product</a>
+        <a class="button" href="/docs">Docs</a>
+        <a class="button primary" href="${SIGNUP_HREF}">Sign up</a>
+      </nav>
+    </header>
+    <section class="docs-hero" aria-label="${escapeHtml(meta.title)}">
+      <div>
+        <span class="section-label">Public details</span>
+        <h1>${escapeHtml(meta.title)}</h1>
+        <p class="lede">${escapeHtml(meta.description)}</p>
+      </div>
+      <nav class="docs-nav" aria-label="Public details navigation">
+        <a href="/support"${page === 'support' ? ' aria-current="page"' : ''}><span>Support</span><b>Customer support</b></a>
+        <a href="/privacy"${page === 'privacy' ? ' aria-current="page"' : ''}><span>Privacy</span><b>Privacy Policy</b></a>
+        <a href="/terms"${page === 'terms' ? ' aria-current="page"' : ''}><span>Terms</span><b>Terms of Service</b></a>
+      </nav>
+    </section>
+    <section class="docs-layout">
+      <nav class="docs-nav" aria-label="Public details navigation secondary">
+        <a href="/support"${page === 'support' ? ' aria-current="page"' : ''}><span>Support</span><b>Customer support</b></a>
+        <a href="/privacy"${page === 'privacy' ? ' aria-current="page"' : ''}><span>Privacy</span><b>Privacy Policy</b></a>
+        <a href="/terms"${page === 'terms' ? ' aria-current="page"' : ''}><span>Terms</span><b>Terms of Service</b></a>
+      </nav>
+      <div>${meta.body}</div>
+    </section>
+  </main>
+</body>
+</html>`;
+}
+
 export function renderDocsRedirectPage() {
   return renderDocsPage('api');
 }
