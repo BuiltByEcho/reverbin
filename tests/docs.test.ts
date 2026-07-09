@@ -15,7 +15,7 @@ function assertNoSecretExamples(content: string) {
   assert.doesNotMatch(content, /apiKey:\s*proces\.\.\.KEY/);
 }
 
-test('public signup CTAs open the self-serve agent signup page', () => {
+test('public signup CTAs open the self-serve inbox signup page', () => {
   const landing = renderLandingPage();
   const docs = renderDocsPage('overview');
   const signup = renderSignupPage();
@@ -32,6 +32,10 @@ test('public signup CTAs open the self-serve agent signup page', () => {
   assert.match(server, /app\.get\('\/signup'/);
   assert.match(signup, /id="agent-signup-form"/);
   assert.match(signup, /fetch\('\/v1\/agent-signups'/);
+  assert.match(signup, /Create your inbox\./);
+  assert.match(signup, /Free inbox signup/);
+  assert.match(signup, /Create free inbox/);
+  assert.match(signup, /Inbox created/);
   assert.match(signup, /Your API key is shown once/);
   assert.equal(signup.includes('pattern="[A-Za-z0-9._\\-]+"'), true);
   assert.doesNotMatch(signup, /pattern="\[a-zA-Z0-9\._-\]\+"/);
@@ -39,6 +43,11 @@ test('public signup CTAs open the self-serve agent signup page', () => {
   assert.doesNotMatch(signup, /Optional webhook/);
   assert.doesNotMatch(signup, /webhook_url/);
   assert.doesNotMatch(signup, /Webhook secret/);
+  assert.doesNotMatch(signup, /Create a free Reverbin agent/);
+  assert.doesNotMatch(signup, /Free agent signup/);
+  assert.doesNotMatch(signup, /Create free agent/);
+  assert.doesNotMatch(signup, /Agent created/);
+  assert.doesNotMatch(signup, /Free agents include/);
   assert.doesNotMatch(signup, /Upgrade with Checkout/);
   assert.doesNotMatch(signup, /billing-and-plan-upgrades/);
 });

@@ -52,7 +52,7 @@ test('landing page presents Reverbin as agent communication infrastructure', () 
 test('landing page pricing explains the upgrade value beyond raw mailbox counts', () => {
   const html = renderLandingPage();
 
-  assert.match(html, /Start with a real agent inbox/);
+  assert.match(html, /Start with a real inbox/);
   assert.match(html, /Best for testing one agent workflow/);
   assert.match(html, /Build production agent email flows/);
   assert.match(html, /For solo builders shipping real agents/);
@@ -62,8 +62,8 @@ test('landing page pricing explains the upgrade value beyond raw mailbox counts'
   assert.match(html, /100 mailboxes/);
   assert.match(html, /3 webhook endpoints/);
   assert.match(html, /10 webhook endpoints/);
-  assert.match(html, /Start free\. Upgrade when your agent needs more room\./);
-  assert.match(html, /Create a free agent first, then move to Developer or Startup from Billing/);
+  assert.match(html, /Start free\. Upgrade when your inbox needs more room\./);
+  assert.match(html, /Create a free inbox first, then move to Developer or Startup from Billing/);
   assert.match(html, /<a class="button primary" href="\/mail\/billing">Upgrade in Billing<\/a>/);
   assert.equal((html.match(/href="\/mail\/billing">Upgrade in Billing<\/a>/g) ?? []).length, 2);
   assert.equal(html.includes('hosted Stripe Checkout upgrade flow'), false);

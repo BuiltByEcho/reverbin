@@ -308,7 +308,8 @@ test('mail create mailbox page lets tenants add their second mailbox without cur
   assert.match(html, /name="email_address"/);
   assert.match(html, /placeholder="second@reverbin\.com"/);
   assert.match(html, /name="display_name"/);
-  assert.match(html, /2 mailboxes per agent/);
+  assert.match(html, /Free beta accounts can use 2 mailboxes/);
+  assert.doesNotMatch(html, /2 mailboxes per agent|Free beta agents|for this agent/);
   assert.match(html, /You already have the maximum number of mailboxes for this plan/);
   assert.doesNotMatch(html, /curl|POST \/v1\/inboxes|Operations dashboard/);
 });

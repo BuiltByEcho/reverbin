@@ -1,6 +1,6 @@
 const SIGNUP_HREF = '/signup';
 const CONTACT_HREF = 'mailto:hello@builtbyecho.com?subject=Reverbin%20enterprise&body=Tell%20us%20about%20your%20agent%20email%20volume%2C%20custom%20domain%20needs%2C%20and%20deployment%20requirements.';
-const ACCESS_REQUEST_NOTE = 'Create a free agent in the browser. Reverbin generates your inbox and tenant-scoped API key instantly.';
+const ACCESS_REQUEST_NOTE = 'Create a free inbox in the browser. Reverbin generates your address and tenant-scoped API key instantly.';
 
 const faviconSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="72" fill="#050606"/><path d="M148 383V129H292C364 129 410 169 410 231C410 292 365 330 292 330H148" fill="none" stroke="#F4F4F2" stroke-width="52" stroke-linecap="round" stroke-linejoin="round"/><path d="M286 330L394 432" fill="none" stroke="#F4F4F2" stroke-width="52" stroke-linecap="round"/><path d="M190 228H289C327 228 351 245 351 271C351 297 327 313 289 313H190" fill="none" stroke="#B9FF2D" stroke-width="32" stroke-linecap="round"/><circle cx="394" cy="432" r="16" fill="#B9FF2D"/></svg>`;
 const faviconHref = `data:image/svg+xml,${encodeURIComponent(faviconSvg)}`;
@@ -1528,16 +1528,16 @@ await reverbin.inboxes.create({
       <div class="section-head compact-head">
         <div>
           <span class="section-label">Pricing</span>
-          <h2 id="pricing-heading">Start free. Upgrade when your agent needs more room.</h2>
+          <h2 id="pricing-heading">Start free. Upgrade when your inbox needs more room.</h2>
         </div>
-        <p>Create a free agent first, then move to Developer or Startup from Billing when you need more mailboxes, volume, webhooks, and support.</p>
+        <p>Create a free inbox first, then move to Developer or Startup from Billing when you need more mailboxes, volume, webhooks, and support.</p>
       </div>
       <div class="resource-grid pricing-grid" aria-label="Reverbin pricing plans">
         <article class="resource-panel pricing-card">
           <code>Free</code>
           <h4>$0/mo</h4>
           ${renderPlanValueList('free')}
-          <a class="button" href="${SIGNUP_HREF}">Create free agent</a>
+          <a class="button" href="${SIGNUP_HREF}">Create free inbox</a>
         </article>
         <article class="resource-panel pricing-card featured">
           <code>Developer</code>
@@ -1802,7 +1802,7 @@ type PlanValueCopy = {
 const planValueCopy: Partial<Record<MailBillingPlanView['key'], PlanValueCopy>> = {
   free: {
     kicker: 'Best for testing one agent workflow',
-    headline: 'Start with a real agent inbox.',
+    headline: 'Start with a real inbox.',
     description: 'Try Reverbin with root-domain addresses, a small monthly email allowance, and one webhook endpoint before committing to paid volume.',
     bullets: ['2 mailboxes', '2,000 emails/month', '1 webhook endpoint'],
   },
@@ -2286,7 +2286,7 @@ export function renderMailCreateMailboxPage(data: MailCreateMailboxPageData) {
 <head>
   ${baseHead}
   <title>Reverbin Create Mailbox</title>
-  <meta name="description" content="Create another Reverbin mailbox for this agent from the mail dashboard." />
+  <meta name="description" content="Create another Reverbin mailbox from the mail dashboard." />
   <style>${mailSettingsCss()}</style>
 </head>
 <body>
@@ -2299,7 +2299,7 @@ export function renderMailCreateMailboxPage(data: MailCreateMailboxPageData) {
     <section class="settings-layout" aria-label="Create mailbox">
       ${renderMailSettingsSidebar(data.inboxes, 'inbox')}
       <section class="settings-main">
-        <div class="settings-hero"><div><p class="eyebrow">Mailboxes</p><h1>Create mailbox</h1><p>Add another Reverbin address for this agent. Free beta agents can use 2 mailboxes per agent.</p></div></div>
+        <div class="settings-hero"><div><p class="eyebrow">Mailboxes</p><h1>Create mailbox</h1><p>Add another Reverbin address to this account. Free beta accounts can use 2 mailboxes.</p></div></div>
         ${renderSettingsNotice(data.notice)}
         <form class="settings-card" method="post" action="/mail/mailboxes">
           <div class="settings-grid">
@@ -2520,7 +2520,7 @@ export function renderSignupPage() {
 <head>
   ${baseHead}
   <title>Sign up for Reverbin - Email for AI agents</title>
-  <meta name="description" content="Create a free Reverbin agent, provision a root-domain inbox, and receive a tenant-scoped API key instantly." />
+  <meta name="description" content="Create a free Reverbin inbox, provision a root-domain address, and receive a tenant-scoped API key instantly." />
   <link rel="canonical" href="https://reverbin.com/signup" />
   <style>
     :root { color-scheme: dark; --black: #0A0A0A; --charcoal: #121417; --ivory: #F4F4F2; --mint: #BDE6D3; --signal: #C6FF6E; --muted: rgba(244,244,242,.72); --line: rgba(244,244,242,.16); --danger: #ff8a8a; }
@@ -2570,16 +2570,16 @@ export function renderSignupPage() {
     <section class="layout" aria-labelledby="signup-heading">
       <div>
         <div class="eyebrow">Self-serve beta</div>
-        <h1 id="signup-heading">Create your agent inbox.</h1>
-        <p class="lede">Create a free Reverbin agent, receive a root-domain inbox like <code>agent@reverbin.com</code>, and copy a tenant-scoped API key immediately. Free agents include 2 inboxes; additional setup can happen later from the dashboard.</p>
+        <h1 id="signup-heading">Create your inbox.</h1>
+        <p class="lede">Create a free Reverbin inbox, receive a root-domain address like <code>agent@reverbin.com</code>, and copy a tenant-scoped API key immediately. Free accounts include 2 mailboxes; additional setup can happen later from the dashboard.</p>
         <div class="proof" aria-label="What signup provisions">
           <div><b>Instant inbox</b><span>Signup provisions your first <code>@reverbin.com</code> address without waiting for an operator.</span></div>
-          <div><b>Scoped API key</b><span>The key only has access to the tenant created for this agent. Your API key is shown once.</span></div>
+          <div><b>Scoped API key</b><span>The key only has access to the tenant created for this inbox. Your API key is shown once.</span></div>
           <div><b>Setup later</b><span>Keep signup simple now. Add routing, billing, and operational settings after the inbox exists.</span></div>
         </div>
       </div>
       <div class="card">
-        <h2>Free agent signup</h2>
+        <h2>Free inbox signup</h2>
         <p>Use a real email address so you can recover account context later. The preferred inbox name becomes <code>name@reverbin.com</code>.</p>
         <form id="agent-signup-form">
           <label>Email
@@ -2595,11 +2595,11 @@ export function renderSignupPage() {
           <label>Agent use case
             <textarea name="agent_use_case" placeholder="What will this agent use email for?" required minlength="10"></textarea>
           </label>
-          <button type="submit">Create free agent</button>
+          <button type="submit">Create free inbox</button>
           <div id="signup-status" class="status" role="status" aria-live="polite"></div>
         </form>
         <section id="signup-result" class="result card" hidden aria-label="Signup result">
-          <h2>Agent created</h2>
+          <h2>Inbox created</h2>
           <p>Your API key is shown once. Copy it now before leaving this page.</p>
           <pre id="signup-output"></pre>
           <div class="nav">
@@ -2655,7 +2655,7 @@ export function renderSignupPage() {
         }
         outputEl.textContent = quickstartText(result);
         resultEl.hidden = false;
-        setStatus('Agent created. Copy the one-time API key below.', false);
+        setStatus('Inbox created. Copy the one-time API key below.', false);
       } catch (error) {
         setStatus(error instanceof Error ? error.message : 'Signup failed. Please try again.', true);
       }
