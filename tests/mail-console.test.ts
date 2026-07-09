@@ -461,7 +461,8 @@ test('mail webhooks page lets tenants add webhook endpoints without the ops dash
 
   assert.match(html, /data-surface-id="mail-webhooks"/);
   assert.match(html, /Webhooks/);
-  assert.match(html, /Simple webhook setup/);
+  assert.match(html, /Webhook endpoints/);
+  assert.match(html, /input, textarea, select \{[^}]*min-height:44px;/);
   assert.match(html, /action="\/mail\/webhooks"/);
   assert.match(html, /name="url"/);
   assert.match(html, /name="secret"/);
