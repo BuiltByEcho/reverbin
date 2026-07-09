@@ -33,6 +33,8 @@ test('public signup CTAs open the self-serve agent signup page', () => {
   assert.match(signup, /id="agent-signup-form"/);
   assert.match(signup, /fetch\('\/v1\/agent-signups'/);
   assert.match(signup, /Your API key is shown once/);
+  assert.equal(signup.includes('pattern="[A-Za-z0-9._\\-]+"'), true);
+  assert.doesNotMatch(signup, /pattern="\[a-zA-Z0-9\._-\]\+"/);
   assert.doesNotMatch(signup, /Webhook URL/);
   assert.doesNotMatch(signup, /Optional webhook/);
   assert.doesNotMatch(signup, /webhook_url/);

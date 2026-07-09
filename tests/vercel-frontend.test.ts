@@ -54,7 +54,9 @@ test('frontend static build emits Vercel Build Output API files without backend 
     const docsAgents = readFileSync(docsAgentsPath, 'utf8');
     const llms = readFileSync(llmsPath, 'utf8');
 
-    assert.match(html, /Communication infrastructure for autonomous agents/);
+    assert.match(html, /Reverbin - Email for AI agents/);
+    assert.match(html, /Reverbin is an email service for AI agents/);
+    assert.equal(html.includes('Communication infrastructure for autonomous agents'), false);
     assert.match(html, /user@reverbin\.com/);
     assert.equal(html.includes('dustin@reverbin.com'), false);
     assert.equal(html.includes('agents.reverbin.com'), false);

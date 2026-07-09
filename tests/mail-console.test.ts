@@ -97,10 +97,10 @@ test('human mail console renders a Gmail-style three-pane inbox with reply contr
   assert.match(html, /href="\/mail\/compose\?inbox_id=inb_1"/);
   assert.doesNotMatch(html, /mailto:/);
   assert.match(html, /Inbox/);
-  assert.match(html, /Mailboxes/);
+  assert.match(html, /MAILBOXES/);
   assert.match(html, /href="\/mail\/mailboxes\/new"/);
   assert.match(html, />Create mailbox<\/a>/);
-  assert.doesNotMatch(html, />Inboxes<|>INBOXES</);
+  assert.doesNotMatch(html, />Mailboxes<|>Inboxes<|>INBOXES</);
   assert.match(html, /Sent/);
   assert.match(html, /Webhooks/);
   assert.match(html, /href="\/mail\/webhooks"/);
@@ -407,10 +407,12 @@ test('mail settings page is simple, tenant scoped, and editable', () => {
   });
 
   assert.match(html, /data-surface-id="mail-settings"/);
-  assert.match(html, /Settings/);
+  assert.match(html, /Mailbox settings/);
   assert.match(html, /Simple inbox settings/);
+  assert.match(html, /<a href="\/mail\/billing">Billing<\/a><a href="\/mail\/settings">Settings<\/a><a href="\/mail\/webhooks">Webhooks<\/a>/);
   assert.match(html, /support@reverbin\.com/);
-  assert.match(html, /Mailboxes/);
+  assert.match(html, /MAILBOXES/);
+  assert.doesNotMatch(html, />Mailboxes<\/div>/);
   assert.doesNotMatch(html, />Inboxes<|>INBOXES|Inbox settings navigation/);
   assert.match(html, /action="\/mail\/settings"/);
   assert.match(html, /name="display_name"/);

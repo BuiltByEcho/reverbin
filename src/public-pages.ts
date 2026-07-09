@@ -47,16 +47,16 @@ export function renderLandingPage() {
 <html lang="en">
 <head>
   ${baseHead}
-  <title>Reverbin - Communication infrastructure for autonomous agents</title>
-  <meta name="description" content="Reverbin gives autonomous agents real inboxes, signed webhooks, threaded conversations, delivery logs, policy guardrails, and operator auditability." />
+  <title>Reverbin - Email for AI agents</title>
+  <meta name="description" content="Reverbin is an email service for AI agents: real inboxes, signed webhooks, threaded conversations, delivery logs, policy guardrails, and operator auditability." />
   <link rel="canonical" href="https://reverbin.com/" />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://reverbin.com/" />
-  <meta property="og:title" content="Reverbin - Communication infrastructure for autonomous agents" />
-  <meta property="og:description" content="Real inboxes, signed webhooks, threaded conversations, delivery logs, and operator auditability for agent runtimes." />
+  <meta property="og:title" content="Reverbin - Email for AI agents" />
+  <meta property="og:description" content="Real inboxes, signed webhooks, threaded conversations, delivery logs, and operator auditability for AI agent runtimes." />
   <meta name="twitter:card" content="summary" />
-  <meta name="twitter:title" content="Reverbin - Communication infrastructure for autonomous agents" />
-  <meta name="twitter:description" content="Real inboxes, signed webhooks, threaded conversations, delivery logs, and operator auditability for agent runtimes." />
+  <meta name="twitter:title" content="Reverbin - Email for AI agents" />
+  <meta name="twitter:description" content="Real inboxes, signed webhooks, threaded conversations, delivery logs, and operator auditability for AI agent runtimes." />
   <style>
     :root {
       color-scheme: dark;
@@ -2122,7 +2122,7 @@ export function renderMailPage(data: MailPageData) {
           <a href="/mail/webhooks">Webhooks</a>
           <a href="/mail/settings">Settings</a>
         </nav>
-        <div class="section-label">Mailboxes</div>
+        <div class="section-label">MAILBOXES</div>
         ${inboxLinks}
         <a class="mailbox-create-link" href="/mail/mailboxes/new">Create mailbox</a>
       </aside>
@@ -2182,7 +2182,7 @@ function renderMailSettingsSidebar(inboxes: MailInboxView[], active: 'inbox' | '
     <nav class="mail-nav" aria-label="Mail folders">
       ${nav.map(([key, href, label]) => `<a class="${active === key ? 'selected' : ''}" href="${href}">${label}</a>`).join('')}
     </nav>
-    <div class="section-label">Mailboxes</div>
+    <div class="section-label">MAILBOXES</div>
     ${inboxLinks}
     <a class="mailbox-create-link" href="/mail/mailboxes/new">Create mailbox</a>
   </aside>`;
@@ -2333,12 +2333,12 @@ export function renderMailSettingsPage(data: MailSettingsPageData) {
     <header class="mail-topbar">
       <a class="brand" href="/mail">${reverbinMarkSvg()}<span>Reverbin Mail</span></a>
       <div class="mail-search"><input type="search" placeholder="Search mail" aria-label="Search mail" disabled /></div>
-      <div class="top-actions"><a href="/mail/webhooks">Webhooks</a><a href="/docs">Docs</a><a href="/dashboard/logout">Logout</a></div>
+      <div class="top-actions"><a href="/mail/billing">Billing</a><a href="/mail/settings">Settings</a><a href="/mail/webhooks">Webhooks</a><a href="/docs">Docs</a><a href="/dashboard/logout">Logout</a></div>
     </header>
     <section class="settings-layout" aria-label="Simple inbox settings">
       ${renderMailSettingsSidebar(data.inboxes, 'settings', selectedInboxId)}
       <section class="settings-main">
-        <div class="settings-hero"><div><p class="eyebrow">Settings</p><h1>Simple inbox settings</h1><p>Make the common changes for this inbox without opening the operations dashboard.</p></div></div>
+        <div class="settings-hero"><div><p class="eyebrow">Settings</p><h1>Mailbox settings</h1><p>Make the common changes for this inbox without opening the operations dashboard.</p></div></div>
         ${renderSettingsNotice(data.notice)}
         <form class="settings-card" method="post" action="/mail/settings">
           <input type="hidden" name="inbox_id" value="${escapeHtml(selectedInboxId)}" />
@@ -2589,7 +2589,7 @@ export function renderSignupPage() {
             <input name="agent_name" type="text" autocomplete="organization-title" placeholder="Support Agent" required minlength="2" />
           </label>
           <label>Preferred inbox name
-            <input name="preferred_inbox_name" type="text" inputmode="latin" autocomplete="off" placeholder="support-agent" required minlength="3" maxlength="48" pattern="[a-zA-Z0-9._-]+" />
+            <input name="preferred_inbox_name" type="text" inputmode="latin" autocomplete="off" placeholder="support-agent" required minlength="3" maxlength="48" pattern="[A-Za-z0-9._\\-]+" />
             <span class="hint">Letters, numbers, dots, underscores, and hyphens. Reverbin normalizes this to lowercase.</span>
           </label>
           <label>Agent use case
@@ -3564,9 +3564,9 @@ export function renderDashboardLoginPage(error = '', notice = '', email = '') {
         ${errorHtml}
         ${noticeHtml}
         ${emailCodeFormHtml}
-        <details class="advanced-login">
+        <details class="advanced-login" open>
           <summary>Advanced: API key or operator token</summary>
-          <p class="form-note">If you already have an API key or internal operator token, you can still paste it here.</p>
+          <p class="form-note">Have an API key from signup? Paste it here. Operator tokens still work for internal access.</p>
           <form method="post" action="/dashboard/login">
             <input type="text" name="username" value="reverbin-dashboard" autocomplete="username" hidden />
             <label for="token">API key or operator token</label>
@@ -3823,7 +3823,7 @@ function docsCss() {
     body::before { content:""; position:fixed; inset:0; pointer-events:none; background-image:linear-gradient(rgba(244,244,242,.026) 1px,transparent 1px),linear-gradient(90deg,rgba(244,244,242,.026) 1px,transparent 1px); background-size:48px 48px; mask-image:linear-gradient(to bottom,black 0%,transparent 76%); }
     a { color:inherit; text-decoration:none; }
     code, pre { font-family:'Geist Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
-    .docs-shell { position:relative; width:100%; padding:24px clamp(24px,4.4vw,82px) 72px; }
+    .docs-shell { position:relative; width:100%; padding:24px clamp(24px,4.4vw,82px) 72px; overflow-x:hidden; }
     .docs-header { position:sticky; top:0; z-index:20; display:flex; align-items:center; justify-content:space-between; gap:18px; margin:-24px calc(-1 * clamp(24px,4.4vw,82px)) 0; padding:18px clamp(24px,4.4vw,82px); border-bottom:1px solid rgba(244,244,242,.08); background:rgba(10,10,10,.78); backdrop-filter:blur(18px); }
     .brand { display:inline-flex; align-items:center; gap:12px; min-width:max-content; min-height:44px; font-size:20px; font-weight:800; letter-spacing:.015em; }
     .brand-mark { width:40px; height:40px; filter:drop-shadow(0 0 22px rgba(185,255,45,.2)); }
@@ -3844,8 +3844,9 @@ function docsCss() {
     .docs-card { display:block; min-height:220px; padding:20px; }
     .docs-card h2 { margin:34px 0 10px; font-size:28px; }
     .docs-card p { color:var(--muted); line-height:1.55; }
-    .docs-layout { display:grid; grid-template-columns:minmax(220px,300px) minmax(0,1fr); gap:clamp(24px,4vw,64px); padding:34px 0 0; align-items:start; }
-    .docs-article { min-width:0; max-width:980px; }
+    .docs-layout { display:grid; grid-template-columns:minmax(220px,300px) minmax(0,1fr); gap:clamp(24px,4vw,64px); padding:34px 0 0; align-items:start; min-width:0; max-width:100%; }
+    .docs-layout > div, .docs-article, .docs-nav { min-width:0; max-width:100%; }
+    .docs-article { max-width:980px; }
     .docs-article h2 { margin:34px 0 12px; font-size:34px; line-height:1.1; }
     .docs-article h3 { margin:28px 0 10px; font-size:24px; }
     .docs-article h4 { margin:24px 0 8px; font-size:18px; color:var(--mint); }
@@ -3860,9 +3861,9 @@ function docsCss() {
     .docs-article td:last-child { border-right:0; }
     .docs-article tr:last-child td { border-bottom:0; }
     .docs-article th { color:var(--ivory); background:rgba(185,255,45,.055); }
-    .docs-article pre { overflow:auto; padding:18px; border:1px solid var(--line); border-radius:var(--radius); background:#050606; color:var(--ivory); line-height:1.55; }
-    .docs-article code { color:var(--ivory); background:rgba(244,244,242,.08); border:1px solid rgba(244,244,242,.08); border-radius:5px; padding:.1em .34em; }
-    .docs-article pre code { padding:0; border:0; background:transparent; color:inherit; }
+    .docs-article pre { max-width:100%; overflow-x:auto; white-space:pre-wrap; overflow-wrap:anywhere; padding:18px; border:1px solid var(--line); border-radius:var(--radius); background:#050606; color:var(--ivory); line-height:1.55; }
+    .docs-article code { color:var(--ivory); background:rgba(244,244,242,.08); border:1px solid rgba(244,244,242,.08); border-radius:5px; padding:.1em .34em; overflow-wrap:anywhere; word-break:break-word; }
+    .docs-article pre code { padding:0; border:0; background:transparent; color:inherit; white-space:pre-wrap; overflow-wrap:anywhere; word-break:break-word; }
     .endpoint-rail { display:grid; grid-template-columns:minmax(240px,.6fr) minmax(0,1fr); gap:24px; margin:30px 0 42px; padding:22px; border:1px solid var(--line); border-radius:var(--radius); background:rgba(244,244,242,.032); }
     .endpoint-rail h2 { margin:0; font-size:32px; line-height:1.05; }
     .endpoint-list { display:grid; gap:10px; }

@@ -9,7 +9,7 @@ test('landing page presents Reverbin as agent communication infrastructure', () 
   assert.match(html, /Email for AI agents/);
   assert.match(html, /Reverbin is an email service for AI agents/);
   assert.match(html, /Give every agent a real email address/);
-  assert.match(html, /Communication infrastructure for autonomous agents/);
+  assert.equal(html.includes('Communication infrastructure for autonomous agents'), false);
   assert.match(html, /user@reverbin\.com/);
   assert.match(html, /support@reverbin\.com/);
   assert.equal(html.includes('agents.reverbin.com'), false);
@@ -32,7 +32,9 @@ test('landing page presents Reverbin as agent communication infrastructure', () 
   assert.match(html, /npm install @builtbyecho\/reverbin/);
   assert.match(html, /#B9FF2D/);
   assert.match(html, /rel="canonical" href="https:\/\/reverbin\.com\/"/);
-  assert.match(html, /property="og:title" content="Reverbin - Communication infrastructure for autonomous agents"/);
+  assert.match(html, /property="og:title" content="Reverbin - Email for AI agents"/);
+  assert.match(html, /<title>Reverbin - Email for AI agents<\/title>/);
+  assert.equal(html.includes('Reverbin - Communication infrastructure for autonomous agents'), false);
   assert.equal(Array.from(html.matchAll(/<svg[^>]*aria-hidden="true"[^>]*>/g)).every((match) => match[0].includes('focusable="false"')), true);
   assert.equal(html.includes('proces...KEY'), false);
   assert.equal(html.includes('class="network"'), false);
@@ -157,15 +159,16 @@ test('docs renderer turns markdown tables into readable HTML tables', () => {
   assert.equal(html.includes('| Symptom | What to check |'), false);
 });
 
-test('docs pages include mobile overflow guards for long API content', () => {
+test('docs pages include desktop and mobile overflow guards for long API content', () => {
   const api = renderDocsPage('api');
 
+  assert.match(api, /\.docs-shell \{[\s\S]*?overflow-x: hidden;/);
+  assert.match(api, /\.docs-layout,[\s\S]*?\.docs-nav \{[\s\S]*?min-width: 0;[\s\S]*?max-width: 100%;/);
+  assert.match(api, /\.docs-article pre \{[^}]*max-width:\s*100%;[^}]*overflow-x:\s*auto;[^}]*white-space:\s*pre-wrap;[^}]*overflow-wrap:\s*anywhere;/);
+  assert.match(api, /\.docs-article code \{[^}]*overflow-wrap:\s*anywhere;[^}]*word-break:\s*break-word;/);
+  assert.match(api, /\.docs-article pre code \{[^}]*white-space:\s*pre-wrap;[^}]*overflow-wrap:\s*anywhere;[^}]*word-break:\s*break-word;/);
   assert.match(api, /@media \(max-width: 760px\)/);
   assert.match(api, /\.docs-shell \{ padding: 18px; overflow-x: hidden; \}/);
-  assert.match(api, /\.docs-layout, \.docs-layout > div, \.docs-article, \.docs-nav \{ min-width: 0; max-width: 100%; \}/);
-  assert.match(api, /\.docs-article pre \{ max-width: 100%; overflow-x: auto; white-space: pre-wrap; \}/);
-  assert.match(api, /\.docs-article code \{ overflow-wrap: anywhere; \}/);
-  assert.match(api, /\.docs-article pre code \{ white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; \}/);
 });
 
 test('favicon renderer exposes the branded lime Reverbin mark', () => {
@@ -261,6 +264,8 @@ test('dashboard login page starts with one email field and keeps code entry sepa
   assert.doesNotMatch(html, /autocomplete="one-time-code"/);
   assert.equal((html.match(/name="email"/g) ?? []).length, 1);
   assert.match(html, /Advanced: API key or operator token/);
+  assert.match(html, /<details class="advanced-login" open>/);
+  assert.match(html, /Have an API key from signup\? Paste it here/);
   assert.match(html, /API key or operator token/);
   assert.match(html, /autocomplete="username"/);
   assert.match(html, /autocomplete="current-password"/);
