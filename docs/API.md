@@ -165,12 +165,12 @@ A `409` means the requested root-domain inbox name is already taken. Pick a diff
 
 Reverbin uses hosted **Stripe Checkout** for paid subscriptions. Stripe displays **Link** inside Checkout when Link is enabled for the Stripe account, so Reverbin never collects card numbers, CVCs, or expiry fields.
 
-| Plan | Price | Inboxes | Emails/month | Webhooks |
-| --- | ---: | ---: | ---: | ---: |
-| Free | $0/month | 2 | 2,000 | 1 |
-| Developer | $19/month | 10 | 10,000 | 3 |
-| Startup Beta | $149/month | 100 | 100,000 | 10 |
-| Enterprise | Custom | Custom | Custom | Custom |
+| Plan | Best for | Value add | Price | Inboxes | Emails/month | Webhooks |
+| --- | --- | --- | ---: | ---: | ---: | ---: |
+| Free | Best for testing one agent workflow | Start with a real agent inbox, root-domain addresses, and one webhook before committing to paid volume. | $0/month | 2 | 2,000 | 1 |
+| Developer | For solo builders shipping real agents | Build production agent email flows with more mailboxes, higher volume, multiple webhooks, API keys, and audit logs. | $19/month | 10 | 10,000 | 3 |
+| Startup Beta | For startups running multiple agents | Scale a team or beta product with 100 mailboxes, higher monthly volume, more webhook destinations, and priority support. | $149/month | 100 | 100,000 | 10 |
+| Enterprise | For larger agent fleets | Custom scale, domains, deployment, support, and compliance needs. | Custom | Custom | Custom | Custom |
 
 ### List plans
 

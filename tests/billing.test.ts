@@ -127,6 +127,9 @@ test('billing routes, schema, docs, and landing page expose paid checkout withou
   assert.match(docs, /Link/);
   assert.match(docs, /Developer[\s\S]*\$19\/month/);
   assert.match(docs, /Startup Beta[\s\S]*\$149\/month/);
+  assert.match(docs, /Developer[\s\S]*For solo builders shipping real agents/);
+  assert.match(docs, /Startup Beta[\s\S]*For startups running multiple agents/);
+  assert.match(docs, /Free[\s\S]*Best for testing one agent workflow/);
 
   assert.match(publicPages, /Developer/);
   assert.match(publicPages, /\$19\/mo/);

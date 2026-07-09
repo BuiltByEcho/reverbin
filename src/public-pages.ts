@@ -596,7 +596,8 @@ export function renderLandingPage() {
       color: var(--muted);
       line-height: 1.6;
     }
-    .feature-list {
+    .feature-list,
+    .plan-value-list {
       display: grid;
       gap: 10px;
       align-self: end;
@@ -604,7 +605,16 @@ export function renderLandingPage() {
       padding: 0;
       list-style: none;
     }
-    .feature-list li {
+    .plan-value-list { margin: 16px 0 0; }
+    .plan-kicker {
+      color: var(--signal) !important;
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+    }
+    .feature-list li,
+    .plan-value-list li {
       display: grid;
       grid-template-columns: 12px minmax(0, 1fr);
       gap: 10px;
@@ -612,7 +622,8 @@ export function renderLandingPage() {
       line-height: 1.45;
       font-size: 14px;
     }
-    .feature-list li::before {
+    .feature-list li::before,
+    .plan-value-list li::before {
       content: "";
       width: 7px;
       height: 7px;
@@ -1525,25 +1536,25 @@ await reverbin.inboxes.create({
         <article class="resource-panel pricing-card">
           <code>Free</code>
           <h4>$0/mo</h4>
-          <p>2 inboxes, 2,000 emails/month, 1 webhook endpoint, Reverbin domain addresses.</p>
+          ${renderPlanValueList('free')}
           <a class="button" href="${SIGNUP_HREF}">Create free agent</a>
         </article>
         <article class="resource-panel pricing-card featured">
           <code>Developer</code>
           <h4>$19/mo</h4>
-          <p>10 inboxes, 10,000 emails/month, 3 webhooks, API keys, audit logs, and hosted Stripe Checkout upgrade flow.</p>
+          ${renderPlanValueList('developer')}
           <a class="button primary" href="/docs/api#billing-and-plan-upgrades">Upgrade with Checkout</a>
         </article>
         <article class="resource-panel pricing-card">
           <code>Startup Beta</code>
           <h4>$149/mo</h4>
-          <p>100 inboxes, 100,000 emails/month, 10 webhooks, priority support, and plan quotas synced by Stripe webhooks.</p>
+          ${renderPlanValueList('startup')}
           <a class="button" href="/docs/api#billing-and-plan-upgrades">View billing API</a>
         </article>
         <article class="resource-panel pricing-card">
           <code>Enterprise</code>
           <h4>Custom</h4>
-          <p>Custom domains, volume, deployment, support, and compliance needs for larger agent fleets.</p>
+          ${renderPlanValueList('enterprise')}
           <a class="button" href="${CONTACT_HREF}">Contact us</a>
         </article>
       </div>
@@ -1780,6 +1791,46 @@ export type MailBillingPageData = {
   plans: MailBillingPlanView[];
   notice?: string | null;
 };
+
+type PlanValueCopy = {
+  kicker: string;
+  headline: string;
+  description: string;
+  bullets: string[];
+};
+
+const planValueCopy: Partial<Record<MailBillingPlanView['key'], PlanValueCopy>> = {
+  free: {
+    kicker: 'Best for testing one agent workflow',
+    headline: 'Start with a real agent inbox.',
+    description: 'Try Reverbin with root-domain addresses, a small monthly email allowance, and one webhook endpoint before committing to paid volume.',
+    bullets: ['2 mailboxes', '2,000 emails/month', '1 webhook endpoint'],
+  },
+  developer: {
+    kicker: 'For solo builders shipping real agents',
+    headline: 'Build production agent email flows.',
+    description: 'Move beyond testing with enough addresses, email volume, webhooks, API keys, and audit logs for a serious agent project.',
+    bullets: ['10 mailboxes', '10,000 emails/month', '3 webhook endpoints', 'API keys and audit logs'],
+  },
+  startup: {
+    kicker: 'For startups running multiple agents',
+    headline: 'Scale a team or beta product.',
+    description: 'Run multi-agent products with far more mailboxes, higher monthly volume, more webhook destinations, and priority support during beta.',
+    bullets: ['100 mailboxes', '100,000 emails/month', '10 webhook endpoints', 'Priority support'],
+  },
+  enterprise: {
+    kicker: 'For larger agent fleets',
+    headline: 'Custom scale, domains, and support.',
+    description: 'Bring custom domains, deployment needs, compliance requirements, and higher-volume agent email workflows.',
+    bullets: ['Custom mailboxes', 'Custom volume', 'Custom support'],
+  },
+};
+
+function renderPlanValueList(planKey: MailBillingPlanView['key']) {
+  const copy = planValueCopy[planKey];
+  if (!copy) return '';
+  return `<p class="plan-kicker">${escapeHtml(copy.kicker)}</p><h3>${escapeHtml(copy.headline)}</h3><p>${escapeHtml(copy.description)}</p><ul class="plan-value-list">${copy.bullets.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`;
+}
 
 export type MailWebhookView = {
   id: string;
@@ -2144,6 +2195,7 @@ function mailSettingsCss() {
     .mail-topbar { display:flex; align-items:center; gap:16px; padding:10px 18px; border-bottom:1px solid var(--line); background:rgba(8,9,9,.9); } .brand { display:flex; align-items:center; gap:10px; min-width:210px; font-weight:800; } .brand-mark { width:34px; height:34px; } .mail-search { flex:1; } .mail-search input { width:100%; max-width:760px; min-height:42px; border:1px solid var(--line); border-radius:999px; padding:0 18px; background:rgba(244,244,242,.06); color:var(--ivory); } .top-actions { margin-left:auto; display:flex; gap:10px; align-items:center; color:var(--muted); font-size:13px; } .top-actions a { padding:10px 12px; border:1px solid var(--line); border-radius:999px; }
     .settings-layout { min-height:0; display:grid; grid-template-columns:280px minmax(0, 1fr); } .mail-sidebar { padding:18px 14px; background:rgba(244,244,242,.035); border-right:1px solid var(--line); } .compose { display:flex; align-items:center; justify-content:center; min-height:48px; margin:0 0 18px; border-radius:18px; background:var(--ivory); color:#050606; font-weight:800; } .mail-nav { display:grid; gap:6px; margin-bottom:20px; } .mail-nav a, .mail-inbox-link, .mailbox-create-link { display:flex; align-items:center; justify-content:space-between; gap:10px; min-height:42px; padding:10px 12px; border-radius:14px; color:var(--muted); } .mail-nav a:hover, .mail-nav a.selected, .mail-inbox-link:hover, .mail-inbox-link.selected, .mailbox-create-link:hover { background:rgba(185,255,45,.09); color:var(--ivory); } .mailbox-create-link { margin:8px 0 2px; border:1px dashed var(--line); color:var(--signal); font-weight:850; justify-content:center; } .mail-inbox-link span { display:grid; gap:3px; min-width:0; } .mail-inbox-link strong, .mail-inbox-link small { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .mail-inbox-link small, .mail-inbox-link em { color:var(--soft); } .mail-inbox-link em { font-style:normal; font-size:12px; } .section-label { margin:18px 12px 8px; color:var(--soft); text-transform:uppercase; letter-spacing:.14em; font-size:11px; font-weight:800; }
     .settings-main { padding:28px; overflow:auto; } .settings-hero { display:flex; justify-content:space-between; gap:20px; align-items:flex-start; margin-bottom:20px; } .eyebrow { margin:0 0 8px; color:var(--signal); text-transform:uppercase; font-size:11px; font-weight:900; letter-spacing:.16em; } h1 { margin:0; font-size:34px; } .settings-hero p, .form-note { color:var(--muted); line-height:1.55; } .settings-card { max-width:920px; border:1px solid var(--line); border-radius:22px; padding:20px; background:rgba(244,244,242,.045); margin-bottom:18px; } .settings-grid { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:14px; } label { display:grid; gap:7px; color:var(--muted); font-size:13px; font-weight:700; } input, textarea, select { width:100%; border:1px solid var(--line); border-radius:13px; padding:11px 12px; background:#0b0d0e; color:var(--ivory); } textarea { min-height:96px; resize:vertical; } .advanced-settings { margin-top:16px; border:1px solid var(--line); border-radius:18px; background:rgba(244,244,242,.035); overflow:hidden; } .advanced-settings summary { cursor:pointer; padding:14px 16px; color:var(--ivory); font-weight:900; list-style:none; } .advanced-settings summary::-webkit-details-marker { display:none; } .advanced-settings summary::after { content:'+'; float:right; color:var(--signal); } .advanced-settings[open] summary::after { content:'−'; } .advanced-body { display:grid; gap:14px; padding:0 16px 16px; } .check-row { display:flex; align-items:center; gap:10px; border:1px solid var(--line); border-radius:14px; padding:12px; color:var(--muted); } .check-row input { width:auto; } .settings-actions { display:flex; justify-content:flex-end; margin-top:16px; } button { min-height:42px; border:0; border-radius:999px; padding:0 18px; background:var(--signal); color:#050606; font-weight:900; cursor:pointer; } .settings-notice { max-width:920px; margin:0 0 14px; padding:10px 12px; border:1px solid rgba(185,255,45,.28); border-radius:12px; color:var(--signal); background:rgba(185,255,45,.07); font-weight:800; } .webhook-list { display:grid; gap:10px; } .webhook-row { border:1px solid var(--line); border-radius:16px; padding:14px; background:rgba(244,244,242,.04); } .webhook-row strong { display:block; overflow-wrap:anywhere; } .webhook-row span { color:var(--muted); font-size:13px; } .mail-empty { padding:16px; border:1px dashed var(--line); border-radius:16px; color:var(--soft); }
+    .plan-kicker { margin:14px 0 8px; color:var(--signal); text-transform:uppercase; letter-spacing:.12em; font-size:11px; font-weight:900; } .billing-plan h3 { margin:0 0 8px; font-size:20px; } .billing-plan p { color:var(--muted); line-height:1.55; } .plan-value-list { display:grid; gap:8px; margin:14px 0; padding:0; list-style:none; color:var(--ivory); } .plan-value-list li { display:grid; grid-template-columns:10px minmax(0, 1fr); gap:9px; font-size:13px; color:rgba(244,244,242,.82); } .plan-value-list li::before { content:''; width:6px; height:6px; margin-top:7px; border-radius:50%; background:var(--signal); }
     @media (max-width: 900px) { .settings-layout { grid-template-columns:1fr; } .mail-sidebar { border-right:0; border-bottom:1px solid var(--line); } .settings-grid { grid-template-columns:1fr; } .top-actions { display:none; } }`;
 }
 
@@ -2172,9 +2224,12 @@ export function renderMailBillingPage(data: MailBillingPageData) {
   const paidPlans = data.plans.filter((plan) => plan.key === 'developer' || plan.key === 'startup');
   const planCards = paidPlans.map((plan) => {
     const current = plan.key === currentPlan;
+    const valueLabel = plan.key === 'developer' ? 'Production agent workflows' : 'Team-scale agent email';
     return `<article class="settings-card billing-plan ${current ? 'current' : ''}">
       <p class="eyebrow">${escapeHtml(plan.label)}</p>
       <h2>$${escapeHtml(String(plan.price_monthly_usd ?? 'Custom'))}/mo</h2>
+      <p class="form-note"><strong>${escapeHtml(valueLabel)}</strong></p>
+      ${renderPlanValueList(plan.key)}
       <p class="form-note">${escapeHtml(formatPlanValue(plan.max_inboxes, 'mailboxes'))} · ${escapeHtml(formatPlanValue(plan.emails_per_month, 'emails/month'))} · ${escapeHtml(formatPlanValue(plan.max_webhooks, 'webhooks'))}</p>
       <form method="post" action="/mail/billing/checkout">
         <input type="hidden" name="plan" value="${escapeHtml(plan.key)}" />

@@ -47,6 +47,22 @@ test('landing page presents Reverbin as agent communication infrastructure', () 
   assert.equal(html.includes('No credit card required'), false);
 });
 
+test('landing page pricing explains the upgrade value beyond raw mailbox counts', () => {
+  const html = renderLandingPage();
+
+  assert.match(html, /Start with a real agent inbox/);
+  assert.match(html, /Best for testing one agent workflow/);
+  assert.match(html, /Build production agent email flows/);
+  assert.match(html, /For solo builders shipping real agents/);
+  assert.match(html, /Scale a team or beta product/);
+  assert.match(html, /For startups running multiple agents/);
+  assert.match(html, /10 mailboxes/);
+  assert.match(html, /100 mailboxes/);
+  assert.match(html, /3 webhook endpoints/);
+  assert.match(html, /10 webhook endpoints/);
+  assert.equal(html.includes('hosted Stripe Checkout upgrade flow'), false);
+});
+
 test('landing page consolidates secondary information into accessible tabs', () => {
   const html = renderLandingPage();
 

@@ -353,6 +353,12 @@ test('mail billing page lets tenants upgrade from the dashboard through hosted S
   assert.match(html, /\$19\/mo/);
   assert.match(html, /Startup Beta/);
   assert.match(html, /\$149\/mo/);
+  assert.match(html, /For solo builders shipping real agents/);
+  assert.match(html, /For startups running multiple agents/);
+  assert.match(html, /10 mailboxes/);
+  assert.match(html, /100 mailboxes/);
+  assert.match(html, /Production agent workflows/);
+  assert.match(html, /Team-scale agent email/);
   assert.match(html, /method="post" action="\/mail\/billing\/checkout"/);
   assert.match(html, /name="plan" value="developer"/);
   assert.match(html, /name="plan" value="startup"/);
